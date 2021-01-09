@@ -3,9 +3,72 @@ import pandas as pd
 import os.path
 import traceback
 import glob
+import gc
 
 from pathlib import Path
 from numpy.random import default_rng
+
+
+def run_simBEV_import(
+        data_dir,
+        localiser_data_dir,
+):
+    try:
+        # get ags numbers
+        ags_lst, ags_dirs = get_ags(data_dir)
+
+        for count, ags_dir in enumerate(ags_dirs):
+
+            (df_standing_times_home, df_standing_times_work,
+             df_standing_times_public, df_standing_times_hpc) = get_ags_data(ags_dir)
+
+            df_cp_hpc, df_cp_public, df_cp_home, df_cp_work = get_charging_points(
+                localiser_data_dir,
+                ags_dir,
+            )
+
+            use_cases = [
+                "home",
+                "work",
+                "public",
+                "hpc",
+            ]
+
+            for use_case in use_cases:
+                if use_case == "home":
+                    distribute_demand(
+                        use_case,
+                        df_standing_times_home,
+                        df_cp_home,
+                        ags_dir,
+                    )
+                elif use_case == "work":
+                    distribute_demand(
+                        use_case,
+                        df_standing_times_work,
+                        df_cp_work,
+                        ags_dir,
+                    )
+                elif use_case == "hpc":
+                    distribute_demand(
+                        use_case,
+                        df_standing_times_public,
+                        df_cp_public,
+                        ags_dir,
+                    )
+                elif use_case == "public":
+                    distribute_demand(
+                        use_case,
+                        df_standing_times_hpc,
+                        df_cp_hpc,
+                        ags_dir,
+                    )
+
+            gc.collect()
+            break
+    except:
+        traceback.print_exc()
+
 
 def get_ags(
         data_dir,
@@ -145,30 +208,35 @@ def distribute_demand(
         ags_dir,
 ):
     try:
+        export = False
         if use_case == "home" or use_case == "work":
             df_standing, df_cp = distribute_demand_private(
                 df_standing,
                 df_cp,
             )
+            export = True
         # elif use_case == "public":
         #     distribute_demand_public(
         #         df_standing,
         #         df_cp,
         #     )
-        # else:
+        #     export = True
+        # elif use_case == "hpc"::
         #     distribute_demand_hpc(
         #         df_standing,
         #         df_cp,
         #     )
+        #     export = True
+        # else:
+        #     print("Use case '{}' wasn't found".format(use_case))
 
-        if use_case == "home" or use_case == "work":
+        if export:
             data_to_csv(
                 use_case,
                 df_standing,
                 df_cp,
                 ags_dir,
             )
-
 
     except:
         traceback.print_exc()
