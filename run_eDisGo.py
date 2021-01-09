@@ -52,26 +52,29 @@ for count, ags_dir in enumerate(ags_dirs):
                 use_case,
                 df_standing_times_home,
                 df_cp_home,
+                ags_dir,
             )
         elif use_case == "work":
             sB.distribute_demand(
                 use_case,
                 df_standing_times_work,
                 df_cp_work,
+                ags_dir,
             )
         elif use_case == "public":
             sB.distribute_demand(
                 use_case,
                 df_standing_times_public,
                 df_cp_public,
+                ags_dir,
             )
         else:
             sB.distribute_demand(
                 use_case,
                 df_standing_times_hpc,
                 df_cp_hpc,
+                ags_dir,
             )
 
-
-
     break
+
