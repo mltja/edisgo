@@ -142,18 +142,14 @@ def distribute_demand(
         use_case,
         df_standing,
         df_cp,
+        ags_dir,
 ):
     try:
-        if use_case == "home":
-            distribute_demand_home(
+        if use_case == "home" or use_case == "work":
+            df_standing, df_cp = distribute_demand_private(
                 df_standing,
                 df_cp,
             )
-        # elif use_case == "work":
-        #     distribute_demand_work(
-        #         df_standing,
-        #         df_cp,
-        #     )
         # elif use_case == "public":
         #     distribute_demand_public(
         #         df_standing,
@@ -165,12 +161,20 @@ def distribute_demand(
         #         df_cp,
         #     )
 
+        if use_case == "home" or use_case == "work":
+            data_to_csv(
+                use_case,
+                df_standing,
+                df_cp,
+                ags_dir,
+            )
+
 
     except:
         traceback.print_exc()
 
 
-def distribute_demand_home(
+def distribute_demand_private(
         df_standing,
         df_cp,
 ):
@@ -183,22 +187,23 @@ def distribute_demand_home(
 
         total_population = df_cp.Einwohner.sum()
 
-        max_cp_per_location = int(np.ceil(len(car_idxs) / len(df_cp))) + 1
+        max_cp_per_location = int(np.ceil(len(car_idxs) / len(df_cp))) * 2
 
         cols = [
             "cp_{:02d}".format(x+1) for x in range(max_cp_per_location)
         ]
 
-        df_cp_mapping = df_cp.copy()
-
-        df_cp_mapping = pd.concat(
+        df_cp = pd.concat(
             [
-                df_cp_mapping,
+                df_cp,
                 pd.DataFrame(
                     columns=cols,
                 )
-            ]
+            ],
+            sort=False,
         )
+
+        df_standing["cp_idx"] = np.nan
 
         population_list = df_cp.Einwohner.tolist()
 
@@ -206,21 +211,11 @@ def distribute_demand_home(
             population/total_population for population in population_list
         ]
 
-        print(sum(weights))
-
         cp_idxs = df_cp.index.tolist()
 
         for car_idx in car_idxs:
-            df_car = df_standing[
-                df_standing.car_idx == car_idx
-            ]
 
-            # TODO: check if it is faster with or without this line
-            df_standing = df_standing[
-                df_standing.car_idx != car_idx
-            ]
-
-            cp_idx = rng.choice(
+            cp_idx =rng.choice(
                 cp_idxs,
                 p=weights,
             )
@@ -234,17 +229,76 @@ def distribute_demand_home(
                 population / total_population for population in population_list
             ]
 
-            print(sum(weights))
+            cp_number = df_cp.columns[df_cp.loc[cp_idx].isna()].tolist()[0]
 
-            cp_number = df_cp_mapping.columns[df_cp_mapping.loc[cp_idx].isna()].tolist()[0]
+            df_cp.at[cp_idx, cp_number] = df_standing[
+                df_standing.car_idx == car_idx
+            ].iat[0, 0]
 
-            df_cp_mapping.at[cp_idx, cp_number] = df_car.iat[0, 0]
+            df_standing[df_standing.car_idx == car_idx] = df_standing[df_standing.car_idx == car_idx].assign(
+                cp_idx=cp_idx
+            )
 
-            # TODO: store standing times per CP
-
-        df_cp_mapping = df_cp_mapping[df_cp_mapping.cp_01.notna()]
-
-        return df_cp_mapping
+        return df_standing, df_cp
 
     except:
         traceback.print_exc()
+
+def data_to_csv(
+        use_case,
+        df_standing,
+        df_cp,
+        ags_dir,
+):
+    df_cp = df_cp[df_cp.cp_01.notna()].fillna(0)
+    df_cp = df_cp.drop(
+        [
+            "Einwohner",
+        ],
+        axis="columns",
+    )
+
+    df_standing.cp_idx = df_standing.cp_idx.astype(np.int32)
+    df_standing = df_standing.drop(
+        [
+            "car_idx",
+        ],
+        axis="columns",
+    )
+
+    ags = ags_dir.parts[-1]
+    data_dir = ags_dir.parent.parent
+
+    export_dir = Path(
+        os.path.join(
+            data_dir,
+            "cp_standing_times_mapping",
+            ags,
+        )
+    )
+
+    os.makedirs(
+        export_dir,
+        exist_ok=True,
+    )
+
+    files = [
+        r"cp_data_{}.csv".format(use_case),
+        r"cp_standing_times_mapping_{}.csv".format(use_case),
+    ]
+
+    for count, file in enumerate(files):
+        if count == 0:
+            export_df = df_cp.copy()
+        elif count == 1:
+            export_df = df_standing.copy()
+
+        export_path = os.path.join(
+            export_dir,
+            file,
+        )
+
+        export_df.to_csv(
+            export_path,
+        )
+
