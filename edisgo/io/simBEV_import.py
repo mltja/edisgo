@@ -17,7 +17,7 @@ def run_simBEV_import(
         # get ags numbers
         ags_lst, ags_dirs = get_ags(data_dir)
 
-        for count, ags_dir in enumerate(ags_dirs):
+        for count, ags_dir in enumerate(ags_dirs[6:]): # todo: remove
 
             (df_standing_times_home, df_standing_times_work,
              df_standing_times_public, df_standing_times_hpc) = get_ags_data(ags_dir)
@@ -35,28 +35,28 @@ def run_simBEV_import(
             ]
 
             for use_case in use_cases:
-                if use_case == "home":
-                    distribute_demand(
-                        use_case,
-                        df_standing_times_home,
-                        df_cp_home,
-                        ags_dir,
-                    )
-                elif use_case == "work":
-                    distribute_demand(
-                        use_case,
-                        df_standing_times_work,
-                        df_cp_work,
-                        ags_dir,
-                    )
-                elif use_case == "public":
-                    distribute_demand(
-                        use_case,
-                        df_standing_times_public,
-                        df_cp_public,
-                        ags_dir,
-                    )
-                elif use_case == "hpc":
+                # if use_case == "home":
+                #     distribute_demand(
+                #         use_case,
+                #         df_standing_times_home,
+                #         df_cp_home,
+                #         ags_dir,
+                #     )
+                # elif use_case == "work":
+                #     distribute_demand(
+                #         use_case,
+                #         df_standing_times_work,
+                #         df_cp_work,
+                #         ags_dir,
+                #     )
+                # elif use_case == "public":
+                #     distribute_demand(
+                #         use_case,
+                #         df_standing_times_public,
+                #         df_cp_public,
+                #         ags_dir,
+                #     )
+                if use_case == "hpc": # todo: elif
                     distribute_demand(
                         use_case,
                         df_standing_times_hpc,
@@ -65,7 +65,7 @@ def run_simBEV_import(
                     )
 
             gc.collect()
-            break
+            break  # TODO: remove this when all data is available
     except:
         traceback.print_exc()
 
@@ -92,7 +92,7 @@ def get_ags(
 
 def get_ags_data(
         ags_dir,
-        NumberOfUseCases = 4,
+        NumberOfUseCases=4,
 ):
     try:
         car_csvs = os.listdir(ags_dir)
@@ -115,11 +115,14 @@ def get_ags_data(
             ) for _ in range(NumberOfUseCases)
         ]
 
-        for count_cars, car_csv in enumerate(car_csvs[:10]): # TODO: remove limit
+        for count_cars, car_csv in enumerate([car_csv for count, car_csv in enumerate(car_csvs) if count in [317, 771, 955]]):#enumerate(car_csvs):#[:10]):  # TODO: remove limit
             df = pd.read_csv(
                 car_csv,
                 index_col=[0],
             )
+
+            if df.netto_charging_capacity.max() > 50:
+                print(count_cars)
 
             df["car_idx"] = count_cars
 
@@ -128,12 +131,12 @@ def get_ags_data(
             df_lst[0] = df.copy()[
                 (df.use_case == "private") &
                 (df.location == "6_home")
-            ][cols]
+                ][cols]
 
             df_lst[1] = df.copy()[
                 (df.use_case == "private") &
                 (df.location == "0_work")
-            ][cols]
+                ][cols]
 
             df_lst[2] = df.copy()[
                 (df.use_case == "public") &
@@ -206,7 +209,7 @@ def get_charging_points(
                 file,
                 index_col=[0],
                 dtype={
-                    "Einwohner" : np.uint32,
+                    "Einwohner": np.uint32,
                 }
             )
 
@@ -214,6 +217,7 @@ def get_charging_points(
 
     except:
         traceback.print_exc()
+
 
 def distribute_demand(
         use_case,
@@ -229,20 +233,15 @@ def distribute_demand(
                 df_cp,
             )
             export = True
-        elif use_case == "public":
+        elif use_case == "public" or use_case == "hpc":
             df_standing, df_cp = distribute_demand_public(
                 df_standing,
                 df_cp,
+                use_case,
             )
             export = True
-        # elif use_case == "hpc"::
-        #     distribute_demand_hpc(
-        #         df_standing,
-        #         df_cp,
-        #     )
-        #     export = True
-        # else:
-        #     print("Use case '{}' wasn't found".format(use_case))
+        else:
+            print("Use case '{}' wasn't found".format(use_case))
 
         if export:
             data_to_csv(
@@ -271,7 +270,6 @@ def distribute_demand_private(
         )
 
         for car_idx in car_idxs:
-
             cp_idx, weights, total_population, population_list = get_weighted_rnd_cp(
                 rng,
                 weights,
@@ -284,7 +282,7 @@ def distribute_demand_private(
 
             df_cp.at[cp_idx, cp_number] = df_standing[
                 df_standing.car_idx == car_idx
-            ].iat[0, 0]
+                ].iat[0, 0]
 
             df_standing[df_standing.car_idx == car_idx] = df_standing[df_standing.car_idx == car_idx].assign(
                 cp_idx=cp_idx
@@ -299,6 +297,7 @@ def distribute_demand_private(
 def distribute_demand_public(
         df_standing,
         df_cp,
+        use_case,
         utilisation=0.8,
 ):
     try:
@@ -311,24 +310,77 @@ def distribute_demand_public(
             df_cp,
         )
 
+        cols = [
+            "cp_idx",
+            "netto_charging_capacity",
+            "ts_last",
+        ]
+
         df_generated_cps = pd.DataFrame(
-            columns=[
-                "cp_idx",
-                "netto_charging_capacity",
-                "ts_last",
-            ]
+            columns=cols,
         )
+
+        if use_case == "hpc" and len(df_standing) > 0:
+            count_150 = len(
+                df_standing[
+                    (df_standing.netto_charging_capacity > 120) &
+                    (df_standing.netto_charging_capacity < 150)
+                ]
+            )
+            count_350 = len(
+                df_standing[
+                    (df_standing.netto_charging_capacity > 150)
+                    ]
+            )
+
+            if count_350 == 0:
+                prob_150 = 1
+                prob_350 = 0
+            elif count_150 == 0:
+                prob_150 = 0
+                prob_350 = 1
+            else:
+                prob_150 = count_150 / (count_150 + count_350)
+                prob_350 = 1 - prob_150
+
+            # TODO: weights
 
         for standing_idx, cap in df_standing.netto_charging_capacity.iteritems():
             start = df_standing.charge_start.at[standing_idx]
 
+            cap = 105 # TODO: remove
+
+            if cap > 100 and cap < 120:
+                cap = rng.choice(
+                    [150, 350],
+                    p=[prob_150, prob_350]
+                ) * 0.9 # FIXME: automate this to use the right efficiency eta_cp
+
             df_matching = df_generated_cps.copy()[
-                (df_generated_cps.netto_charging_capacity == round(cap, 0)) &
+                (df_generated_cps.netto_charging_capacity.round(0) == round(cap, 0)) &
                 (df_generated_cps.ts_last < start)
-            ]
+                ]
+
+            last_ts = get_last_ts(
+                df_standing,
+                standing_idx,
+                start,
+                utilisation,
+            )
 
             if len(df_matching) > 0:
-                pass
+                cp_idx = int(df_matching.iat[0, 0])
+
+                df_standing.at[standing_idx, "cp_idx"] = cp_idx
+
+                df_generated_cps.loc[
+                    (df_generated_cps.cp_idx == cp_idx)
+                ] = df_generated_cps.loc[
+                    (df_generated_cps.cp_idx == cp_idx)
+                ].assign(
+                    ts_last=last_ts,
+                )
+
             else:
                 cp_idx, weights, total_population, population_list = get_weighted_rnd_cp(
                     rng,
@@ -344,12 +396,40 @@ def distribute_demand_public(
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
 
-                # TODO: add cp to df_generated_cps
+                s = pd.Series(
+                    [
+                        cp_idx,
+                        cap,
+                        last_ts,
+                    ],
+                    index=cols,
+                )
 
-                print("breaker")
-
+                df_generated_cps = df_generated_cps.append(
+                    s,
+                    ignore_index=True,
+                )
 
         return df_standing, df_cp
+
+    except:
+        traceback.print_exc()
+
+
+def get_last_ts(
+        df_standing,
+        standing_idx,
+        start,
+        utilisation,
+):
+    try:
+        stop = df_standing.charge_end.at[standing_idx]
+
+        standing_time = stop - start + 1
+
+        last_ts = int(stop + (1 - utilisation) * standing_time)
+
+        return last_ts
 
     except:
         traceback.print_exc()
@@ -395,7 +475,7 @@ def data_preprocessing(
         max_cp_per_location = int(np.ceil(len(car_idxs) / len(df_cp))) * 2
 
         cols = [
-            "cp_{:02d}".format(x+1) for x in range(max_cp_per_location)
+            "cp_{:02d}".format(x + 1) for x in range(max_cp_per_location)
         ]
 
         df_cp = pd.concat(
@@ -410,15 +490,15 @@ def data_preprocessing(
 
         df_cp.Einwohner = df_cp.Einwohner.astype(np.int32)
 
+        cp_idxs = df_cp.index.tolist()
+
         df_standing["cp_idx"] = np.nan
 
         population_list = df_cp.Einwohner.tolist()
 
         weights = [
-            population/total_population for population in population_list
+            population / total_population for population in population_list
         ]
-
-        cp_idxs = df_cp.index.tolist()
 
         return df_standing, df_cp, weights, car_idxs, cp_idxs, population_list, max_cp_per_location
 
@@ -483,4 +563,3 @@ def data_to_csv(
         export_df.to_csv(
             export_path,
         )
-

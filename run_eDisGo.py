@@ -1,9 +1,4 @@
-import numpy as np
-import pandas as pd
-import os.path
 import gc
-import multiprocessing
-import traceback
 import edisgo.io.simBEV_import as sB
 
 from pathlib import Path
@@ -11,7 +6,7 @@ from pathlib import Path
 gc.collect()
 
 data_dir = Path(
-    r"\\FS01\Daten_flexibel_02\simbev_results\NEP_C_2035_simbev_run\standing_times_looped"
+    r"\\FS01\Daten_flexibel_02\simbev_results\Electrification_2050_simbev_run\standing_times"
 )
 
 localiser_data_dir = Path(
