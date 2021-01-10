@@ -224,12 +224,11 @@ def distribute_demand(
     try:
         export = False
         if use_case == "home" or use_case == "work":
-            # df_standing, df_cp = distribute_demand_private(
-            #     df_standing,
-            #     df_cp,
-            # )
-            # export = True
-            pass # TODO: remove
+            df_standing, df_cp = distribute_demand_private(
+                df_standing,
+                df_cp,
+            )
+            export = True
         elif use_case == "public":
             df_standing, df_cp = distribute_demand_public(
                 df_standing,
@@ -273,25 +272,19 @@ def distribute_demand_private(
 
         for car_idx in car_idxs:
 
-            cp_idx =rng.choice(
+            cp_idx, weights, total_population, population_list = get_weighted_rnd_cp(
+                rng,
+                weights,
                 cp_idxs,
-                p=weights,
+                population_list,
+                max_cp_per_location,
             )
-
-            # recalculate weights
-            population_list[cp_idx] -= (population_list[cp_idx] / max_cp_per_location)
-
-            total_population = sum(population_list)
-
-            weights = [
-                population / total_population for population in population_list
-            ]
 
             cp_number = df_cp.columns[df_cp.loc[cp_idx].isna()].tolist()[0]
 
             df_cp.at[cp_idx, cp_number] = df_standing[
                 df_standing.car_idx == car_idx
-            ].at[0, "netto_charging_capacity"]
+            ].iat[0, 0]
 
             df_standing[df_standing.car_idx == car_idx] = df_standing[df_standing.car_idx == car_idx].assign(
                 cp_idx=cp_idx
@@ -306,6 +299,7 @@ def distribute_demand_private(
 def distribute_demand_public(
         df_standing,
         df_cp,
+        utilisation=0.8,
 ):
     try:
         rng = default_rng(
@@ -320,18 +314,70 @@ def distribute_demand_public(
         df_generated_cps = pd.DataFrame(
             columns=[
                 "cp_idx",
-                "last_ts",
+                "netto_charging_capacity",
+                "ts_last",
             ]
         )
 
-        for standing_idx, cap in enumerate(df_standing.netto_charging_capacity):
-            
+        for standing_idx, cap in df_standing.netto_charging_capacity.iteritems():
+            start = df_standing.charge_start.at[standing_idx]
 
+            df_matching = df_generated_cps.copy()[
+                (df_generated_cps.netto_charging_capacity == round(cap, 0)) &
+                (df_generated_cps.ts_last < start)
+            ]
 
-        print("breaker")
+            if len(df_matching) > 0:
+                pass
+            else:
+                cp_idx, weights, total_population, population_list = get_weighted_rnd_cp(
+                    rng,
+                    weights,
+                    cp_idxs,
+                    population_list,
+                    max_cp_per_location,
+                )
+
+                cp_number = df_cp.columns[df_cp.loc[cp_idx].isna()].tolist()[0]
+
+                df_cp.at[cp_idx, cp_number] = cap
+
+                df_standing.at[standing_idx, "cp_idx"] = cp_idx
+
+                # TODO: add cp to df_generated_cps
+
+                print("breaker")
 
 
         return df_standing, df_cp
+
+    except:
+        traceback.print_exc()
+
+
+def get_weighted_rnd_cp(
+        rng,
+        weights,
+        cp_idxs,
+        population_list,
+        max_cp_per_location,
+):
+    try:
+        cp_idx = rng.choice(
+            cp_idxs,
+            p=weights,
+        )
+
+        # recalculate weights
+        population_list[cp_idx] -= (population_list[cp_idx] / max_cp_per_location)
+
+        total_population = sum(population_list)
+
+        weights = [
+            population / total_population for population in population_list
+        ]
+
+        return cp_idx, weights, total_population, population_list
 
     except:
         traceback.print_exc()
