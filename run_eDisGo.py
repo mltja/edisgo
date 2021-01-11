@@ -6,7 +6,7 @@ from pathlib import Path
 gc.collect()
 
 data_dir = Path(
-    r"\\FS01\Daten_flexibel_02\simbev_results\Electrification_2050_simbev_run\standing_times"
+    r"\\FS01\Daten_flexibel_02\simbev_results\Electrification_2050_simbev_run\standing_times_looped"
 )
 
 localiser_data_dir = Path(
