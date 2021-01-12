@@ -7,6 +7,7 @@ import gc
 
 from pathlib import Path
 from numpy.random import default_rng
+from time import perf_counter
 
 
 def run_simBEV_import(
@@ -21,8 +22,16 @@ def run_simBEV_import(
 
             print("AGS Nr. {} is processing.".format(ags_dir.parts[-1]))
 
+            t1 = perf_counter()
+
             df_standing_times_home, df_standing_times_work, \
                 df_standing_times_public, df_standing_times_hpc = get_ags_data(ags_dir)
+
+            print(
+                "It took {} seconds to read in the data in AGS Nr. {}.".format(
+                    perf_counter() - t1, ags_dir.parts[-1]
+                )
+            )
 
             df_cp_hpc, df_cp_public, df_cp_home, df_cp_work = get_charging_points(
                 localiser_data_dir,
@@ -37,6 +46,7 @@ def run_simBEV_import(
             ]
 
             for use_case in use_cases:
+                t1 = perf_counter()
                 if use_case == "home" and len(df_standing_times_home) > 0:
                     distribute_demand(
                         use_case,
@@ -71,6 +81,12 @@ def run_simBEV_import(
                     del df_standing_times_hpc, df_cp_hpc
                 else:
                     print("Use case {} is not in AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
+
+                print(
+                    "It took {} seconds to distribute the demand for use cas {} in AGS Nr. {}.".format(
+                        perf_counter() - t1, use_case, ags_dir.parts[-1]
+                    )
+                )
 
             gc.collect()
             print("AGS Nr. {} has been processed.".format(ags_dir.parts[-1]))
@@ -125,7 +141,7 @@ def get_ags_data(
         ]
 
         # for count_cars, car_csv in enumerate([car_csv for count, car_csv in enumerate(car_csvs) if count in [317, 771, 955]]):
-        for count_cars, car_csv in enumerate(car_csvs):  # TODO: remove limit
+        for count_cars, car_csv in enumerate(car_csvs):#[0:100]):  # TODO: remove limit
             df = pd.read_csv(
                 car_csv,
                 index_col=[0],
@@ -587,7 +603,10 @@ def get_weighted_rnd_cp(
             0,
         )
 
-        total_population = sum(population_list)
+        total_population = max(
+            sum(population_list),
+            1,
+        )
 
         weights = [
             population / total_population for population in population_list
