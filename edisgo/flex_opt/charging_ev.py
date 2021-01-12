@@ -38,7 +38,6 @@ def dumb_charging(
                     )
                 )
                 data_dfs[count_cases] = 0
-
                 gc.collect()
 
     except:
@@ -81,7 +80,12 @@ def unflexible_charging(
 
         df_load = df_load.iloc[:365*24*4]
 
-        file_name = "dumb_charging_timeseries_{}.csv".format(use_case)
+        df_load = compress(
+            df_load,
+            verbose=True,
+        )
+
+        file_name = "dumb_charging_timeseries_{}.h5".format(use_case)
 
         sub_dir = "eDisGo_timeseries"
 
@@ -99,8 +103,9 @@ def unflexible_charging(
             exist_ok=True,
         )
 
-        df_load.to_csv(
+        df_load.to_hdf(
             export_path,
+            key="df_load",
         )
 
     except:
@@ -132,9 +137,14 @@ def get_ags_data(
         for count_files, file_dir in enumerate(file_dirs):
             df = pd.read_csv(
                 file_dir,
-                index_col=[0],
+                index_col=[0], # this throws a numpy warning https://stackoverflow.com/questions/40659212/futurewarning-elementwise-comparison-failed-returning-scalar-but-in-the-futur
                 # nrows=100, # TODO: remove after testing
                 engine="c",
+            )
+
+            df = compress( # FIXME: this saves memory but is pretty slow
+                df,
+                verbose=False,
             )
 
             dfs[count_files] = df
@@ -144,3 +154,35 @@ def get_ags_data(
 
     except:
         traceback.print_exc()
+
+
+def compress(
+        df,
+        verbose=True,
+):
+    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+    start_mem = df.memory_usage().sum() / 1024**2
+    for col in df.columns:
+        col_type = df[col].dtypes
+        if col_type in numerics:
+            c_min = df[col].min()
+            c_max = df[col].max()
+            if str(col_type)[:3] == 'int':
+                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                    df[col] = df[col].astype(np.int8)
+                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                    df[col] = df[col].astype(np.int16)
+                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                    df[col] = df[col].astype(np.int32)
+                elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
+                    df[col] = df[col].astype(np.int64)
+            else:
+                if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
+                    df[col] = df[col].astype(np.float16)
+                elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+                    df[col] = df[col].astype(np.float32)
+                else:
+                    df[col] = df[col].astype(np.float64)
+    end_mem = df.memory_usage().sum() / 1024**2
+    if verbose: print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
+    return df
