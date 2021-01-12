@@ -10,12 +10,12 @@ gc.collect()
 num_threads = 1
 
 # TODO: set dir
-data_dir = r"\\FS01\Daten_flexibel_02\simbev_results"
-# data_dir = r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/"
+# data_dir = r"\\FS01\Daten_flexibel_02\simbev_results"
+data_dir = r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results"
 
 localiser_data_dir = Path( # TODO: set dir
-    r"\\FS01\Daten_flexibel_02\simbev_results\Beispieldaten",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/Beispieldaten",
+    # r"\\FS01\Daten_flexibel_02\simbev_results\Beispieldaten",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/Beispieldaten",
 )
 
 scenarios = [
