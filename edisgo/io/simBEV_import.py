@@ -590,10 +590,15 @@ def get_weighted_rnd_cp(
         max_cp_per_location,
 ):
     try:
-        cp_idx = rng.choice(
-            cp_idxs,
-            p=weights,
-        )
+        if sum(weights) < 0.9:
+            cp_idx = rng.choice(
+                cp_idxs,
+            )
+        else:
+            cp_idx = rng.choice(
+                cp_idxs,
+                p=weights,
+            )
 
         pop_idx = cp_idxs.index(cp_idx)
 
