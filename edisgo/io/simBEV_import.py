@@ -20,7 +20,7 @@ def run_simBEV_import(
 
         for count, ags_dir in enumerate(ags_dirs):
 
-            print("AGS Nr. {} is processing.".format(ags_dir.parts[-1]))
+            print("AGS Nr. {} is being processed.".format(ags_dir.parts[-1]))
 
             t1 = perf_counter()
 
