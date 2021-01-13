@@ -40,7 +40,7 @@ def charging(
                         )
                         print(
                             "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                            "use case {} in AGS Nr. {} with the strategy {}.".format(
+                            "use case {} in AGS Nr. {} with a {} charging strategy.".format(
                                 use_case, ags_dir.parts[-1], strategy,
                             )
                         )

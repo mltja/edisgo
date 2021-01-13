@@ -724,7 +724,7 @@ def data_to_hdf(
         )
 
         files = [
-            r"cp_data_{}.csv".format(use_case),
+            r"cp_data_{}.h5".format(use_case),
             r"cp_standing_times_mapping_{}.h5".format(use_case),
         ]
 
