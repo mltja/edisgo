@@ -241,14 +241,12 @@ def get_ags_data(
         dfs = [0] * len(file_dirs)
 
         for count_files, file_dir in enumerate(file_dirs):
-            df = pd.read_csv(
+            df = pd.read_hdf(
                 file_dir,
-                index_col=[0], # this throws a numpy warning https://stackoverflow.com/questions/40659212/futurewarning-elementwise-comparison-failed-returning-scalar-but-in-the-futur
-                # nrows=100, # TODO: remove after testing
-                engine="c",
+                key="export_df",
             )
 
-            df = compress( # FIXME: this saves memory but is pretty slow
+            df = compress(
                 df,
                 verbose=False,
             )

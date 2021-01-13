@@ -724,8 +724,8 @@ def data_to_hdf(
         )
 
         files = [
-            r"cp_data_{}.h5".format(use_case),
-            r"cp_standing_times_mapping_{}.h5".format(use_case),
+            r"cp_data_{}.pkl".format(use_case),
+            r"cp_standing_times_mapping_{}.pkl".format(use_case),
         ]
 
         for count, file in enumerate(files):
@@ -739,9 +739,9 @@ def data_to_hdf(
                 file,
             )
 
-            export_df.to_hdf(
+            export_df.to_pickle(
                 export_path,
-                key="export_df",
+                # key="export_df",
             )
 
         print("Data for use case {} has been exported for AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
