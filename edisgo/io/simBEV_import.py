@@ -83,7 +83,7 @@ def run_simBEV_import(
                     print("Use case {} is not in AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
 
                 print(
-                    "It took {} seconds to distribute the demand for use cas {} in AGS Nr. {}.".format(
+                    "It took {} seconds to distribute the demand for use case {} in AGS Nr. {}.".format(
                         perf_counter() - t1, use_case, ags_dir.parts[-1]
                     )
                 )
@@ -284,7 +284,7 @@ def distribute_demand(
             pass
 
         if export:
-            data_to_csv(
+            data_to_hdf(
                 use_case,
                 df_standing,
                 df_cp,
@@ -679,7 +679,7 @@ def data_preprocessing(
         traceback.print_exc()
 
 
-def data_to_csv(
+def data_to_hdf(
         use_case,
         df_standing,
         df_cp,
