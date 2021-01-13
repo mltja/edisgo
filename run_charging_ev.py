@@ -30,7 +30,7 @@ data_dirs = [
 
 if __name__ == "__main__":
     if num_threads == 1:
-        cEV.dumb_charging(
+        cEV.charging(
             data_dirs[0],
         )
     else:

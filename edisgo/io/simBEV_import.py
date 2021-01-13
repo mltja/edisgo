@@ -725,7 +725,7 @@ def data_to_csv(
 
         files = [
             r"cp_data_{}.csv".format(use_case),
-            r"cp_standing_times_mapping_{}.csv".format(use_case),
+            r"cp_standing_times_mapping_{}.h5".format(use_case),
         ]
 
         for count, file in enumerate(files):
@@ -739,8 +739,9 @@ def data_to_csv(
                 file,
             )
 
-            export_df.to_csv(
+            export_df.to_hdf(
                 export_path,
+                key="export_df",
             )
 
         print("Data for use case {} has been exported for AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))

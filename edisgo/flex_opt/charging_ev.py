@@ -9,10 +9,12 @@ from pathlib import Path
 from time import perf_counter
 
 
-def dumb_charging(
+def charging(
         data_dir,
 ):
     try:
+        setup_dict = get_setup(data_dir)
+
         # get ags numbers
         ags_lst, ags_dirs = get_ags(data_dir)
 
@@ -26,28 +28,34 @@ def dumb_charging(
             )
 
             for count_cases, use_case in enumerate(use_cases):
-                t1 = perf_counter()
-                unflexible_charging(
-                    data_dfs[count_cases],
-                    use_case,
-                    ags_dir,
-                )
-                print(
-                    "It took {} to generate the timeseries for use case {} AGS Nr. {}.".format(
-                        perf_counter() - t1, use_case, ags_dir.parts[-1]
-                    )
-                )
-                data_dfs[count_cases] = 0
-                gc.collect()
+                for strategy in ["dumb", "reduced"]:
+                    if strategy == "dumb" or (strategy == "reduced" and (use_case == "home" or use_case == "work")):
+                        t1 = perf_counter()
+                        grid_independent_charging(
+                            data_dfs[count_cases],
+                            setup_dict,
+                            use_case,
+                            ags_dir,
+                            strategy=strategy,
+                        )
+                        print(
+                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                            "use case {} in AGS Nr. {} with the strategy {}.".format(
+                                use_case, ags_dir.parts[-1], strategy,
+                            )
+                        )
+                        gc.collect()
 
     except:
         traceback.print_exc()
 
 
-def unflexible_charging(
+def grid_independent_charging(
         data,
+        setup_dict,
         use_case,
         ags_dir,
+        strategy="dumb",
 ):
     try:
         cp_idxs = data.cp_idx.unique().tolist()
@@ -55,24 +63,82 @@ def unflexible_charging(
         cp_idxs.sort()
 
         cp_load = np.empty(
-            shape=(371*24*4, len(cp_idxs)),
+            shape=(
+                int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
+                len(cp_idxs),
+            ),
             dtype=np.float64,
         )
 
-        # TODO: automate this for other stepsizes than 15min
-        data["stop"] = (data.chargingdemand / data.netto_charging_capacity.divide(4)).apply(np.ceil)\
-                           .astype(np.uint32) + data.charge_start
+        cp_load[:] = 0
 
-        for count_cps, cp_idx in enumerate(cp_idxs):
-            df_cp = data.copy()[data.cp_idx == cp_idx]
-            for cap, start, stop in zip(
-                df_cp.netto_charging_capacity.tolist(),
-                df_cp.charge_start.tolist(),
-                df_cp.stop.tolist(),
-            ):
-                # TODO: automate this for other efficiencies than 90%
-                cp_load[start:stop, count_cps] += (cap / 0.9)
+        time_factor = setup_dict["stepsize"] / 60
 
+        if strategy == "dumb":
+            data["stop"] = (data.chargingdemand / data.netto_charging_capacity.multiply(time_factor))\
+                               .apply(np.ceil).astype(np.int32) + data.charge_start
+
+            for count_cps, cp_idx in enumerate(cp_idxs):
+                df_cp = data.copy()[data.cp_idx == cp_idx]
+                for cap, start, stop in zip(
+                    df_cp.netto_charging_capacity.tolist(),
+                    df_cp.charge_start.tolist(),
+                    df_cp.stop.tolist(),
+                ):
+                    cp_load[start:stop, count_cps] += (cap / setup_dict["eta_CP"])
+
+        elif strategy == "reduced":
+            data["time"] = data.charge_end - data.charge_start + 1
+
+            data["stop"] = (data.chargingdemand / data.netto_charging_capacity.multiply(time_factor))\
+                .apply(np.ceil).astype(np.int32)
+
+            data.chargingdemand = data.stop.multiply(time_factor) * data.netto_charging_capacity
+
+            data["min_cap"] = data.netto_charging_capacity.multiply(0.1)
+
+            data["reduced_min_cap"] = data.chargingdemand / data.time.multiply(time_factor)
+
+            data["reduced_cap"] = data[["min_cap", "reduced_min_cap"]].max(axis=1)
+
+            data["stop"] = (data.chargingdemand / data.reduced_cap.multiply(time_factor))\
+                               .round(0).astype(np.int32) + data.charge_start
+
+            for count_cps, cp_idx in enumerate(cp_idxs):
+                df_cp = data.copy()[data.cp_idx == cp_idx]
+
+                for cap, start, stop in zip(
+                    df_cp.reduced_cap.tolist(),
+                    df_cp.charge_start.tolist(),
+                    df_cp.stop.tolist(),
+                ):
+                    cp_load[start:stop, count_cps] += (cap / setup_dict["eta_CP"])
+
+        else:
+            raise ValueError("Strategy '{}' does not exist.".format(strategy))
+
+        print(np.sum(cp_load))
+
+        time_series_to_hdf(
+            cp_load,
+            cp_idxs,
+            use_case,
+            strategy,
+            ags_dir,
+        )
+
+    except:
+        traceback.print_exc()
+
+
+def time_series_to_hdf(
+        cp_load,
+        cp_idxs,
+        use_case,
+        strategy,
+        ags_dir,
+):
+    try:
         df_load = pd.DataFrame(
             data=cp_load,
             columns=cp_idxs,
@@ -82,10 +148,10 @@ def unflexible_charging(
 
         df_load = compress(
             df_load,
-            verbose=True,
+            verbose=False,
         )
 
-        file_name = "dumb_charging_timeseries_{}.h5".format(use_case)
+        file_name = "{}_charging_timeseries_{}.h5".format(strategy, use_case,)
 
         sub_dir = "eDisGo_timeseries"
 
@@ -107,6 +173,46 @@ def unflexible_charging(
             export_path,
             key="df_load",
         )
+
+    except:
+        traceback.print_exc()
+
+
+def get_setup(
+        data_dir,
+):
+    try:
+        setup_data = "config_data.csv"
+
+        setup_data_path = Path(
+            os.path.join(
+                data_dir.parent,
+                setup_data,
+            )
+        )
+
+        setup_dict = pd.read_csv(
+            setup_data_path,
+            index_col=[0]
+        )["0"].to_dict()
+
+        attribute_list = [
+            "random.seed",
+            "num_threads",
+            "stepsize",
+            "year",
+            "days",
+            "car_limit",
+            "eta_CP",
+        ]
+
+        for attribute in attribute_list:
+            if attribute == "eta_CP":
+                setup_dict[attribute] = float(setup_dict[attribute])
+            else:
+                setup_dict[attribute] = int(setup_dict[attribute])
+
+        return setup_dict
 
     except:
         traceback.print_exc()
@@ -186,3 +292,4 @@ def compress(
     end_mem = df.memory_usage().sum() / 1024**2
     if verbose: print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
     return df
+
