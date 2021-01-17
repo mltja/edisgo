@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import os.path
 import traceback
 import glob
@@ -37,6 +38,62 @@ def run_simBEV_import(
                 localiser_data_dir,
                 ags_dir,
             )
+
+            # some AGS don't have a potential hpc or work charging place...
+            if len(df_cp_hpc) == 0:
+                # append hpc data to public dataframe
+                df_standing_times_public = df_standing_times_public.append(
+                    df_standing_times_hpc,
+                )
+
+                df_standing_times_public = df_standing_times_public.sort_values(
+                    by=["charge_start"],
+                    ascending=True,
+                )
+
+                df_standing_times_public.reset_index(
+                    drop=True,
+                    inplace=True,
+                )
+
+                # drop data in hpc dataframe
+                df_standing_times_hpc = pd.DataFrame(
+                    columns=df_standing_times_hpc.columns,
+                )
+            if len(df_cp_work) == 0:
+                max_car = df_standing_times_home.car_idx.max()
+                df_standing_times_work = df_standing_times_work.assign(
+                    car_idx=[
+                        idx + max_car + 1 for idx in df_standing_times_work.car_idx
+                    ]
+                )
+                # append work data to home (flexible) dataframe
+                df_standing_times_home = df_standing_times_home.append(
+                    df_standing_times_work,
+                )
+
+                df_standing_times_home = df_standing_times_home.sort_values(
+                    by=["charge_start"],
+                    ascending=True,
+                )
+
+                df_standing_times_home.reset_index(
+                    drop=True,
+                    inplace=True,
+                )
+
+                # drop data in hpc dataframe
+                df_standing_times_work = pd.DataFrame(
+                    columns=df_standing_times_work.columns,
+                )
+            if len(df_cp_public) == 0:
+                raise ValueError("There are no possible public charging stations in AGS Nr. {}.".format(
+                    ags_dir.parts[-1])
+                )
+            if len(df_cp_home) == 0:
+                raise ValueError("There are no possible home charging stations in AGS Nr. {}.".format(
+                    ags_dir.parts[-1])
+                )
 
             use_cases = [
                 "home",
@@ -90,7 +147,7 @@ def run_simBEV_import(
 
             gc.collect()
             print("AGS Nr. {} has been processed.".format(ags_dir.parts[-1]))
-            break  # TODO: remove this when all data is available
+            # break  # TODO: remove this when all data is available
     except:
         traceback.print_exc()
 
@@ -141,7 +198,7 @@ def get_ags_data(
         ]
 
         # for count_cars, car_csv in enumerate([car_csv for count, car_csv in enumerate(car_csvs) if count in [317, 771, 955]]):
-        for count_cars, car_csv in enumerate(car_csvs):#[0:100]):  # TODO: remove limit
+        for count_cars, car_csv in enumerate(car_csvs):#[:10]):  # TODO: remove limit
             df = pd.read_csv(
                 car_csv,
                 index_col=[0],
@@ -179,7 +236,6 @@ def get_ags_data(
 
                 use_case_dfs[count] = use_case_df
 
-            # print(count_cars/len(car_csvs)*100)
 
         dtypes = [
             np.float32,
@@ -204,7 +260,10 @@ def get_ags_data(
                     inplace=True,
                 )
 
-            use_case_dfs[count] = use_case_df
+            use_case_dfs[count] = compress(
+                use_case_df,
+                verbose=False,
+            )
 
         print("Standing times for AGS Nr. {} have been read in.".format(ags_dir.parts[-1]))
 
@@ -233,18 +292,55 @@ def get_charging_points(
         cp_dfs = [0] * len(files)
 
         for count, file in enumerate(files):
-            cp_dfs[count] = pd.read_csv(
+            cp_dfs[count] = gpd.read_file(
                 file,
-                index_col=[0],
-                dtype={
-                    "Einwohner": np.uint32,
-                }
             )
 
-            cp_dfs[count] = cp_dfs[count].sort_values(
-                by=["Einwohner"],
-                ascending=False,
-            )
+            if count == 0 and len(cp_dfs[count]) > 0:
+                cp_dfs[count] = cp_dfs[count].drop(
+                    [
+                        "name",
+                    ],
+                    axis="columns",
+                )
+                # TODO: hpc has no weights @Johannes
+            elif count == 1 and len(cp_dfs[count]) > 0:
+                cp_dfs[count] = cp_dfs[count].rename(
+                    columns={
+                        "sum_pois": "weight",
+                    }
+                )
+                cp_dfs[count].weight = cp_dfs[count].weight.astype(np.int32)
+                cp_dfs[count] = cp_dfs[count].sort_values(
+                    by=["weight"],
+                    ascending=False,
+                )
+            elif count == 2 and len(cp_dfs[count]) > 0:
+                cp_dfs[count] = cp_dfs[count].rename(
+                    columns={
+                        "building_wohneinheiten": "weight",
+                    }
+                )
+                cp_dfs[count].weight = cp_dfs[count].weight.astype(np.int32)
+                cp_dfs[count] = cp_dfs[count].sort_values(
+                    by=["weight"],
+                    ascending=False,
+                )
+            elif count == 3 and len(cp_dfs[count]) > 0:
+                cp_dfs[count] = cp_dfs[count].drop(
+                    [
+                        "landuse",
+                        "area",
+                    ],
+                    axis="columns",
+                )
+                cp_dfs[count].weight = cp_dfs[count].weight.astype(np.float32)
+                cp_dfs[count] = cp_dfs[count].sort_values(
+                    by=["weight"],
+                    ascending=False,
+                )
+            else:
+                pass
 
         return tuple(cp_dfs)
 
@@ -291,7 +387,7 @@ def distribute_demand(
                 ags_dir,
             )
 
-        print("Demand for use case {} for AGS Nr. {} has been distributed.".format(use_case, ags_dir.parts[-1]))
+            # print("Demand for use case {} for AGS Nr. {} has been distributed.".format(use_case, ags_dir.parts[-1]))
 
     except:
         traceback.print_exc()
@@ -306,21 +402,21 @@ def distribute_demand_private(
             seed=25588,
         )
 
-        df_standing, df_cp, weights, car_idxs, cp_idxs, population_list, max_cp_per_location = data_preprocessing(
+        df_standing, df_cp, weights, car_idxs, cp_idxs, weight_list, max_cp_per_location = data_preprocessing(
             df_standing,
             df_cp,
         )
 
-        population_list_init = population_list.copy()
+        weight_list_init = weight_list.copy()
 
         for count, car_idx in enumerate(car_idxs):
-            cp_idx, weights, total_population, population_list = get_weighted_rnd_cp(
+            cp_idx, weights, weight_list = get_weighted_rnd_cp(
                 rng,
-                weights,
                 cp_idxs,
-                population_list,
-                population_list_init,
                 max_cp_per_location,
+                weight_list,
+                weight_list_init,
+                weights,
             )
 
             cp_number = df_cp.columns[df_cp.loc[cp_idx].isna()].tolist()[0]
@@ -329,13 +425,12 @@ def distribute_demand_private(
                 df_standing.car_idx == car_idx
                 ].iat[0, 0]
 
+
             df_standing[df_standing.car_idx == car_idx] = df_standing[df_standing.car_idx == car_idx].assign(
                 cp_idx=cp_idx
             )
 
-            # print(count/len(car_idxs)*100)
-
-        return df_standing, df_cp
+        return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
     except:
         traceback.print_exc()
@@ -352,13 +447,13 @@ def distribute_demand_public(
             seed=25588,
         )
 
-        df_standing, df_cp, weights, _, cp_idxs, population_list, max_cp_per_location = data_preprocessing(
+        df_standing, df_cp, weights, _, cp_idxs, weight_list, max_cp_per_location = data_preprocessing(
             df_standing,
             df_cp,
             use_case=use_case,
         )
 
-        population_list_init = population_list.copy()
+        weight_list_init = weight_list.copy()
 
         cols = [
             "cp_idx",
@@ -373,7 +468,7 @@ def distribute_demand_public(
         for standing_idx, cap in df_standing.netto_charging_capacity.iteritems():
             start = df_standing.charge_start.at[standing_idx]
 
-            df_matching = df_generated_cps.copy()[
+            df_matching = df_generated_cps[
                 (df_generated_cps.netto_charging_capacity.round(0) == round(cap, 0)) &
                 (df_generated_cps.ts_last < start)
                 ]
@@ -386,26 +481,24 @@ def distribute_demand_public(
             )
 
             if len(df_matching) > 0:
-                cp_idx = int(df_matching.iat[0, 0])
+                row_matching = df_matching.iloc[0]
+
+                cp_idx = int(row_matching.iat[0])
+
+                matching_idx = row_matching.name
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
 
-                df_generated_cps.loc[
-                    (df_generated_cps.cp_idx == cp_idx)
-                ] = df_generated_cps.loc[
-                    (df_generated_cps.cp_idx == cp_idx)
-                ].assign(
-                    ts_last=last_ts,
-                )
+                df_generated_cps.at[matching_idx, "ts_last"] = last_ts
 
             else:
-                cp_idx, weights, total_population, population_list = get_weighted_rnd_cp(
+                cp_idx, weights, weight_list = get_weighted_rnd_cp(
                     rng,
-                    weights,
                     cp_idxs,
-                    population_list,
-                    population_list_init,
                     max_cp_per_location,
+                    weight_list,
+                    weight_list_init,
+                    weights,
                 )
 
                 cp_number = df_cp.columns[df_cp.loc[cp_idx].isna()].tolist()[0]
@@ -414,23 +507,29 @@ def distribute_demand_public(
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
 
-                s = pd.Series(
-                    [
-                        cp_idx,
-                        cap,
-                        last_ts,
-                    ],
-                    index=cols,
-                )
+                df_generated_cps.loc[len(df_generated_cps)] = [
+                    cp_idx,
+                    cap,
+                    last_ts,
+                ]
 
-                df_generated_cps = df_generated_cps.append(
-                    s,
-                    ignore_index=True,
-                )
+                # s = pd.Series(
+                #     [
+                #         cp_idx,
+                #         cap,
+                #         last_ts,
+                #     ],
+                #     index=cols,
+                # )
+                #
+                # df_generated_cps = df_generated_cps.append(
+                #     s,
+                #     ignore_index=True,
+                # )
 
             # print(standing_idx/len(df_standing)*100)
 
-        return df_standing, df_cp
+        return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
     except:
         traceback.print_exc()
@@ -447,13 +546,14 @@ def distribute_demand_hpc(
             seed=25588,
         )
 
-        df_standing, df_cp, weights, _, cp_idxs, population_list, max_cp_per_location = data_preprocessing(
+        #df_standing, df_cp, weights, _, cp_idxs, weight_list, max_cp_per_location = data_preprocessing(
+        df_standing, df_cp, car_idxs, cp_idxs, max_cp_per_location = data_preprocessing(
             df_standing,
             df_cp,
             use_case=use_case,
         )
 
-        population_list_init = population_list.copy()
+        # weight_list_init = weight_list.copy()
 
         cols = [
             "cp_idx",
@@ -509,26 +609,28 @@ def distribute_demand_hpc(
             )
 
             if len(df_matching) > 0:
-                cp_idx = int(df_matching.iat[0, 0])
+                row_matching = df_matching.iloc[0]
+
+                cp_idx = int(row_matching.iat[0])
+
+                matching_idx = row_matching.name
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
 
-                df_generated_cps.loc[
-                    (df_generated_cps.cp_idx == cp_idx)
-                ] = df_generated_cps.loc[
-                    (df_generated_cps.cp_idx == cp_idx)
-                ].assign(
-                    ts_last=last_ts,
-                )
+                df_generated_cps.at[matching_idx, "ts_last"] = last_ts
 
             else:
-                cp_idx, weights, total_population, population_list = get_weighted_rnd_cp(
-                    rng,
-                    weights,
+                # cp_idx, weights, weight_list = get_weighted_rnd_cp(
+                #     rng,
+                #     cp_idxs,
+                #     max_cp_per_location,
+                #     weight_list,
+                #     weight_list_init,
+                #     weights,
+                # )
+
+                cp_idx = rng.choice(
                     cp_idxs,
-                    population_list,
-                    population_list_init,
-                    max_cp_per_location,
                 )
 
                 cp_number = df_cp.columns[df_cp.loc[cp_idx].isna()].tolist()[0]
@@ -537,23 +639,27 @@ def distribute_demand_hpc(
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
 
-                s = pd.Series(
-                    [
-                        cp_idx,
-                        cap,
-                        last_ts,
-                    ],
-                    index=cols,
-                )
+                df_generated_cps.loc[len(df_generated_cps)] = [
+                    cp_idx,
+                    cap,
+                    last_ts,
+                ]
 
-                df_generated_cps = df_generated_cps.append(
-                    s,
-                    ignore_index=True,
-                )
+                # s = pd.Series(
+                #     [
+                #         cp_idx,
+                #         cap,
+                #         last_ts,
+                #     ],
+                #     index=cols,
+                # )
+                #
+                # df_generated_cps = df_generated_cps.append(
+                #     s,
+                #     ignore_index=True,
+                # )
 
-            # print(standing_idx/len(df_standing)*100)
-
-        return df_standing, df_cp
+        return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
     except:
         traceback.print_exc()
@@ -583,11 +689,11 @@ def get_last_ts(
 
 def get_weighted_rnd_cp(
         rng,
-        weights,
         cp_idxs,
-        population_list,
-        population_list_init,
         max_cp_per_location,
+        weight_list,
+        weight_list_init,
+        weights,
 ):
     try:
         if sum(weights) < 0.9:
@@ -600,24 +706,30 @@ def get_weighted_rnd_cp(
                 p=weights,
             )
 
-        pop_idx = cp_idxs.index(cp_idx)
+        weight_idx = cp_idxs.index(cp_idx)
 
         # recalculate weights
-        population_list[pop_idx] = max(
-            population_list[pop_idx] - np.ceil(population_list_init[pop_idx] / max_cp_per_location),
+        weight_list[weight_idx] = max(
+            weight_list[weight_idx] - np.ceil((weight_list_init[weight_idx] / max_cp_per_location)*1000)/1000,
             0,
         )
 
-        total_population = max(
-            sum(population_list),
+        total_weight = max(
+            sum(weight_list),
             1,
         )
 
         weights = [
-            population / total_population for population in population_list
+            weight / total_weight for weight in weight_list
         ]
 
-        return cp_idx, weights, total_population, population_list
+        if sum(weights) > 0:
+            # sometimes the sum is too far away from 1 and needs to be standardized
+            weights = [
+                weight / sum(weights) for weight in weights
+            ]
+
+        return cp_idx, weights, weight_list
 
     except:
         traceback.print_exc()
@@ -626,12 +738,10 @@ def get_weighted_rnd_cp(
 def data_preprocessing(
         df_standing,
         df_cp,
-        use_case = None,
+        use_case=None,
 ):
     try:
         car_idxs = df_standing.car_idx.unique()
-
-        total_population = df_cp.Einwohner.sum()
 
         if use_case == "public" or use_case == "hpc":
             # max_cp_per_location = len(car_idxs) * 0.2
@@ -643,12 +753,10 @@ def data_preprocessing(
             max_cp_per_location = max(
                 int(np.ceil(len(car_idxs) / len(df_cp))),
                 1,
-            ) * 2
-
-        max_cp_per_location = len(car_idxs)
+            ) * 3
 
         cols = [
-            "cp_{:03d}".format(x + 1) for x in range(max_cp_per_location)
+            "cp_{:05d}".format(x + 1) for x in range(max_cp_per_location)
         ]
 
         df_cp = pd.concat(
@@ -661,19 +769,30 @@ def data_preprocessing(
             sort=False,
         )
 
-        df_cp.Einwohner = df_cp.Einwohner.astype(np.int32)
-
         cp_idxs = df_cp.index.tolist()
 
         df_standing["cp_idx"] = np.nan
 
-        population_list = df_cp.Einwohner.tolist()
+        if use_case != "hpc":
+            total_weight = df_cp.weight.sum()
 
-        weights = [
-            population / total_population for population in population_list
-        ]
+            # df_cp.weight = df_cp.weight.astype(np.int32)
 
-        return df_standing, df_cp, weights, car_idxs, cp_idxs, population_list, max_cp_per_location
+            weight_list = df_cp.weight.tolist()
+
+            weights = [
+                weight / total_weight for weight in weight_list
+            ]
+
+            if sum(weights) > 0:
+                weights = [
+                    weight * 1 / (sum(weights)) for weight in weights
+                ]
+
+            return df_standing, df_cp, weights, car_idxs, cp_idxs, weight_list, max_cp_per_location
+
+        else:
+            return df_standing, df_cp, car_idxs, cp_idxs, max_cp_per_location
 
     except:
         traceback.print_exc()
@@ -686,18 +805,20 @@ def data_to_hdf(
         ags_dir,
 ):
     try:
-        df_cp = df_cp.drop(
-            [
-                "Einwohner",
-            ],
-            axis="columns",
-        )
+        if "weight" in df_cp.columns:
+            df_cp = df_cp.drop(
+                [
+                    "weight",
+                ],
+                axis="columns",
+            )
         df_cp = df_cp.dropna(
             axis="columns",
             how="all",
         )
-        df_cp = df_cp[df_cp.cp_001.notna()].fillna(0)
+        df_cp = df_cp[df_cp.cp_00001.notna()].fillna(0)
         df_cp = df_cp.sort_index()
+        df_cp.reset_index(inplace=True)
 
         df_standing.cp_idx = df_standing.cp_idx.astype(np.int32)
         df_standing = df_standing.drop(
@@ -724,27 +845,61 @@ def data_to_hdf(
         )
 
         files = [
-            r"cp_data_{}.pkl".format(use_case),
-            r"cp_standing_times_mapping_{}.pkl".format(use_case),
+            r"cp_data_{}.geojson".format(use_case),
+            r"cp_standing_times_mapping_{}.h5".format(use_case),
         ]
 
         for count, file in enumerate(files):
-            if count == 0:
-                export_df = df_cp.copy()
-            elif count == 1:
-                export_df = df_standing.copy()
-
             export_path = os.path.join(
                 export_dir,
                 file,
             )
 
-            export_df.to_pickle(
-                export_path,
-                # key="export_df",
-            )
+            if count == 0:
+                df_cp.to_file(
+                    export_path,
+                    driver="GeoJSON",
+                )
+            elif count == 1:
+                df_standing.to_hdf(
+                    path_or_buf=export_path,
+                    key="export_df",
+                    mode="w",
+                    format="table",
+                )
 
-        print("Data for use case {} has been exported for AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
+        # print("Data for use case {} has been exported for AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
     except:
         traceback.print_exc()
+
+def compress(
+        df,
+        verbose=True,
+):
+    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+    start_mem = df.memory_usage().sum() / 1024**2
+    for col in df.columns:
+        col_type = df[col].dtypes
+        if col_type in numerics:
+            c_min = df[col].min()
+            c_max = df[col].max()
+            if str(col_type)[:3] == 'int':
+                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                    df[col] = df[col].astype(np.int8)
+                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                    df[col] = df[col].astype(np.int16)
+                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                    df[col] = df[col].astype(np.int32)
+                elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
+                    df[col] = df[col].astype(np.int64)
+            else:
+                if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
+                    df[col] = df[col].astype(np.float16)
+                elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+                    df[col] = df[col].astype(np.float32)
+                else:
+                    df[col] = df[col].astype(np.float64)
+    end_mem = df.memory_usage().sum() / 1024**2
+    if verbose: print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
+    return df
 
