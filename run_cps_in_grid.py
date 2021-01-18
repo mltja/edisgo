@@ -1,10 +1,15 @@
 import gc
+import logging
 import os.path
 import edisgo.io.simBEV_import as sB
 import multiprocessing
 
 from pathlib import Path
 
+
+# suppress infos from pypsa
+logger = logging.getLogger("pypsa")
+logger.setLevel(logging.ERROR)
 
 gc.collect()
 
@@ -34,8 +39,13 @@ data_dirs = Path(
     )
 )
 
+ding0_dir = Path( # TODO: choose dir
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+)
+
 if __name__ == "__main__":
     if num_threads == 1:
         sB.run_cps_in_grid(
             data_dirs,
+            ding0_dir,
         )
