@@ -19,7 +19,7 @@ def run_simBEV_import(
         # get ags numbers
         ags_lst, ags_dirs = get_ags(data_dir)
 
-        for count, ags_dir in enumerate(ags_dirs[12:]): # TODO
+        for count, ags_dir in enumerate(ags_dirs[29:]): # TODO
 
             print("AGS Nr. {} is being processed in scenario {}.".format(ags_dir.parts[-1], ags_dir.parts[-3]))
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 gc.collect()
 
-num_threads = 2
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -31,7 +31,7 @@ scenarios = [
 sub_dir = "standing_times_looped"
 
 data_dirs = [
-    Path(os.path.join(data_dir, scenario, sub_dir)) for scenario in scenarios[:2]
+    Path(os.path.join(data_dir, scenario, sub_dir)) for scenario in [scenarios[2]]
 ]
 
 data_tuples = [
