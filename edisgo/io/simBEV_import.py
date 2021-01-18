@@ -21,7 +21,7 @@ def run_simBEV_import(
 
         for count, ags_dir in enumerate(ags_dirs):
 
-            print("AGS Nr. {} is being processed.".format(ags_dir.parts[-1]))
+            print("AGS Nr. {} is being processed in scenario {}.".format(ags_dir.parts[-1], ags_dir.parts[-3]))
 
             t1 = perf_counter()
 
@@ -38,62 +38,6 @@ def run_simBEV_import(
                 localiser_data_dir,
                 ags_dir,
             )
-
-            # some AGS don't have a potential hpc or work charging place...
-            if len(df_cp_hpc) == 0:
-                # append hpc data to public dataframe
-                df_standing_times_public = df_standing_times_public.append(
-                    df_standing_times_hpc,
-                )
-
-                df_standing_times_public = df_standing_times_public.sort_values(
-                    by=["charge_start"],
-                    ascending=True,
-                )
-
-                df_standing_times_public.reset_index(
-                    drop=True,
-                    inplace=True,
-                )
-
-                # drop data in hpc dataframe
-                df_standing_times_hpc = pd.DataFrame(
-                    columns=df_standing_times_hpc.columns,
-                )
-            if len(df_cp_work) == 0:
-                max_car = df_standing_times_home.car_idx.max()
-                df_standing_times_work = df_standing_times_work.assign(
-                    car_idx=[
-                        idx + max_car + 1 for idx in df_standing_times_work.car_idx
-                    ]
-                )
-                # append work data to home (flexible) dataframe
-                df_standing_times_home = df_standing_times_home.append(
-                    df_standing_times_work,
-                )
-
-                df_standing_times_home = df_standing_times_home.sort_values(
-                    by=["charge_start"],
-                    ascending=True,
-                )
-
-                df_standing_times_home.reset_index(
-                    drop=True,
-                    inplace=True,
-                )
-
-                # drop data in hpc dataframe
-                df_standing_times_work = pd.DataFrame(
-                    columns=df_standing_times_work.columns,
-                )
-            if len(df_cp_public) == 0:
-                raise ValueError("There are no possible public charging stations in AGS Nr. {}.".format(
-                    ags_dir.parts[-1])
-                )
-            if len(df_cp_home) == 0:
-                raise ValueError("There are no possible home charging stations in AGS Nr. {}.".format(
-                    ags_dir.parts[-1])
-                )
 
             use_cases = [
                 "home",
@@ -113,12 +57,21 @@ def run_simBEV_import(
                     )
                     del df_standing_times_home, df_cp_home
                 elif use_case == "work" and len(df_standing_times_work) > 0:
-                    distribute_demand(
-                        use_case,
-                        df_standing_times_work,
-                        df_cp_work,
-                        ags_dir,
-                    )
+                    if len(df_cp_work) > 0:
+                        distribute_demand(
+                            use_case,
+                            df_standing_times_work,
+                            df_cp_work,
+                            ags_dir,
+                        )
+                    else:
+                        # use public charging points
+                        distribute_demand(
+                            use_case,
+                            df_standing_times_work,
+                            df_cp_public,
+                            ags_dir,
+                        )
                     del df_standing_times_work, df_cp_work
                 elif use_case == "public" and len(df_standing_times_public) > 0:
                     distribute_demand(
@@ -129,12 +82,21 @@ def run_simBEV_import(
                     )
                     del df_standing_times_public, df_cp_public
                 elif use_case == "hpc" and len(df_standing_times_hpc) > 0:
-                    distribute_demand(
-                        use_case,
-                        df_standing_times_hpc,
-                        df_cp_hpc,
-                        ags_dir,
-                    )
+                    if len(df_cp_hpc) > 0:
+                        distribute_demand(
+                            use_case,
+                            df_standing_times_hpc,
+                            df_cp_hpc,
+                            ags_dir,
+                        )
+                    else:
+                        # use public charging points
+                        distribute_demand(
+                            use_case,
+                            df_standing_times_hpc,
+                            df_cp_public,
+                            ags_dir,
+                        )
                     del df_standing_times_hpc, df_cp_hpc
                 else:
                     print("Use case {} is not in AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
@@ -146,7 +108,7 @@ def run_simBEV_import(
                 )
 
             gc.collect()
-            print("AGS Nr. {} has been processed.".format(ags_dir.parts[-1]))
+            print("AGS Nr. {} has been processed in scenario {}.".format(ags_dir.parts[-1], ags_dir.parts[-3]))
             # break  # TODO: remove this when all data is available
     except:
         traceback.print_exc()
@@ -513,22 +475,6 @@ def distribute_demand_public(
                     last_ts,
                 ]
 
-                # s = pd.Series(
-                #     [
-                #         cp_idx,
-                #         cap,
-                #         last_ts,
-                #     ],
-                #     index=cols,
-                # )
-                #
-                # df_generated_cps = df_generated_cps.append(
-                #     s,
-                #     ignore_index=True,
-                # )
-
-            # print(standing_idx/len(df_standing)*100)
-
         return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
     except:
@@ -644,20 +590,6 @@ def distribute_demand_hpc(
                     cap,
                     last_ts,
                 ]
-
-                # s = pd.Series(
-                #     [
-                #         cp_idx,
-                #         cap,
-                #         last_ts,
-                #     ],
-                #     index=cols,
-                # )
-                #
-                # df_generated_cps = df_generated_cps.append(
-                #     s,
-                #     ignore_index=True,
-                # )
 
         return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
