@@ -1,6 +1,6 @@
 import gc
 import os.path
-import edisgo.flex_opt.charging_ev as cEV
+import edisgo.io.simBEV_import as sB
 import multiprocessing
 
 from pathlib import Path
@@ -10,9 +10,10 @@ gc.collect()
 
 num_threads = 1
 
-# TODO: set dir
-data_dir = r"\\FS01\Daten_flexibel_02\simbev_results"
-# data_dir = r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results"
+data_dir = Path( # TODO: set dir
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+)
 
 scenarios = [
     "Electrification_2050_simbev_run",
@@ -25,14 +26,16 @@ scenarios = [
 
 sub_dir = "cp_standing_times_mapping"
 
-data_dirs = [
-    Path(os.path.join(data_dir, scenario, sub_dir)) for scenario in scenarios
-]
+data_dirs = Path(
+    os.path.join(
+        data_dir,
+        scenarios[5],
+        sub_dir,
+    )
+)
 
 if __name__ == "__main__":
     if num_threads == 1:
-        cEV.charging(
-            data_dirs[0],
+        sB.run_cps_in_grid(
+            data_dirs,
         )
-    else:
-        pass
