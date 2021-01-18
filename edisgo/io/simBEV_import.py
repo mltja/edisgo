@@ -1,14 +1,148 @@
+import os
+import traceback
+import gc
+import ast
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-import os.path
-import traceback
 import glob
-import gc
 
+from edisgo import EDisGo
+from shapely.geometry import Point
 from pathlib import Path
 from numpy.random import default_rng
 from time import perf_counter
+from egoio.tools.db import connection
+from egoio.db_tables import demand
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import func
+from shapely.wkt import loads as wkt_loads
+
+
+def run_cps_in_grid(
+        data_dir,
+):
+    try:
+        # get ags numbers
+        _, ags_dirs = get_ags(data_dir)
+
+        for count, ags_dir in enumerate(ags_dirs):
+
+            print("AGS Nr. {} is being processed.".format(ags_dir.parts[-1]))
+
+            use_case_dirs = get_cp_geojson_dirs(ags_dir)
+
+            for use_case in use_case_dirs:
+
+
+            print("breaker")
+
+    except:
+        traceback.print_exc()
+
+
+def get_charging_points_in_grid_district(
+        edisgo,
+        base_path,
+):
+    # # get Landkreis(e) the respective grid is in
+    # path_cluster = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+    #                             "clusters.csv")
+    # cluster = pd.read_csv(path_cluster, index_col=[0])
+    # landkreise = ast.literal_eval(
+    #     cluster.loc[edisgo.topology.mv_grid.id, "ags"]).keys()
+    #
+    # # read charging infrastructure data per use case from csv
+    # # for each Landkreis the respective grid is in (can be one or two)
+    # if "fix" in base_path:
+    #     addon = "dumb"
+    # else:
+    #     addon = "smart"
+    # filename_use_case_work = "uc4_ags_{}_{}.geojson"
+    # filename_use_case_private = "uc3_ags_{}_{}.geojson"
+    # filename_use_case_public = "uc2_ags_{}_{}.geojson"
+    # filename_use_case_fast = "uc1_ags_{}_{}.geojson"
+    #
+    # lis_work = gpd.GeoDataFrame()
+    # lis_private = gpd.GeoDataFrame()
+    # lis_public = gpd.GeoDataFrame()
+    # lis_fast = gpd.GeoDataFrame()
+    #
+    # for ags in landkreise:
+    #
+    #     if ags < 10000:
+    #         ags = "0{}000".format(ags)
+    #     else:
+    #         ags = "{}000".format(ags)
+    #
+    #     lis_work = lis_work.append(
+    #         gpd.read_file(
+    #             os.path.join(base_path, "lis_ergebnisse",
+    #                          filename_use_case_work.format(ags, addon))).loc[
+    #         :, ["distribution_factor_sum", "geometry"]])
+    #     lis_private = lis_private.append(
+    #         gpd.read_file(
+    #             os.path.join(base_path, "lis_ergebnisse",
+    #                          filename_use_case_private.format(ags, addon))).loc[
+    #         :, ["distribution_factor_sum", "geometry"]])
+    #     lis_public = lis_public.append(
+    #         gpd.read_file(
+    #             os.path.join(base_path, "lis_ergebnisse",
+    #                          filename_use_case_public.format(ags, addon))).loc[
+    #         :, ["distribution_factor_sum", "geometry"]])
+    #     lis_fast = lis_fast.append(
+    #         gpd.read_file(
+    #             os.path.join(base_path, "lis_ergebnisse",
+    #                          filename_use_case_fast.format(ags, addon))).loc[
+    #         :, ["distribution_factor_sum", "geometry"]])
+    #
+    # # concat all charging points
+    # if not lis_work.empty:
+    #     lis_work.loc[:, "use_case"] = "work"
+    # if not lis_private.empty:
+    #     lis_private.loc[:, "use_case"] = "home"
+    # if not lis_public.empty:
+    #     lis_public.loc[:, "use_case"] = "public"
+    # if not lis_fast.empty:
+    #     lis_fast.loc[:, "use_case"] = "fast"
+    #
+    # lis_all = pd.concat(
+    #     [lis_work,
+    #      lis_private,
+    #      lis_public,
+    #      lis_fast],
+    #     sort=False
+    # )
+    # lis_all.reset_index(drop=True, inplace=True)
+    #
+    # lis_all.rename(
+    #     columns={"distribution_factor_sum": "cp_distribution_factor"},
+    #     inplace=True)
+    #
+    # # filter all charging stations inside the grid district
+    #
+    # # get grid district geometry
+    # mv_grid_geom = edisgo.topology.grid_district["geom"]
+    #
+    # # filter charing stations in grid district
+    # pip_mask = lis_all.within(mv_grid_geom)
+    # lis_all_gdf_filtered = lis_all[pip_mask]
+    #
+    # return lis_all_gdf_filtered
+
+
+def get_cp_geojson_dirs(
+        ags_dir,
+):
+    use_cases = os.listdir(ags_dir)
+
+    use_cases.sort()
+
+    use_cases = [
+        Path(os.path.join(ags_dir, use_case)) for use_case in use_cases if "geojson" in use_case
+    ]
+
+    return use_cases
 
 
 def run_simBEV_import(
@@ -17,9 +151,9 @@ def run_simBEV_import(
 ):
     try:
         # get ags numbers
-        ags_lst, ags_dirs = get_ags(data_dir)
+        _, ags_dirs = get_ags(data_dir)
 
-        for count, ags_dir in enumerate(ags_dirs[29:]): # TODO
+        for count, ags_dir in enumerate(ags_dirs): # TODO
 
             print("AGS Nr. {} is being processed in scenario {}.".format(ags_dir.parts[-1], ags_dir.parts[-3]))
 
@@ -115,6 +249,8 @@ def get_ags(
 ):
     try:
         ags_dirs = glob.glob(f'{data_dir}/*/')
+
+        ags_dirs.sort()
 
         ags_dirs = [
             Path(directory) for directory in ags_dirs

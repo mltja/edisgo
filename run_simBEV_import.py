@@ -5,6 +5,7 @@ import multiprocessing
 
 from pathlib import Path
 
+
 gc.collect()
 
 num_threads = 1
@@ -31,7 +32,7 @@ scenarios = [
 sub_dir = "standing_times_looped"
 
 data_dirs = [
-    Path(os.path.join(data_dir, scenario, sub_dir)) for scenario in [scenarios[2]]
+    Path(os.path.join(data_dir, scenario, sub_dir)) for scenario in scenarios
 ]
 
 data_tuples = [
