@@ -55,7 +55,6 @@ def run_simBEV_import(
                         df_cp_home,
                         ags_dir,
                     )
-                    del df_standing_times_home, df_cp_home
                 elif use_case == "work" and len(df_standing_times_work) > 0:
                     if len(df_cp_work) > 0:
                         distribute_demand(
@@ -72,7 +71,6 @@ def run_simBEV_import(
                             df_cp_public,
                             ags_dir,
                         )
-                    del df_standing_times_work, df_cp_work
                 elif use_case == "public" and len(df_standing_times_public) > 0:
                     distribute_demand(
                         use_case,
@@ -80,7 +78,6 @@ def run_simBEV_import(
                         df_cp_public,
                         ags_dir,
                     )
-                    del df_standing_times_public, df_cp_public
                 elif use_case == "hpc" and len(df_standing_times_hpc) > 0:
                     if len(df_cp_hpc) > 0:
                         distribute_demand(
@@ -97,7 +94,6 @@ def run_simBEV_import(
                             df_cp_public,
                             ags_dir,
                         )
-                    del df_standing_times_hpc, df_cp_hpc
                 else:
                     print("Use case {} is not in AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
 
