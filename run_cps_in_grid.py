@@ -13,11 +13,16 @@ logger.setLevel(logging.ERROR)
 
 gc.collect()
 
-num_threads = 1
+num_threads = 6
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+)
+
+ding0_dir = Path( # TODO: choose dir
+    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [
@@ -31,21 +36,24 @@ scenarios = [
 
 sub_dir = "cp_standing_times_mapping"
 
-data_dirs = Path(
-    os.path.join(
-        data_dir,
-        scenarios[5],
-        sub_dir,
-    )
-)
+data_dirs = [
+    Path(os.path.join(data_dir, scenario, sub_dir,)) for scenario in scenarios
+]
 
-ding0_dir = Path( # TODO: choose dir
-    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-)
+data_tuples = [
+    (directory, ding0_dir) for directory in data_dirs
+]
 
 if __name__ == "__main__":
     if num_threads == 1:
-        sB.run_cps_in_grid(
-            data_dirs,
-            ding0_dir,
-        )
+        for data_dir in data_dirs:
+            sB.run_cps_in_grid(
+                data_dir,
+                ding0_dir,
+            )
+    else:
+        with multiprocessing.Pool(num_threads) as pool:
+            pool.starmap(
+                sB.run_cps_in_grid,
+                data_tuples,
+            )
