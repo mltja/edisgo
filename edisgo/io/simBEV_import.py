@@ -98,10 +98,11 @@ def get_grid_data():
     try:
         base_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-        data_path = Path(os.path.join(
+        data_path = os.path.join(
             base_dir.parent,
-            r"grid_data\MA_grids_kh.csv",
-        ))
+            "grid_data",
+            "MA_grids_kh.csv",
+        )
 
         df = pd.read_csv(
             data_path,
