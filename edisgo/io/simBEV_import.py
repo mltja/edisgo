@@ -48,8 +48,7 @@ def run_cps_in_grid(
                     )
 
             print("Grid {} in scenario {} is done.".format(grid_id, data_dir.parts[-2]))
-
-
+            gc.collect()
 
     except:
         traceback.print_exc()
@@ -76,8 +75,8 @@ def get_charging_points_in_grid_district(
         pip_mask = gdf_cps.within(mv_grid_geom)
         gdf_cps_filtered = gdf_cps[pip_mask]
 
-        print("{} % of CPs in grid {} are within the grid for use case {}.".format(
-            round(len(gdf_cps_filtered)/len(gdf_cps)*100,1), grid_id, use_case_path.parts[-1]
+        print("{} % of CPs in grid {} are within the grid for AGS Nr. {} in use case {}.".format(
+            round(len(gdf_cps_filtered)/len(gdf_cps)*100,1), grid_id, use_case_path.parts[-2], use_case_path.parts[-1]
         ))
 
         if not gdf_cps_filtered.empty:
@@ -931,6 +930,7 @@ def data_export(
                     key="export_df",
                     mode="w",
                     format="table",
+                    data_columns=True,
                 )
 
         # print("Data for use case {} has been exported for AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
