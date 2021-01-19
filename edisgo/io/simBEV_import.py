@@ -8,15 +8,9 @@ import geopandas as gpd
 import glob
 
 from edisgo import EDisGo
-from shapely.geometry import Point
 from pathlib import Path
 from numpy.random import default_rng
 from time import perf_counter
-from egoio.tools.db import connection
-from egoio.db_tables import demand
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import func
-from shapely.wkt import loads as wkt_loads
 
 
 def run_cps_in_grid(
@@ -52,6 +46,8 @@ def run_cps_in_grid(
                         use_case_path,
                         grid_id,
                     )
+
+            print("Grid {} in scenario {} is done.".format(grid_id, data_dir.parts[-2]))
 
 
 
