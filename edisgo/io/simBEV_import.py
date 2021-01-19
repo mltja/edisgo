@@ -38,7 +38,7 @@ def run_cps_in_grid(
             ]
 
             for ags_idx, ags_dir in enumerate(ags_dirs):
-                use_case_paths = get_cp_geojson_dirs(ags_dir)
+                use_case_paths = get_cp_geojson_paths(ags_dir)
 
                 for use_case_path in use_case_paths:
                     get_charging_points_in_grid_district(
@@ -57,14 +57,14 @@ def run_cps_in_grid(
 
 def get_charging_points_in_grid_district(
         edisgo,
-        use_case_dir,
+        use_case_path,
         grid_id,
 ):
     try:
         # get Landkreis(e) the respective grid is in
         gdf_cps = compress(
             gpd.read_file(
-                use_case_dir,
+                use_case_path,
             ),
             verbose=False,
         )
@@ -76,19 +76,25 @@ def get_charging_points_in_grid_district(
         pip_mask = gdf_cps.within(mv_grid_geom)
         gdf_cps_filtered = gdf_cps[pip_mask]
 
-        export_path = os.path.join(
-            use_case_dir.parent,
-            "{}_within_grid_{}{}".format(
-                use_case_dir.stem,
-                str(grid_id),
-                use_case_dir.suffix,
-            )
-        )
+        print("{} % of CPs in grid {} are within the grid for use case {}.".format(
+            round(len(gdf_cps_filtered)/len(gdf_cps)*100,1), grid_id, use_case_path.parts[-1]
+        ))
 
-        gdf_cps_filtered.to_file(
-            export_path,
-            driver="GeoJSON",
-        )
+        if not gdf_cps_filtered.empty:
+
+            export_path = os.path.join(
+                use_case_path.parent,
+                "{}_within_grid_{}{}".format(
+                    use_case_path.stem,
+                    str(grid_id),
+                    use_case_path.suffix,
+                )
+            )
+
+            gdf_cps_filtered.to_file(
+                export_path,
+                driver="GeoJSON",
+            )
 
     except:
         traceback.print_exc()
@@ -119,13 +125,17 @@ def get_grid_data():
         traceback.print_exc()
 
 
-def get_cp_geojson_dirs(
+def get_cp_geojson_paths(
         ags_dir,
 ):
     try:
         use_cases = os.listdir(ags_dir)
 
         use_cases.sort()
+
+        use_cases = [
+            use_case for use_case in use_cases if not hasNumbers(use_case)
+        ]
 
         use_cases = [
             Path(os.path.join(ags_dir, use_case)) for use_case in use_cases if "geojson" in use_case
@@ -957,4 +967,9 @@ def compress(
     end_mem = df.memory_usage().sum() / 1024**2
     if verbose: print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
     return df
+
+def hasNumbers(
+        inputString,
+):
+    return any(char.isdigit() for char in inputString)
 
