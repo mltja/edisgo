@@ -22,7 +22,7 @@ def run_cps_in_grid(
 
         for grid_idx, grid_id in df_grid_data.grid_id.iteritems():
 
-            print("Grid Nr. {} is being processed.".format(grid_id))
+            print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
 
             edisgo = EDisGo(
                 ding0_grid=os.path.join(
