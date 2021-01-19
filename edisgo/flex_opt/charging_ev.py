@@ -1,47 +1,87 @@
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import os.path
 import traceback
 import gc
 
-from edisgo.io.simBEV_import import get_ags
+from edisgo import EDisGo
+from edisgo.io.simBEV_import import get_ags, get_grid_data, hasNumbers
 from pathlib import Path
 from time import perf_counter
 
 
 def charging(
         data_dir,
+        ding0_dir,
 ):
     try:
         setup_dict = get_setup(data_dir)
 
-        # get ags numbers
-        ags_lst, ags_dirs = get_ags(data_dir)
+        df_grid_data = get_grid_data()
 
-        for count_ags, ags_dir in enumerate(ags_dirs):
+        for grid_idx, grid_id in df_grid_data.grid_id.iteritems():
+
+            print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
+
+            # edisgo = EDisGo(
+            #     ding0_grid=os.path.join(
+            #         ding0_dir, str(grid_id)
+            #     ),
+            #     worst_case_analysis='worst-case',
+            # )
+
+            ags_list = df_grid_data.ags.at[grid_idx]
+
+            ags_list.sort()
+
+            ags_dirs = [
+                Path(os.path.join(data_dir, ags)) for ags in ags_list
+            ]
+
             t1 = perf_counter()
-            data_dfs, use_cases = get_ags_data(ags_dir)
-            print(
-                "It took {} seconds to read in the data in AGS Nr. {}.".format(
-                    perf_counter() - t1, ags_dir.parts[-1]
-                )
+
+            gdf_cps_total, df_standing_total = get_grid_cps_and_charging_processes(
+                ags_dirs,
             )
 
+            gc.collect()
+
+            print("It took {} seconds to read in the data for grid {}.".format(
+                round(perf_counter() - t1, 1), grid_id
+            ))
+
+            use_cases = gdf_cps_total.use_case.unique().tolist()
+
+            use_cases.sort()
+
             for count_cases, use_case in enumerate(use_cases):
-                for strategy in ["dumb", "reduced"]:
-                    if strategy == "dumb" or (strategy == "reduced" and (use_case == "home" or use_case == "work")):
+                df_standing_data = df_standing_total[df_standing_total.use_case == use_case]
+                gdf_cp_data = gdf_cps_total[gdf_cps_total.use_case == use_case]
+
+                gdf_to_geojson(
+                    gdf_cp_data,
+                    use_case,
+                    grid_id,
+                    data_dir,
+                )
+
+                for strategy in ["reduced"]:#["dumb", "reduced"]:
+                    if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
                         t1 = perf_counter()
                         grid_independent_charging(
-                            data_dfs[count_cases],
+                            df_standing_data,
+                            gdf_cps_total,
                             setup_dict,
                             use_case,
-                            ags_dir,
+                            grid_id,
+                            data_dir,
                             strategy=strategy,
                         )
                         print(
                             "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                            "use case {} in AGS Nr. {} with a {} charging strategy.".format(
-                                use_case, ags_dir.parts[-1], strategy,
+                            "use case {} in grid {} with a {} charging strategy.".format(
+                                use_case, grid_id, strategy,
                             )
                         )
                         gc.collect()
@@ -51,21 +91,30 @@ def charging(
 
 
 def grid_independent_charging(
-        data,
+        df_standing,
+        gdf_cps_total,
         setup_dict,
         use_case,
-        ags_dir,
+        grid_id,
+        data_dir,
         strategy="dumb",
 ):
     try:
-        cp_idxs = data.cp_idx.unique().tolist()
+        cp_ags_list = list(
+            zip(
+                gdf_cps_total.ags.tolist(),
+                gdf_cps_total.cp_idx.tolist(),
+            )
+        )
 
-        cp_idxs.sort()
+        cp_ags_list_unique = list(set(cp_ags_list))
+
+        cp_ags_list_unique.sort()
 
         cp_load = np.empty(
             shape=(
                 int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
-                len(cp_idxs),
+                len(cp_ags_list_unique),
             ),
             dtype=np.float64,
         )
@@ -75,11 +124,16 @@ def grid_independent_charging(
         time_factor = setup_dict["stepsize"] / 60
 
         if strategy == "dumb":
-            data["stop"] = (data.chargingdemand / data.netto_charging_capacity.multiply(time_factor))\
-                               .apply(np.ceil).astype(np.int32) + data.charge_start
+            df_standing = df_standing.assign(
+                stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor))\
+                         .apply(np.ceil).astype(np.int32) + df_standing.charge_start
+            )
 
-            for count_cps, cp_idx in enumerate(cp_idxs):
-                df_cp = data.copy()[data.cp_idx == cp_idx]
+            for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
+                df_cp = df_standing.copy()[
+                    (df_standing.ags == ags) &
+                    (df_standing.cp_idx == cp_idx)
+                ]
                 for cap, start, stop in zip(
                     df_cp.netto_charging_capacity.tolist(),
                     df_cp.charge_start.tolist(),
@@ -88,24 +142,41 @@ def grid_independent_charging(
                     cp_load[start:stop, count_cps] += (cap / setup_dict["eta_CP"])
 
         elif strategy == "reduced":
-            data["time"] = data.charge_end - data.charge_start + 1
+            df_standing = df_standing.assign(
+                time=df_standing.charge_end - df_standing.charge_start + 1
+            )
 
-            data["stop"] = (data.chargingdemand / data.netto_charging_capacity.multiply(time_factor))\
-                .apply(np.ceil).astype(np.int32)
+            df_standing = df_standing.assign(
+                stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor))\
+                    .apply(np.ceil).astype(np.int32)
+            )
 
-            data.chargingdemand = data.stop.multiply(time_factor) * data.netto_charging_capacity
+            df_standing = df_standing.assign(
+                chargingdemand=df_standing.stop.multiply(time_factor) * df_standing.netto_charging_capacity
+            )
 
-            data["min_cap"] = data.netto_charging_capacity.multiply(0.1)
+            df_standing = df_standing.assign(
+                min_cap=df_standing.netto_charging_capacity.multiply(0.1)
+            )
 
-            data["reduced_min_cap"] = data.chargingdemand / data.time.multiply(time_factor)
+            df_standing = df_standing.assign(
+                reduced_min_cap=df_standing.chargingdemand / df_standing.time.multiply(time_factor)
+            )
 
-            data["reduced_cap"] = data[["min_cap", "reduced_min_cap"]].max(axis=1)
+            df_standing = df_standing.assign(
+                reduced_cap=df_standing[["min_cap", "reduced_min_cap"]].max(axis=1)
+            )
 
-            data["stop"] = (data.chargingdemand / data.reduced_cap.multiply(time_factor))\
-                               .round(0).astype(np.int32) + data.charge_start
+            df_standing = df_standing.assign(
+                stop=(df_standing.chargingdemand / df_standing.reduced_cap.multiply(time_factor))\
+                         .round(0).astype(np.int32) + df_standing.charge_start
+            )
 
-            for count_cps, cp_idx in enumerate(cp_idxs):
-                df_cp = data.copy()[data.cp_idx == cp_idx]
+            for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
+                df_cp = df_standing.copy()[
+                    (df_standing.ags == ags) &
+                    (df_standing.cp_idx == cp_idx)
+                ]
 
                 for cap, start, stop in zip(
                     df_cp.reduced_cap.tolist(),
@@ -117,14 +188,19 @@ def grid_independent_charging(
         else:
             raise ValueError("Strategy '{}' does not exist.".format(strategy))
 
-        print(np.sum(cp_load))
+        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4)).apply(np.ceil).astype(int)
+        df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
+
+        print("before:", df_standing.up.sum() / 0.9)
+        print("after:", np.sum(cp_load) / 4)
 
         time_series_to_hdf(
             cp_load,
-            cp_idxs,
+            cp_ags_list_unique,
             use_case,
             strategy,
-            ags_dir,
+            grid_id,
+            data_dir,
         )
 
     except:
@@ -136,13 +212,16 @@ def time_series_to_hdf(
         cp_idxs,
         use_case,
         strategy,
-        ags_dir,
+        grid_id,
+        data_dir,
 ):
     try:
         df_load = pd.DataFrame(
             data=cp_load,
-            columns=cp_idxs,
+            # columns=cp_idxs,
         )
+
+        df_load.columns = pd.MultiIndex.from_tuples(cp_idxs)
 
         df_load = df_load.iloc[:365*24*4]
 
@@ -151,15 +230,17 @@ def time_series_to_hdf(
             verbose=False,
         )
 
-        file_name = "{}_charging_timeseries_{}.h5".format(strategy, use_case,)
+        use_case_name = get_use_case_name(use_case)
+
+        file_name = "{}_charging_timeseries_{}.h5".format(strategy, use_case_name)
 
         sub_dir = "eDisGo_timeseries"
 
         export_path = Path(
             os.path.join(
-                ags_dir.parent.parent,
+                data_dir.parent,
                 sub_dir,
-                ags_dir.parts[-1],
+                str(grid_id),
                 file_name,
             )
         )
@@ -172,7 +253,169 @@ def time_series_to_hdf(
         df_load.to_hdf(
             export_path,
             key="df_load",
+            mode="w",
         )
+
+    except:
+        traceback.print_exc()
+
+
+def gdf_to_geojson(
+        gdf,
+        use_case,
+        grid_id,
+        data_dir,
+):
+    try:
+        use_case_name = get_use_case_name(use_case)
+
+        file_name = "cp_data_{}_within_grid_{}.geojson".format(use_case_name, grid_id)
+
+        sub_dir = "eDisGo_timeseries"
+
+        export_path = Path(
+            os.path.join(
+                data_dir.parent,
+                sub_dir,
+                str(grid_id),
+                file_name,
+            )
+        )
+
+        os.makedirs(
+            export_path.parent,
+            exist_ok=True,
+        )
+
+        gdf = gdf.loc[:, (gdf != 0).any(axis=0)]
+
+        gdf.pop("use_case")
+        ags_series = gdf.pop("ags")
+
+        gdf.insert(0, "ags", ags_series)
+
+        cols = gdf.columns.difference(["ags", "cp_idx", "geometry"])
+
+        cp_count = gdf[cols].gt(0).sum(axis=1)
+
+        gdf.insert(2, "cp_count", cp_count)
+
+        gdf = compress(
+            gdf.copy(),
+            verbose=False,
+        )
+
+        gdf.to_file(
+            export_path,
+            driver="GeoJSON",
+        )
+
+    except:
+        traceback.print_exc()
+
+
+def get_grid_cps_and_charging_processes(
+        ags_dirs,
+):
+    try:
+        df_standing_total = pd.DataFrame()
+
+        gdf_cps_total = gpd.GeoDataFrame()
+
+        for ags_dir in ags_dirs:
+            files = os.listdir(ags_dir)
+
+            cp_files = [
+                file for file in files if "geojson" in file if hasNumbers(file)
+            ]
+
+            use_cases = [
+                file.split("_")[2] for file in cp_files
+            ]
+
+            cp_paths = [
+                Path(os.path.join(ags_dir, file)) for file in cp_files
+            ]
+
+            standing_times_paths = [
+                Path(os.path.join(ags_dir, file)) for file in files if "h5" in file
+            ]
+
+            for count_use_cases, use_case in enumerate(use_cases):
+                if use_case == "hpc":
+                    use_case_nr = 1
+                elif use_case == "public":
+                    use_case_nr = 2
+                elif use_case == "home":
+                    use_case_nr = 3
+                elif use_case == "work":
+                    use_case_nr = 4
+                else:
+                    raise ValueError("Use case {} is not valid.".format(use_case))
+
+                gdf_cps = gpd.read_file(
+                    cp_paths[count_use_cases],
+                )
+
+                if "index" in gdf_cps.columns:
+                    gdf_cps = gdf_cps.rename(
+                        columns={
+                            "index": "cp_idx",
+                        }
+                    )
+
+                gdf_cps["use_case"] = use_case_nr
+                gdf_cps["ags"] = int(ags_dir.parts[-1])
+
+                cps_list = gdf_cps.cp_idx.tolist()
+
+                # FIXME: I forgot the data_columns=True flag in the last run
+                # FIXME: in new runs the hdf file can be queried directly by using "where=..."
+                df_standing = pd.read_hdf(
+                    standing_times_paths[count_use_cases],
+                    key="export_df",
+                )
+
+                df_standing = df_standing[df_standing.cp_idx.isin(cps_list)]
+
+                df_standing["use_case"] = use_case_nr
+                df_standing["ags"] = int(ags_dir.parts[-1])
+
+                df_standing_total = pd.concat(
+                    [df_standing_total, df_standing],
+                    axis = 0,
+                    ignore_index=True,
+                )
+
+                gdf_cps_total = pd.concat(
+                    [gdf_cps_total, gdf_cps],
+                    axis=0,
+                    ignore_index=True,
+                    sort=False,
+                )
+
+        gdf_cps_total = gdf_cps_total.fillna(0)
+        df_standing_total = df_standing_total.fillna(0)
+
+        df_standing_total = df_standing_total.sort_values(
+            by=["ags", "use_case", "cp_idx"],
+            ascending=True,
+        )
+        df_standing_total.reset_index(
+            drop=True,
+            inplace=True,
+        )
+
+        gdf_cps_total = gdf_cps_total.sort_values(
+            by=["ags", "use_case", "cp_idx"],
+            ascending=True,
+        )
+        gdf_cps_total.reset_index(
+            drop=True,
+            inplace=True,
+        )
+
+        return compress(gdf_cps_total, verbose=False), compress(df_standing_total, verbose=False)
 
     except:
         traceback.print_exc()
@@ -226,7 +469,9 @@ def get_ags_data(
 
         files.sort()
 
-        files = files[int(len(files)/2):]
+        files = [
+            file for file in files if "h5" in file
+        ]
 
         file_dirs = [
             Path(os.path.join(ags_dir, file)) for file in files
@@ -255,9 +500,25 @@ def get_ags_data(
 
         return dfs, use_cases
 
-
     except:
         traceback.print_exc()
+
+
+def get_use_case_name(
+        use_case_nr,
+):
+    if use_case_nr == 1:
+        use_case_name = "hpc"
+    elif use_case_nr == 2:
+        use_case_name = "public"
+    elif use_case_nr == 3:
+        use_case_name = "home"
+    elif use_case_nr == 4:
+        use_case_name = "work"
+    else:
+        raise ValueError("Use case {} is not valid.".format(use_case))
+
+    return use_case_name
 
 
 def compress(
