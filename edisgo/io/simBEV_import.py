@@ -65,7 +65,7 @@ def get_charging_points_in_grid_district(
         gdf_cps = compress(
             gpd.read_file(
                 use_case_dir,
-            ).set_index("index"),
+            ),
             verbose=False,
         )
 
