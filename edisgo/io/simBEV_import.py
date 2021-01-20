@@ -291,8 +291,7 @@ def get_ags_data(
             ) for _ in range(NumberOfUseCases)
         ]
 
-        # for count_cars, car_csv in enumerate([car_csv for count, car_csv in enumerate(car_csvs) if count in [317, 771, 955]]):
-        for count_cars, car_csv in enumerate(car_csvs):#[:10]):  # TODO: remove limit
+        for count_cars, car_csv in enumerate(car_csvs):
             df = pd.read_csv(
                 car_csv,
                 index_col=[0],
@@ -358,8 +357,6 @@ def get_ags_data(
                 use_case_df,
                 verbose=False,
             )
-
-        print("Standing times for AGS Nr. {} have been read in.".format(ags_dir.parts[-1]))
 
         return tuple(use_case_dfs)
 
@@ -521,8 +518,12 @@ def distribute_demand_private(
 
 
             df_standing[df_standing.car_idx == car_idx] = df_standing[df_standing.car_idx == car_idx].assign(
-                cp_idx=cp_idx
+                cp_idx=cp_idx,
+                cp_sub_idx=int(cp_number[3:]),
             )
+
+        df_standing.cp_idx = df_standing.cp_idx.astype(int)
+        df_standing.cp_sub_idx = df_standing.cp_sub_idx.astype(int)
 
         return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
@@ -551,6 +552,7 @@ def distribute_demand_public(
 
         cols = [
             "cp_idx",
+            "cp_sub_idx",
             "netto_charging_capacity",
             "ts_last",
         ]
@@ -579,9 +581,13 @@ def distribute_demand_public(
 
                 cp_idx = int(row_matching.iat[0])
 
+                cp_sub_idx = int(row_matching.iat[1])
+
                 matching_idx = row_matching.name
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
+
+                df_standing.at[standing_idx, "cp_sub_idx"] = cp_sub_idx
 
                 df_generated_cps.at[matching_idx, "ts_last"] = last_ts
 
@@ -601,11 +607,19 @@ def distribute_demand_public(
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
 
+                cp_sub_idx = int(cp_number[3:])
+
+                df_standing.at[standing_idx, "cp_sub_idx"] = cp_sub_idx
+
                 df_generated_cps.loc[len(df_generated_cps)] = [
                     cp_idx,
+                    cp_sub_idx,
                     cap,
                     last_ts,
                 ]
+
+        df_standing.cp_idx = df_standing.cp_idx.astype(int)
+        df_standing.cp_sub_idx = df_standing.cp_sub_idx.astype(int)
 
         return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
@@ -635,6 +649,7 @@ def distribute_demand_hpc(
 
         cols = [
             "cp_idx",
+            "cp_sub_idx",
             "netto_charging_capacity",
             "ts_last",
         ]
@@ -691,9 +706,13 @@ def distribute_demand_hpc(
 
                 cp_idx = int(row_matching.iat[0])
 
+                cp_sub_idx = int(row_matching.iat[1])
+
                 matching_idx = row_matching.name
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
+
+                df_standing.at[standing_idx, "cp_sub_idx"] = cp_sub_idx
 
                 df_generated_cps.at[matching_idx, "ts_last"] = last_ts
 
@@ -717,11 +736,19 @@ def distribute_demand_hpc(
 
                 df_standing.at[standing_idx, "cp_idx"] = cp_idx
 
+                cp_sub_idx = int(cp_number[3:])
+
+                df_standing.at[standing_idx, "cp_sub_idx"] = cp_sub_idx
+
                 df_generated_cps.loc[len(df_generated_cps)] = [
                     cp_idx,
+                    cp_sub_idx,
                     cap,
                     last_ts,
                 ]
+
+        df_standing.cp_idx = df_standing.cp_idx.astype(int)
+        df_standing.cp_sub_idx = df_standing.cp_sub_idx.astype(int)
 
         return compress(df_standing, verbose=False), compress(df_cp, verbose=False)
 
@@ -836,6 +863,7 @@ def data_preprocessing(
         cp_idxs = df_cp.index.tolist()
 
         df_standing["cp_idx"] = np.nan
+        df_standing["cp_sub_idx"] = np.nan
 
         if use_case != "hpc":
             total_weight = df_cp.weight.sum()

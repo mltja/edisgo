@@ -24,13 +24,6 @@ def charging(
 
             print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
 
-            # edisgo = EDisGo(
-            #     ding0_grid=os.path.join(
-            #         ding0_dir, str(grid_id)
-            #     ),
-            #     worst_case_analysis='worst-case',
-            # )
-
             ags_list = df_grid_data.ags.at[grid_idx]
 
             ags_list.sort()
@@ -43,11 +36,26 @@ def charging(
 
             gdf_cps_total, df_standing_total = get_grid_cps_and_charging_processes(
                 ags_dirs,
+                setup_dict["eta_CP"],
+            )
+
+            print("It took {} seconds to read in the data for grid {}.".format(
+                round(perf_counter() - t1, 1), grid_id
+            ))
+
+            t1 = perf_counter()
+
+            edisgo, gdf_cps_total = integrate_cps(
+                gdf_cps_total,
+                ding0_dir,
+                grid_id,
+                worst_case_analysis="worst-case",
+                # generator_scenario="ego100",
             )
 
             gc.collect()
 
-            print("It took {} seconds to read in the data for grid {}.".format(
+            print("It took {} seconds to generate the eDisGo object for grid {}.".format(
                 round(perf_counter() - t1, 1), grid_id
             ))
 
@@ -56,8 +64,8 @@ def charging(
             use_cases.sort()
 
             for count_cases, use_case in enumerate(use_cases):
-                df_standing_data = df_standing_total[df_standing_total.use_case == use_case]
-                gdf_cp_data = gdf_cps_total[gdf_cps_total.use_case == use_case]
+                df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
+                gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
 
                 gdf_to_geojson(
                     gdf_cp_data,
@@ -66,12 +74,12 @@ def charging(
                     data_dir,
                 )
 
-                for strategy in ["reduced"]:#["dumb", "reduced"]:
+                for strategy in ["grouped"]:#["dumb", "reduced", "grouped"]:
                     if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
                         t1 = perf_counter()
                         grid_independent_charging(
                             df_standing_data,
-                            gdf_cps_total,
+                            gdf_cp_data,
                             setup_dict,
                             use_case,
                             grid_id,
@@ -80,11 +88,118 @@ def charging(
                         )
                         print(
                             "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                            "use case {} in grid {} with a {} charging strategy.".format(
-                                use_case, grid_id, strategy,
+                            "use case {} in grid {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, strategy,
                             )
                         )
                         gc.collect()
+                    elif strategy == "grouped" and (use_case == 3 or use_case == 4):
+                        t1 = perf_counter()
+                        grouped_charging(
+                            edisgo,
+                            df_standing_data,
+                            gdf_cp_data,
+                            setup_dict,
+                            use_case,
+                            grid_id,
+                            data_dir,
+                            strategy=strategy,
+                        )
+                        print(
+                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                            "use case {} in grid {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, strategy,
+                            )
+                        )
+                        gc.collect()
+
+    except:
+        traceback.print_exc()
+
+
+def grouped_charging(
+        edisgo,
+        df_standing,
+        gdf_cps,
+        setup_dict,
+        use_case,
+        grid_id,
+        data_dir,
+        strategy="grouped",
+):
+    try:
+        gdf_cps = pd.merge(
+            edisgo.topology.charging_points_df["bus"],
+            gdf_cps,
+            left_index=True,
+            right_on="edisgo_id",
+        )
+
+        for bus in gdf_cps.bus.unique():
+            df_bus = gdf_cps.copy()[gdf_cps.bus == bus]
+
+
+
+            print("breaker")
+
+    except:
+        traceback.print_exc()
+
+
+def integrate_cps(
+        gdf_cps_total,
+        ding0_dir,
+        grid_id,
+        worst_case_analysis="worst-case",
+        generator_scenario=None,
+):
+    try:
+        edisgo = EDisGo(
+            ding0_grid=os.path.join(
+                ding0_dir, str(grid_id)
+            ),
+            worst_case_analysis=worst_case_analysis,
+            generator_scenario=generator_scenario,
+        )
+
+        time_idx = edisgo.timeseries.timeindex
+
+        comp_type = "ChargingPoint"
+
+        ts_active_power = pd.Series(
+            data=[0, 0],
+            index=time_idx,
+            name="ts_active_power",
+        )
+
+        ts_reactive_power = pd.Series(
+            data=[0, 0],
+            index=time_idx,
+            name="ts_reactive_power",
+        )
+
+        cp_edisgo_id = [
+            EDisGo.integrate_component(
+                edisgo,
+                comp_type=comp_type,
+                geolocation=geolocation,
+                voltage_level=None,
+                mode="mv",
+                add_ts=True,
+                ts_active_power=ts_active_power,
+                ts_reactive_power=ts_reactive_power,
+                p_nom=p_nom,
+            ) for geolocation, p_nom in list(
+                zip(
+                    gdf_cps_total.geometry.tolist(),
+                    gdf_cps_total.cp_capacity.divide(1000).tolist(), # kW -> MW
+                )
+            )
+        ]
+
+        gdf_cps_total.insert(0, "edisgo_id", cp_edisgo_id)
+
+        return edisgo, gdf_cps_total
 
     except:
         traceback.print_exc()
@@ -134,10 +249,12 @@ def grid_independent_charging(
                     (df_standing.ags == ags) &
                     (df_standing.cp_idx == cp_idx)
                 ]
-                for cap, start, stop in zip(
-                    df_cp.netto_charging_capacity.tolist(),
-                    df_cp.charge_start.tolist(),
-                    df_cp.stop.tolist(),
+                for cap, start, stop in list(
+                    zip(
+                        df_cp.netto_charging_capacity.tolist(),
+                        df_cp.charge_start.tolist(),
+                        df_cp.stop.tolist(),
+                    )
                 ):
                     cp_load[start:stop, count_cps] += (cap / setup_dict["eta_CP"])
 
@@ -178,10 +295,12 @@ def grid_independent_charging(
                     (df_standing.cp_idx == cp_idx)
                 ]
 
-                for cap, start, stop in zip(
-                    df_cp.reduced_cap.tolist(),
-                    df_cp.charge_start.tolist(),
-                    df_cp.stop.tolist(),
+                for cap, start, stop in list(
+                    zip(
+                        df_cp.reduced_cap.tolist(),
+                        df_cp.charge_start.tolist(),
+                        df_cp.stop.tolist(),
+                    )
                 ):
                     cp_load[start:stop, count_cps] += (cap / setup_dict["eta_CP"])
 
@@ -290,15 +409,6 @@ def gdf_to_geojson(
         gdf = gdf.loc[:, (gdf != 0).any(axis=0)]
 
         gdf.pop("use_case")
-        ags_series = gdf.pop("ags")
-
-        gdf.insert(0, "ags", ags_series)
-
-        cols = gdf.columns.difference(["ags", "cp_idx", "geometry"])
-
-        cp_count = gdf[cols].gt(0).sum(axis=1)
-
-        gdf.insert(2, "cp_count", cp_count)
 
         gdf = compress(
             gdf.copy(),
@@ -316,6 +426,7 @@ def gdf_to_geojson(
 
 def get_grid_cps_and_charging_processes(
         ags_dirs,
+        eta_cp,
 ):
     try:
         df_standing_total = pd.DataFrame()
@@ -397,6 +508,31 @@ def get_grid_cps_and_charging_processes(
         gdf_cps_total = gdf_cps_total.fillna(0)
         df_standing_total = df_standing_total.fillna(0)
 
+        ags_series = gdf_cps_total.pop("ags")
+        geometry_series = gdf_cps_total.pop("geometry")
+
+        gdf_cps_total.insert(0, "ags", ags_series)
+
+        gdf_cps_total = gdf_cps_total.assign(
+            geometry=geometry_series,
+        )
+
+        cols = gdf_cps_total.columns.difference(["ags", "cp_idx", "geometry", "use_case"])
+
+        cp_count = gdf_cps_total[cols].gt(0).sum(axis=1)
+
+        gdf_cps_total.insert(2, "cp_count", cp_count)
+
+        cp_capacity = gdf_cps_total[cols].sum(axis=1).divide(eta_cp)
+
+        gdf_cps_total.insert(3, "cp_capacity", cp_capacity)
+
+        use_case_series = gdf_cps_total.pop("use_case")
+
+        gdf_cps_total.insert(1, "use_case", use_case_series)
+
+        gdf_cps_total.cp_capacity = gdf_cps_total.cp_capacity.round(1)
+
         df_standing_total = df_standing_total.sort_values(
             by=["ags", "use_case", "cp_idx"],
             ascending=True,
@@ -414,6 +550,8 @@ def get_grid_cps_and_charging_processes(
             drop=True,
             inplace=True,
         )
+
+        gdf_cps_total = compress(gdf_cps_total, verbose=False)
 
         return compress(gdf_cps_total, verbose=False), compress(df_standing_total, verbose=False)
 
@@ -516,7 +654,7 @@ def get_use_case_name(
     elif use_case_nr == 4:
         use_case_name = "work"
     else:
-        raise ValueError("Use case {} is not valid.".format(use_case))
+        raise ValueError("Use case {} is not valid.".format(use_case_nr))
 
     return use_case_name
 

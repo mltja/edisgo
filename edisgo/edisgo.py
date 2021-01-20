@@ -198,7 +198,7 @@ class EDisGo:
     timeseries: :class:`~.network.timeseries.TimeSeries`
         Container for component timeseries.
     results : :class:`~.network.results.Results`
-        This is a container holding alls calculation results from power flow
+        This is a container holding all calculation results from power flow
         analyses, curtailment, storage integration, etc.
 
     """
@@ -976,7 +976,7 @@ class EDisGo:
 
         # Connect MV component
         if voltage_level == 4:
-            self.add_component(comp_type,
+            comp_name = self.add_component(comp_type,
                                bus=self.topology.mv_grid.station.index[0],
                                add_ts=add_ts,
                                ts_active_power=ts_active_power,
@@ -1013,11 +1013,13 @@ class EDisGo:
             substations = self.topology.buses_df.loc[
                 self.topology.transformers_df.bus1]
             nearest_substation, _ = find_nearest_bus(geolocation, substations)
-            self.add_component(comp_type,
+            comp_name = self.add_component(comp_type,
                                bus=nearest_substation,
                                add_ts=add_ts,
                                ts_active_power=ts_active_power,
                                ts_reactive_power=ts_reactive_power, **kwargs)
+
+        return comp_name
 
     def remove_component(self, comp_type, comp_name, drop_ts=True):
         """
