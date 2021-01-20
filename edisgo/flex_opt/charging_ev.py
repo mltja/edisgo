@@ -337,7 +337,6 @@ def time_series_to_hdf(
     try:
         df_load = pd.DataFrame(
             data=cp_load,
-            # columns=cp_idxs,
         )
 
         df_load.columns = pd.MultiIndex.from_tuples(cp_idxs)
