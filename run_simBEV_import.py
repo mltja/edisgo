@@ -8,7 +8,7 @@ from pathlib import Path
 
 gc.collect()
 
-num_threads = 1
+num_threads = 6
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -42,7 +42,7 @@ data_tuples = [
 if __name__ == "__main__":
     if num_threads == 1:
         sB.run_simBEV_import(
-            data_dirs[0],
+            data_dirs[5],
             localiser_data_dir,
         )
     else:
