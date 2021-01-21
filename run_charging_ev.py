@@ -3,6 +3,7 @@ import os.path
 import logging
 import edisgo.flex_opt.charging_ev as cEV
 import multiprocessing
+import warnings
 
 from pathlib import Path
 
@@ -10,6 +11,10 @@ from pathlib import Path
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
 logger.setLevel(logging.ERROR)
+
+# suppress warnings
+# disable for development
+warnings.filterwarnings("ignore")
 
 gc.collect()
 
