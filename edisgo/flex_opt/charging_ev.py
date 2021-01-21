@@ -9,6 +9,7 @@ from edisgo import EDisGo
 from edisgo.io.simBEV_import import get_ags, get_grid_data, hasNumbers
 from pathlib import Path
 from time import perf_counter
+from itertools import cycle
 
 
 def charging(
@@ -39,6 +40,10 @@ def charging(
                 setup_dict["eta_CP"],
             )
 
+            # FIXME
+            df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float) \
+                .divide(0.9).round(1).multiply(0.9)
+
             print("It took {} seconds to read in the data for grid {}.".format(
                 round(perf_counter() - t1, 1), grid_id
             ))
@@ -50,7 +55,7 @@ def charging(
                 ding0_dir,
                 grid_id,
                 worst_case_analysis="worst-case",
-                # generator_scenario="ego100",
+                generator_scenario="ego100",
             )
 
             gc.collect()
@@ -74,7 +79,7 @@ def charging(
                     data_dir,
                 )
 
-                for strategy in ["grouped"]:#["dumb", "reduced", "grouped"]:
+                for strategy in ["dumb", "reduced", "grouped"]:
                     if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
                         t1 = perf_counter()
                         grid_independent_charging(
@@ -128,19 +133,220 @@ def grouped_charging(
         strategy="grouped",
 ):
     try:
-        gdf_cps = pd.merge(
+        gdf_cps = gdf_cps.copy().loc[:, (gdf_cps != 0).any(axis=0)]
+
+        gdf_cps = pd.merge( # TODO: check if this is correct every time
             edisgo.topology.charging_points_df["bus"],
             gdf_cps,
             left_index=True,
             right_on="edisgo_id",
         )
 
-        for bus in gdf_cps.bus.unique():
-            df_bus = gdf_cps.copy()[gdf_cps.bus == bus]
+        gdf_cps.reset_index(
+            drop=True,
+            inplace=True,
+        )
+
+        time_factor = setup_dict["stepsize"] / 60
+
+        df_standing = get_groups(
+            gdf_cps,
+            df_standing,
+            time_factor,
+        )
+
+        cp_ags_list = list(
+            zip(
+                df_standing.ags.tolist(),
+                df_standing.cp_idx.tolist(),
+            )
+        )
+
+        cp_sub_ags_list = list(
+            zip(
+                df_standing.ags.tolist(),
+                df_standing.cp_idx.tolist(),
+                df_standing.cp_sub_idx.tolist(),
+            )
+        )
+
+        cp_ags_list_unique = list(set(cp_ags_list))
+        cp_sub_ags_list_unique = list(set(cp_sub_ags_list))
+
+        del cp_ags_list, cp_sub_ags_list
+
+        cp_ags_list_unique.sort()
+        cp_sub_ags_list_unique.sort()
+
+        cp_load = np.empty(
+            shape=(
+                int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
+                len(gdf_cps),
+            ),
+            dtype=np.float64,
+        )
+
+        cp_load[:] = 0
+
+        df_standing = df_standing.assign(
+            cap=df_standing.netto_charging_capacity.divide(setup_dict["eta_CP"])
+        )
+
+        for ags, cp_idx, cp_sub_idx in cp_sub_ags_list_unique:
+            df_sub_cp = df_standing.copy()[
+                (df_standing.ags == ags) &
+                (df_standing.cp_idx == cp_idx) &
+                (df_standing.cp_sub_idx == cp_sub_idx)
+                ]
+            col_idx = cp_ags_list_unique.index((ags, cp_idx))
+
+            for cap, start, stop in list(
+                zip(
+                    df_sub_cp.cap.tolist(),
+                    df_sub_cp.charge_start.tolist(),
+                    (df_sub_cp.stop + 1).tolist(),
+                )
+            ):
+                cp_load[start:stop:2, col_idx] += cap
+
+            df_unfulfilled = df_sub_cp.copy()[df_sub_cp.demand_left > 0]
+
+            if not df_unfulfilled.empty:
+                for cap, start, stop in list(
+                        zip(
+                            df_sub_cp.cap.tolist(),
+                            df_sub_cp.start_next.tolist(),
+                            (df_sub_cp.stop_next + 1).tolist(),
+                        )
+                ):
+                    cp_load[start:stop:2, col_idx] += cap
+
+        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4)).apply(
+            np.ceil).astype(int)
+        df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
+
+        print("before:", df_standing.up.sum() / 0.9)
+        print("after:", np.sum(cp_load) / 4)
+
+        time_series_to_hdf(
+            cp_load,
+            cp_ags_list_unique,
+            use_case,
+            strategy,
+            grid_id,
+            data_dir,
+        )
+
+    except:
+        traceback.print_exc()
 
 
+def get_groups(
+        gdf,
+        df_standing,
+        time_factor,
+):
+    try:
+        mask = np.empty(
+            shape=(
+                gdf.shape[0],
+                gdf.shape[1] - 8,  # FIXME: automate this to len of cols named "cp_#####"
+            ),
+            dtype=np.bool_,
+        )
 
-            print("breaker")
+        mask[:] = 0
+
+        iterator = cycle(range(2))
+
+        for bus in gdf.bus.unique():
+            df_bus = gdf.copy()[gdf.bus == bus]
+
+            df_bus_cap = df_bus.copy().iloc[:, 7:-1].astype(float).round(1)
+
+            unique_caps = list(pd.unique(df_bus_cap.values.ravel()))
+
+            if 0 in unique_caps:
+                unique_caps.remove(0)
+
+            for cap in unique_caps:
+                cap_idxs = getIndexes(df_bus_cap, cap)
+
+                for (row, col) in cap_idxs:
+                    mask[row, col] = next(iterator)
+
+        df_standing = df_standing.assign(
+            group=[
+                mask[
+                    gdf.index[
+                        (gdf.ags == ags) &
+                        (gdf.cp_idx == cp_idx)
+                        ][0],
+                    cp_sub_idx,
+                ] for ags, cp_idx, cp_sub_idx in list(
+                    zip(
+                        df_standing.ags.tolist(),
+                        df_standing.cp_idx.tolist(),
+                        (df_standing.cp_sub_idx - 1).tolist(),
+                    )
+                )
+            ]
+        )
+
+        df_standing = df_standing.assign(
+            start_on=[
+                0 if ((group and start == 0) or (not group and start == 1)) else 1 for group, start in list(
+                    zip(
+                        df_standing.group.tolist(),
+                        (df_standing.charge_start % 2).tolist(),
+                    )
+                )
+            ]
+        )
+
+        df_standing.start_on = df_standing.charge_start + df_standing.start_on
+        df_standing = df_standing.assign(
+            stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor) - 1)
+                .apply(np.ceil).multiply(2).astype(int) + df_standing.start_on
+        )
+
+        df_standing.stop = df_standing[["charge_end", "stop"]].min(axis=1)
+
+        df_standing = df_standing.assign(
+            check=(df_standing.stop - df_standing.start_on) % 2
+        )
+
+        df_standing.stop = df_standing.stop - df_standing.check
+
+        df_standing.pop("check")
+
+        df_standing = df_standing.assign(
+            demand_left=df_standing.chargingdemand - ((df_standing.stop - df_standing.start_on)
+                .astype(float).divide(2).apply(np.floor) + 1)
+                        * df_standing.netto_charging_capacity.multiply(time_factor)
+        )
+
+        df_standing.demand_left = df_standing.demand_left.round(5)
+
+        df_standing.demand_left[df_standing.demand_left < 0] = 0
+
+        df_standing = df_standing.assign(
+            start_next=[
+                charge_start if charge_start < start_on else start_on + 1 for charge_start, start_on in list(
+                    zip(
+                        df_standing.charge_start.tolist(),
+                        df_standing.start_on.tolist(),
+                    )
+                )
+            ],
+        )
+
+        df_standing = df_standing.assign(
+            stop_next=(df_standing.demand_left / df_standing.netto_charging_capacity.multiply(time_factor) - 1) \
+                     .apply(np.ceil).multiply(2).astype(int) + df_standing.start_next,
+        )
+
+        return df_standing
 
     except:
         traceback.print_exc()
@@ -432,7 +638,7 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total = gpd.GeoDataFrame()
 
-        for ags_dir in ags_dirs:
+        for ags_dir in ags_dirs:#[ags_dirs[0]]: # TODO
             files = os.listdir(ags_dir)
 
             cp_files = [
@@ -533,7 +739,7 @@ def get_grid_cps_and_charging_processes(
         gdf_cps_total.cp_capacity = gdf_cps_total.cp_capacity.round(1)
 
         df_standing_total = df_standing_total.sort_values(
-            by=["ags", "use_case", "cp_idx"],
+            by=["ags", "use_case", "cp_idx", "cp_sub_idx"],
             ascending=True,
         )
         df_standing_total.reset_index(
@@ -688,4 +894,23 @@ def compress(
     end_mem = df.memory_usage().sum() / 1024**2
     if verbose: print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
     return df
+
+def getIndexes(
+        dfObj,
+        value,
+):
+    ''' Get index positions of value in dataframe i.e. dfObj.'''
+    listOfPos = list()
+    # Get bool dataframe with True at positions where the given value exists
+    result = dfObj.isin([value])
+    # Get list of columns that contains the value
+    seriesObj = result.any()
+    columnNames = list(seriesObj[seriesObj == True].index)
+    # Iterate over list of columns and fetch the rows indexes where value exists
+    for col in columnNames:
+        rows = list(result[col][result[col] == True].index)
+        for row in rows:
+            listOfPos.append((row, int(col[3:]) - 1))
+    # Return a list of tuples indicating the positions of value in the dataframe
+    return listOfPos
 
