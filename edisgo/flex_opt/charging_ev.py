@@ -6,7 +6,7 @@ import traceback
 import gc
 
 from edisgo import EDisGo
-from edisgo.io.simBEV_import import get_ags, get_grid_data, hasNumbers
+from edisgo.io.simBEV_import import get_grid_data, hasNumbers
 from pathlib import Path
 from time import perf_counter
 from itertools import cycle
@@ -50,7 +50,7 @@ def charging(
 
             t1 = perf_counter()
 
-            edisgo, gdf_cps_total = integrate_cps(
+            edisgo, gdf_cps_total, s_residual_load = integrate_cps(
                 gdf_cps_total,
                 ding0_dir,
                 grid_id,
@@ -68,55 +68,149 @@ def charging(
 
             use_cases.sort()
 
+            # for count_cases, use_case in enumerate(use_cases):
+            #     df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
+            #     gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
+            #
+            #     gdf_to_geojson(
+            #         gdf_cp_data,
+            #         use_case,
+            #         grid_id,
+            #         data_dir,
+            #     )
+            #
+            #     for strategy in ["dumb", "reduced", "grouped"]:
+            #         if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
+            #             t1 = perf_counter()
+            #             grid_independent_charging(
+            #                 df_standing_data,
+            #                 gdf_cp_data,
+            #                 setup_dict,
+            #                 use_case,
+            #                 grid_id,
+            #                 data_dir,
+            #                 strategy=strategy,
+            #             )
+            #             print(
+            #                 "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+            #                 "use case {} in grid {} with charging strategy {}.".format(
+            #                     get_use_case_name(use_case), grid_id, strategy,
+            #                 )
+            #             )
+            #             gc.collect()
+            #         elif strategy == "grouped" and (use_case == 3 or use_case == 4):
+            #             t1 = perf_counter()
+            #             grouped_charging(
+            #                 edisgo,
+            #                 df_standing_data,
+            #                 gdf_cp_data,
+            #                 setup_dict,
+            #                 use_case,
+            #                 grid_id,
+            #                 data_dir,
+            #                 strategy=strategy,
+            #             )
+            #             print(
+            #                 "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+            #                 "use case {} in grid {} with charging strategy {}.".format(
+            #                     get_use_case_name(use_case), grid_id, strategy,
+            #                 )
+            #             )
+            #             gc.collect()
+
+            df_residual_load = get_residual_load_with_evs(
+                s_residual_load,
+                data_dir,
+                grid_id,
+            )
+
+            strategy = "residual"
+
             for count_cases, use_case in enumerate(use_cases):
-                df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
-                gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
+                if use_case == 3 or use_case == 4:
+                    df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
+                    gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
 
-                gdf_to_geojson(
-                    gdf_cp_data,
-                    use_case,
-                    grid_id,
-                    data_dir,
-                )
+                    t1 = perf_counter()
+                    residual_load_charging(
+                        edisgo,
+                        df_standing_data,
+                        df_residual_load,
+                        gdf_cp_data,
+                        setup_dict,
+                        use_case,
+                        grid_id,
+                        data_dir,
+                        strategy=strategy,
+                    )
+                    print(
+                        "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                        "use case {} in grid {} with charging strategy {}.".format(
+                            get_use_case_name(use_case), grid_id, strategy,
+                        )
+                    )
+                    gc.collect()
 
-                for strategy in ["dumb", "reduced", "grouped"]:
-                    if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
-                        t1 = perf_counter()
-                        grid_independent_charging(
-                            df_standing_data,
-                            gdf_cp_data,
-                            setup_dict,
-                            use_case,
-                            grid_id,
-                            data_dir,
-                            strategy=strategy,
-                        )
-                        print(
-                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                            "use case {} in grid {} with charging strategy {}.".format(
-                                get_use_case_name(use_case), grid_id, strategy,
-                            )
-                        )
-                        gc.collect()
-                    elif strategy == "grouped" and (use_case == 3 or use_case == 4):
-                        t1 = perf_counter()
-                        grouped_charging(
-                            edisgo,
-                            df_standing_data,
-                            gdf_cp_data,
-                            setup_dict,
-                            use_case,
-                            grid_id,
-                            data_dir,
-                            strategy=strategy,
-                        )
-                        print(
-                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                            "use case {} in grid {} with charging strategy {}.".format(
-                                get_use_case_name(use_case), grid_id, strategy,
-                            )
-                        )
-                        gc.collect()
+    except:
+        traceback.print_exc()
+
+
+def get_residual_load_with_evs(
+        s_residual_load,
+        data_dir,
+        grid_id,
+):
+    try:
+        files = [
+            r"dumb_charging_timeseries_public.h5",
+            r"dumb_charging_timeseries_hpc.h5",
+        ]
+
+        sub_dir = "eDisGo_timeseries"
+
+        files = [
+            os.path.join(data_dir.parent, sub_dir, str(grid_id), f) for f in files
+        ]
+
+        df_residual_load = s_residual_load.to_frame(
+            name="residual_load"
+        )
+
+        df_residual_load = df_residual_load.assign(
+            residual_load_with_evs=df_residual_load.residual_load.multiply(-1),
+        )
+
+        for f in files:
+            arr = pd.read_hdf(
+                f,
+                key="df_load",
+            ).sum(axis=1).divide(1000).to_numpy()
+
+            df_residual_load.residual_load_with_evs += arr
+
+
+        return df_residual_load
+
+    except:
+        traceback.print_exc()
+
+
+def residual_load_charging(
+        edisgo,
+        df_standing,
+        df_residual_load,
+        gdf_cps,
+        setup_dict,
+        use_case,
+        grid_id,
+        data_dir,
+        strategy="residual",
+):
+    try:
+
+
+
+        print(strategy)
 
     except:
         traceback.print_exc()
@@ -162,21 +256,11 @@ def grouped_charging(
             )
         )
 
-        cp_sub_ags_list = list(
-            zip(
-                df_standing.ags.tolist(),
-                df_standing.cp_idx.tolist(),
-                df_standing.cp_sub_idx.tolist(),
-            )
-        )
-
         cp_ags_list_unique = list(set(cp_ags_list))
-        cp_sub_ags_list_unique = list(set(cp_sub_ags_list))
 
-        del cp_ags_list, cp_sub_ags_list
+        del cp_ags_list
 
         cp_ags_list_unique.sort()
-        cp_sub_ags_list_unique.sort()
 
         cp_load = np.empty(
             shape=(
@@ -192,13 +276,11 @@ def grouped_charging(
             cap=df_standing.netto_charging_capacity.divide(setup_dict["eta_CP"])
         )
 
-        for ags, cp_idx, cp_sub_idx in cp_sub_ags_list_unique:
+        for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
             df_sub_cp = df_standing.copy()[
                 (df_standing.ags == ags) &
-                (df_standing.cp_idx == cp_idx) &
-                (df_standing.cp_sub_idx == cp_sub_idx)
+                (df_standing.cp_idx == cp_idx)
                 ]
-            col_idx = cp_ags_list_unique.index((ags, cp_idx))
 
             for cap, start, stop in list(
                 zip(
@@ -207,7 +289,7 @@ def grouped_charging(
                     (df_sub_cp.stop + 1).tolist(),
                 )
             ):
-                cp_load[start:stop:2, col_idx] += cap
+                cp_load[start:stop:2, count_cps] += cap
 
             df_unfulfilled = df_sub_cp.copy()[df_sub_cp.demand_left > 0]
 
@@ -219,7 +301,7 @@ def grouped_charging(
                             (df_sub_cp.stop_next + 1).tolist(),
                         )
                 ):
-                    cp_load[start:stop:2, col_idx] += cap
+                    cp_load[start:stop:2, count_cps] += cap
 
         df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4)).apply(
             np.ceil).astype(int)
@@ -360,7 +442,51 @@ def integrate_cps(
         generator_scenario=None,
 ):
     try:
-        edisgo = EDisGo(
+        timeindex = pd.date_range(
+            '2011-01-01',
+            periods=8760,
+            freq='H',
+        )
+
+        p_bio = 9983 # MW
+        e_bio = 50009 # GWh
+
+        vls_bio = e_bio / (p_bio / 1000)
+
+        share = vls_bio / 8760
+
+        timeseries_generation_dispatchable = pd.DataFrame(
+            {
+                "biomass": [share] * len(timeindex),
+                "coal": [1] * len(timeindex),
+                "other": [1] * len(timeindex),
+            },
+            index=timeindex,
+        )
+
+        edisgo_residual = EDisGo(
+            ding0_grid=os.path.join(
+                ding0_dir, str(grid_id)
+            ),
+            generator_scenario=generator_scenario,
+            timeseries_load="demandlib",
+            timeseries_generation_fluctuating="oedb",
+            timeseries_generation_dispatchable=timeseries_generation_dispatchable,
+            timeindex=timeindex,
+        )
+
+        s_residual_load = get_residual(
+            edisgo_residual,
+            freq="15min",
+        )
+
+        print("Residual Load in grid {} is done.".format(grid_id))
+
+        del edisgo_residual, timeseries_generation_dispatchable, share, vls_bio, e_bio, p_bio, timeindex
+
+        # s_residual_load = None # TODO: comment our if not needed
+
+        edisgo_wc = EDisGo(
             ding0_grid=os.path.join(
                 ding0_dir, str(grid_id)
             ),
@@ -368,25 +494,25 @@ def integrate_cps(
             generator_scenario=generator_scenario,
         )
 
-        time_idx = edisgo.timeseries.timeindex
+        timeindex = edisgo_wc.timeseries.timeindex
 
         comp_type = "ChargingPoint"
 
         ts_active_power = pd.Series(
-            data=[0, 0],
-            index=time_idx,
+            data=[0] * len(timeindex),
+            index=timeindex,
             name="ts_active_power",
         )
 
         ts_reactive_power = pd.Series(
-            data=[0, 0],
-            index=time_idx,
+            data=[0] * len(timeindex),
+            index=timeindex,
             name="ts_reactive_power",
         )
 
         cp_edisgo_id = [
             EDisGo.integrate_component(
-                edisgo,
+                edisgo_wc,
                 comp_type=comp_type,
                 geolocation=geolocation,
                 voltage_level=None,
@@ -398,14 +524,55 @@ def integrate_cps(
             ) for geolocation, p_nom in list(
                 zip(
                     gdf_cps_total.geometry.tolist(),
-                    gdf_cps_total.cp_capacity.divide(1000).tolist(), # kW -> MW
+                    gdf_cps_total.cp_capacity.divide(1000).tolist(),  # kW -> MW
                 )
             )
         ]
 
         gdf_cps_total.insert(0, "edisgo_id", cp_edisgo_id)
 
-        return edisgo, gdf_cps_total
+        return edisgo_wc, gdf_cps_total, s_residual_load
+
+    except:
+        traceback.print_exc()
+
+
+# def resample_edisgo_timeseries(
+def get_residual(
+        edisgo,
+        freq="15min",
+):
+    try:
+        timeindex_old = edisgo.timeseries.timeindex
+
+        timeindex = pd.date_range(
+            "2011-01-01",
+            periods=len(timeindex_old) * 60 / int(freq[:2]),
+            freq=freq,
+        )
+
+        edisgo.timeseries.timeindex = timeindex
+
+        # edisgo.timeseries.generators_active_power = edisgo.timeseries.generators_active_power.ffill()
+        # edisgo.timeseries.generators_reactive_power = edisgo.timeseries.generators_reactive_power.ffill()
+        # edisgo.timeseries.loads_active_power = edisgo.timeseries.loads_active_power.ffill()
+        # edisgo.timeseries.loads_reactive_power = edisgo.timeseries.loads_reactive_power.ffill()
+        # edisgo.timeseries.residual_load = edisgo.timeseries.residual_load.ffill() # FIXME: this gives an error
+
+        # edisgo.timeseries._generators_active_power = edisgo.timeseries.generators_active_power.copy()
+        # edisgo.timeseries._generators_reactive_power = edisgo.timeseries.generators_reactive_power.copy()
+        # edisgo.timeseries._loads_active_power = edisgo.timeseries.loads_active_power.copy()
+        # edisgo.timeseries._loads_reactive_power = edisgo.timeseries.loads_reactive_power.copy()
+        # edisgo.timeseries._residual_load = edisgo.timeseries.residual_load.copy()
+
+        s_residual_load = edisgo.timeseries.residual_load.copy()
+        s_residual_load = s_residual_load.ffill()
+
+        # edisgo.timeseries._residual_load = s_residual_load.copy()
+        # edisgo.timeseries.residual_load = s_residual_load
+
+        # return edisgo, s_residual_load
+        return s_residual_load
 
     except:
         traceback.print_exc()
@@ -455,6 +622,7 @@ def grid_independent_charging(
                     (df_standing.ags == ags) &
                     (df_standing.cp_idx == cp_idx)
                 ]
+
                 for cap, start, stop in list(
                     zip(
                         df_cp.netto_charging_capacity.tolist(),
@@ -638,7 +806,7 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total = gpd.GeoDataFrame()
 
-        for ags_dir in ags_dirs:#[ags_dirs[0]]: # TODO
+        for ags_dir in [ags_dirs[0]]: # TODO
             files = os.listdir(ags_dir)
 
             cp_files = [
@@ -728,7 +896,7 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total.insert(2, "cp_count", cp_count)
 
-        cp_capacity = gdf_cps_total[cols].sum(axis=1).divide(eta_cp)
+        cp_capacity = gdf_cps_total[cols].sum(axis=1).divide(eta_cp).astype(float).round(1)
 
         gdf_cps_total.insert(3, "cp_capacity", cp_capacity)
 
