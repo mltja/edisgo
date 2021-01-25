@@ -155,7 +155,7 @@ def charging(
             )
             gc.collect()
 
-            break # TODO
+            # break # TODO
 
     except:
         traceback.print_exc()
@@ -672,7 +672,7 @@ def integrate_cps(
 
         del edisgo_residual, timeseries_generation_dispatchable, share, vls_bio, e_bio, p_bio, timeindex
 
-        # s_residual_load = None # TODO: comment our if not needed
+        # s_residual_load = None # TODO: comment out if not needed
 
         edisgo_wc = EDisGo(
             ding0_grid=os.path.join(
