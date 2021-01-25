@@ -10,6 +10,7 @@ from edisgo.io.simBEV_import import get_grid_data, hasNumbers
 from pathlib import Path
 from time import perf_counter
 from itertools import cycle
+from datetime import timedelta
 
 
 def charging(
@@ -68,88 +69,280 @@ def charging(
 
             use_cases.sort()
 
-            # for count_cases, use_case in enumerate(use_cases):
-            #     df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
-            #     gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
-            #
-            #     gdf_to_geojson(
-            #         gdf_cp_data,
-            #         use_case,
-            #         grid_id,
-            #         data_dir,
-            #     )
-            #
-            #     for strategy in ["dumb", "reduced", "grouped"]:
-            #         if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
-            #             t1 = perf_counter()
-            #             grid_independent_charging(
-            #                 df_standing_data,
-            #                 gdf_cp_data,
-            #                 setup_dict,
-            #                 use_case,
-            #                 grid_id,
-            #                 data_dir,
-            #                 strategy=strategy,
-            #             )
-            #             print(
-            #                 "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-            #                 "use case {} in grid {} with charging strategy {}.".format(
-            #                     get_use_case_name(use_case), grid_id, strategy,
-            #                 )
-            #             )
-            #             gc.collect()
-            #         elif strategy == "grouped" and (use_case == 3 or use_case == 4):
-            #             t1 = perf_counter()
-            #             grouped_charging(
-            #                 edisgo,
-            #                 df_standing_data,
-            #                 gdf_cp_data,
-            #                 setup_dict,
-            #                 use_case,
-            #                 grid_id,
-            #                 data_dir,
-            #                 strategy=strategy,
-            #             )
-            #             print(
-            #                 "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-            #                 "use case {} in grid {} with charging strategy {}.".format(
-            #                     get_use_case_name(use_case), grid_id, strategy,
-            #                 )
-            #             )
-            #             gc.collect()
+            for count_cases, use_case in enumerate(use_cases):
+                df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
+                gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
+
+                gdf_to_geojson(
+                    gdf_cp_data,
+                    use_case,
+                    grid_id,
+                    data_dir,
+                )
+
+                for strategy in ["dumb", "reduced", "grouped"]:
+                    if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
+                        t1 = perf_counter()
+                        grid_independent_charging(
+                            df_standing_data,
+                            gdf_cp_data,
+                            setup_dict,
+                            use_case,
+                            grid_id,
+                            data_dir,
+                            strategy=strategy,
+                        )
+                        print(
+                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                            "use case {} in grid {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, strategy,
+                            )
+                        )
+                        gc.collect()
+                    elif strategy == "grouped" and (use_case == 3 or use_case == 4):
+                        t1 = perf_counter()
+                        grouped_charging(
+                            edisgo,
+                            df_standing_data,
+                            gdf_cp_data,
+                            setup_dict,
+                            use_case,
+                            grid_id,
+                            data_dir,
+                            strategy=strategy,
+                        )
+                        print(
+                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                            "use case {} in grid {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, strategy,
+                            )
+                        )
+                        gc.collect()
+
+            del edisgo
 
             df_residual_load = get_residual_load_with_evs(
                 s_residual_load,
+                setup_dict,
                 data_dir,
                 grid_id,
             )
 
+            gc.collect()
+
             strategy = "residual"
 
-            for count_cases, use_case in enumerate(use_cases):
-                if use_case == 3 or use_case == 4:
-                    df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
-                    gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
+            use_cases = [3, 4]
 
-                    t1 = perf_counter()
-                    residual_load_charging(
-                        edisgo,
-                        df_standing_data,
-                        df_residual_load,
-                        gdf_cp_data,
-                        setup_dict,
-                        use_case,
-                        grid_id,
-                        data_dir,
-                        strategy=strategy,
-                    )
-                    print(
-                        "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                        "use case {} in grid {} with charging strategy {}.".format(
-                            get_use_case_name(use_case), grid_id, strategy,
-                        )
-                    )
-                    gc.collect()
+            df_standing_data = df_standing_total.copy()[df_standing_total.use_case.isin(use_cases)]
+            gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case.isin(use_cases)]
+
+            t1 = perf_counter()
+            residual_load_charging(
+                df_standing_data,
+                df_residual_load,
+                gdf_cp_data,
+                setup_dict,
+                grid_id,
+                data_dir,
+                strategy=strategy,
+            )
+            print(
+                "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                "grid {} with charging strategy {}.".format(
+                    grid_id, strategy,
+                )
+            )
+            gc.collect()
+
+            break # TODO
+
+    except:
+        traceback.print_exc()
+
+
+def residual_load_charging(
+        df_standing,
+        df_residual_load,
+        gdf_cps,
+        setup_dict,
+        grid_id,
+        data_dir,
+        strategy="residual",
+):
+    try:
+        df_standing, cp_ags_list_home, cp_ags_list_work, cp_load_home, cp_load_work = data_preprocessing_residual(
+            df_standing,
+            gdf_cps,
+            setup_dict,
+        )
+
+        arr_residual = np.copy(df_residual_load.residual_unflex.to_numpy())
+
+        for cap_kw, cap_mw, start, stop, use_case, t_need, t_flex, cp_count in list(
+            zip(
+                df_standing.cap.tolist(),
+                df_standing.cap.divide(1000).tolist(),
+                df_standing.charge_start.tolist(),
+                (df_standing.charge_end + 1).tolist(),
+                df_standing.use_case.tolist(),
+                df_standing.time_needed.tolist(),
+                df_standing.time.tolist(),
+                df_standing.cp_mapping.tolist(),
+            )
+        ):
+            if t_flex > 0:
+                # print(start, stop, t_need, t_flex)
+                idx_ts = np.argpartition(arr_residual[start:stop], t_need-1)[:t_need] + start
+
+                arr_residual[idx_ts] += cap_mw
+
+                if use_case == 3:
+                    cp_load_home[idx_ts, cp_count] += cap_kw
+                elif use_case == 4:
+                    cp_load_work[idx_ts, cp_count] += cap_kw
+                else:
+                    raise ValueError("Use case {} is not in residual load charging.".format(use_case))
+
+            else:
+                arr_residual[start:start + t_need] += cap_mw
+
+                if use_case == 3:
+                    cp_load_home[start:start + t_need, cp_count] += cap_kw
+                elif use_case == 4:
+                    cp_load_work[start:start + t_need, cp_count] += cap_kw
+                else:
+                    raise ValueError("Use case {} is not in residual load charging.".format(use_case))
+
+        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
+            .astype(float).round(1).apply(np.ceil).astype(int)
+        df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
+
+        print("before:", df_standing.up.sum() / 0.9)
+        print("after:", (np.sum(cp_load_home) + np.sum(cp_load_work)) / 4)
+
+        df_residual_load = df_residual_load.assign(
+            flex_residual=arr_residual
+        )
+
+        export_path = os.path.join(
+            data_dir.parent,
+            "eDisGo_timeseries",
+            str(grid_id),
+            "residual_load.csv",
+        )
+
+        df_residual_load.to_csv(export_path)
+
+        time_series_to_hdf(
+            cp_load_home,
+            cp_ags_list_home,
+            3,
+            strategy,
+            grid_id,
+            data_dir,
+        )
+
+        time_series_to_hdf(
+            cp_load_work,
+            cp_ags_list_work,
+            4,
+            strategy,
+            grid_id,
+            data_dir,
+        )
+
+    except:
+        traceback.print_exc()
+
+
+def data_preprocessing_residual(
+        df_standing,
+        gdf_cps,
+        setup_dict,
+):
+    try:
+        time_factor = setup_dict["stepsize"] / 60
+
+        df_standing = df_standing.assign(
+            time_needed=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor))
+                .astype(float).round(1).apply(np.ceil).astype(np.int32),
+            time=df_standing.charge_end - df_standing.charge_start + 1,
+            cap=df_standing.netto_charging_capacity.divide(setup_dict["eta_CP"]),
+        )
+
+        df_standing.time = df_standing.time - df_standing.time_needed
+
+        df_standing = df_standing.sort_values(
+            by=["time", "time_needed", "charge_start"],
+            ascending=True,
+        )
+
+        df_standing = df_standing.assign(
+            cp_mapping=0
+        )
+
+        gdf_cps.reset_index(
+            drop=True,
+            inplace=True,
+        )
+
+        use_cases = [3, 4]
+
+        cp_ags_lists = [0] * len(use_cases)
+
+        for count, use_case in enumerate(use_cases):
+            gdf_cps_use_case = gdf_cps.copy()[gdf_cps.use_case == use_case]
+
+            cp_ags_list = list(
+                zip(
+                    gdf_cps_use_case.ags.tolist(),
+                    gdf_cps_use_case.cp_idx.tolist(),
+                )
+            )
+
+            cp_ags_list_unique = list(set(cp_ags_list))
+
+            cp_ags_list_unique.sort()
+
+            cp_ags_lists[count] = cp_ags_list_unique.copy()
+
+            for count_cp, (ags, cp_idx) in enumerate(cp_ags_list_unique):
+                df_standing[
+                    (df_standing.use_case == use_case) &
+                    (df_standing.ags == ags) &
+                    (df_standing.cp_idx == cp_idx)
+                ] = df_standing[
+                    (df_standing.use_case == use_case) &
+                    (df_standing.ags == ags) &
+                    (df_standing.cp_idx == cp_idx)
+                ].assign(
+                    cp_mapping=count_cp
+                )
+
+        df_standing.cp_mapping = df_standing.cp_mapping.astype(int)
+
+        cp_load_home = np.empty(
+            shape=(
+                int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
+                len(cp_ags_lists[0]),
+            ),
+            dtype=float,
+        )
+
+        cp_load_home[:] = 0
+
+        cp_load_work = np.empty(
+            shape=(
+                int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
+                len(cp_ags_lists[1]),
+            ),
+            dtype=float,
+        )
+
+        cp_load_work[:] = 0
+
+        return df_standing, cp_ags_lists[0], cp_ags_lists[1], cp_load_home, cp_load_work
 
     except:
         traceback.print_exc()
@@ -157,6 +350,7 @@ def charging(
 
 def get_residual_load_with_evs(
         s_residual_load,
+        setup_dict,
         data_dir,
         grid_id,
 ):
@@ -177,7 +371,7 @@ def get_residual_load_with_evs(
         )
 
         df_residual_load = df_residual_load.assign(
-            residual_load_with_evs=df_residual_load.residual_load.multiply(-1),
+            residual_unflex=df_residual_load.residual_load.multiply(-1),
         )
 
         for f in files:
@@ -186,31 +380,25 @@ def get_residual_load_with_evs(
                 key="df_load",
             ).sum(axis=1).divide(1000).to_numpy()
 
-            df_residual_load.residual_load_with_evs += arr
+            df_residual_load.residual_unflex += arr
 
+        days = int(setup_dict["days"])
+
+        time_factor = setup_dict["stepsize"] / 60
+
+        if days == 365:
+            pass
+        elif days < 365:
+            df_residual_load = df_residual_load.iloc[:int(days * 24 / time_factor)]
+        else:
+            df_prolong = df_residual_load.copy().iloc[:int((days - 365) * 24 / time_factor)]
+            df_prolong.index = [
+                ts + timedelta(days=365) for ts in df_prolong.index[:len(df_prolong)]
+            ]
+
+            df_residual_load = df_residual_load.append(df_prolong)
 
         return df_residual_load
-
-    except:
-        traceback.print_exc()
-
-
-def residual_load_charging(
-        edisgo,
-        df_standing,
-        df_residual_load,
-        gdf_cps,
-        setup_dict,
-        use_case,
-        grid_id,
-        data_dir,
-        strategy="residual",
-):
-    try:
-
-
-
-        print(strategy)
 
     except:
         traceback.print_exc()
@@ -267,7 +455,7 @@ def grouped_charging(
                 int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
                 len(gdf_cps),
             ),
-            dtype=np.float64,
+            dtype=float,
         )
 
         cp_load[:] = 0
@@ -277,34 +465,34 @@ def grouped_charging(
         )
 
         for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
-            df_sub_cp = df_standing.copy()[
+            df_cp = df_standing.copy()[
                 (df_standing.ags == ags) &
                 (df_standing.cp_idx == cp_idx)
                 ]
 
             for cap, start, stop in list(
                 zip(
-                    df_sub_cp.cap.tolist(),
-                    df_sub_cp.charge_start.tolist(),
-                    (df_sub_cp.stop + 1).tolist(),
+                    df_cp.cap.tolist(),
+                    df_cp.charge_start.tolist(),
+                    (df_cp.stop + 1).tolist(),
                 )
             ):
                 cp_load[start:stop:2, count_cps] += cap
 
-            df_unfulfilled = df_sub_cp.copy()[df_sub_cp.demand_left > 0]
+            df_unfulfilled = df_cp.copy()[df_cp.demand_left > 0]
 
             if not df_unfulfilled.empty:
                 for cap, start, stop in list(
                         zip(
-                            df_sub_cp.cap.tolist(),
-                            df_sub_cp.start_next.tolist(),
-                            (df_sub_cp.stop_next + 1).tolist(),
+                            df_cp.cap.tolist(),
+                            df_cp.start_next.tolist(),
+                            (df_cp.stop_next + 1).tolist(),
                         )
                 ):
                     cp_load[start:stop:2, count_cps] += cap
 
-        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4)).apply(
-            np.ceil).astype(int)
+        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
+            .astype(float).round(1).apply(np.ceil).astype(int)
         df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
 
         print("before:", df_standing.up.sum() / 0.9)
@@ -389,7 +577,7 @@ def get_groups(
         df_standing.start_on = df_standing.charge_start + df_standing.start_on
         df_standing = df_standing.assign(
             stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor) - 1)
-                .apply(np.ceil).multiply(2).astype(int) + df_standing.start_on
+                .astype(float).round(1).apply(np.ceil).multiply(2).astype(int) + df_standing.start_on
         )
 
         df_standing.stop = df_standing[["charge_end", "stop"]].min(axis=1)
@@ -425,7 +613,7 @@ def get_groups(
 
         df_standing = df_standing.assign(
             stop_next=(df_standing.demand_left / df_standing.netto_charging_capacity.multiply(time_factor) - 1) \
-                     .apply(np.ceil).multiply(2).astype(int) + df_standing.start_next,
+                     .astype(float).round(1).apply(np.ceil).multiply(2).astype(int) + df_standing.start_next,
         )
 
         return df_standing
@@ -604,7 +792,7 @@ def grid_independent_charging(
                 int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
                 len(cp_ags_list_unique),
             ),
-            dtype=np.float64,
+            dtype=float,
         )
 
         cp_load[:] = 0
@@ -614,7 +802,7 @@ def grid_independent_charging(
         if strategy == "dumb":
             df_standing = df_standing.assign(
                 stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor))\
-                         .apply(np.ceil).astype(np.int32) + df_standing.charge_start
+                         .astype(float).round(1).apply(np.ceil).astype(np.int32) + df_standing.charge_start
             )
 
             for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
@@ -639,7 +827,7 @@ def grid_independent_charging(
 
             df_standing = df_standing.assign(
                 stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor))\
-                    .apply(np.ceil).astype(np.int32)
+                    .astype(float).round(1).apply(np.ceil).astype(np.int32)
             )
 
             df_standing = df_standing.assign(
@@ -681,7 +869,8 @@ def grid_independent_charging(
         else:
             raise ValueError("Strategy '{}' does not exist.".format(strategy))
 
-        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4)).apply(np.ceil).astype(int)
+        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
+            .astype(float).round(1).apply(np.ceil).astype(int)
         df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
 
         print("before:", df_standing.up.sum() / 0.9)
@@ -716,11 +905,6 @@ def time_series_to_hdf(
         df_load.columns = pd.MultiIndex.from_tuples(cp_idxs)
 
         df_load = df_load.iloc[:365*24*4]
-
-        df_load = compress(
-            df_load,
-            verbose=False,
-        )
 
         use_case_name = get_use_case_name(use_case)
 
@@ -783,11 +967,6 @@ def gdf_to_geojson(
 
         gdf.pop("use_case")
 
-        gdf = compress(
-            gdf.copy(),
-            verbose=False,
-        )
-
         gdf.to_file(
             export_path,
             driver="GeoJSON",
@@ -806,7 +985,7 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total = gpd.GeoDataFrame()
 
-        for ags_dir in [ags_dirs[0]]: # TODO
+        for ags_dir in ags_dirs:
             files = os.listdir(ags_dir)
 
             cp_files = [
@@ -924,9 +1103,7 @@ def get_grid_cps_and_charging_processes(
             inplace=True,
         )
 
-        gdf_cps_total = compress(gdf_cps_total, verbose=False)
-
-        return compress(gdf_cps_total, verbose=False), compress(df_standing_total, verbose=False)
+        return gdf_cps_total, df_standing_total
 
     except:
         traceback.print_exc()
@@ -1002,11 +1179,6 @@ def get_ags_data(
                 key="export_df",
             )
 
-            df = compress(
-                df,
-                verbose=False,
-            )
-
             dfs[count_files] = df
 
         return dfs, use_cases
@@ -1031,37 +1203,6 @@ def get_use_case_name(
 
     return use_case_name
 
-
-def compress(
-        df,
-        verbose=True,
-):
-    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-    start_mem = df.memory_usage().sum() / 1024**2
-    for col in df.columns:
-        col_type = df[col].dtypes
-        if col_type in numerics:
-            c_min = df[col].min()
-            c_max = df[col].max()
-            if str(col_type)[:3] == 'int':
-                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                    df[col] = df[col].astype(np.int8)
-                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                    df[col] = df[col].astype(np.int16)
-                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                    df[col] = df[col].astype(np.int32)
-                elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
-                    df[col] = df[col].astype(np.int64)
-            else:
-                if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
-                    df[col] = df[col].astype(np.float16)
-                elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
-                    df[col] = df[col].astype(np.float32)
-                else:
-                    df[col] = df[col].astype(np.float64)
-    end_mem = df.memory_usage().sum() / 1024**2
-    if verbose: print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
-    return df
 
 def getIndexes(
         dfObj,
