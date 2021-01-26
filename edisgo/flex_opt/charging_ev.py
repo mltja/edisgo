@@ -43,7 +43,7 @@ def charging(
 
             # FIXME
             df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float) \
-                .divide(0.9).round(1).multiply(0.9)
+                .divide(setup_dict["eta_CP"]).round(1).multiply(setup_dict["eta_CP"])
 
             print("It took {} seconds to read in the data for grid {}.".format(
                 round(perf_counter() - t1, 1), grid_id
