@@ -156,7 +156,7 @@ def charging(
             )
             gc.collect()
 
-            break # TODO
+            # break # TODO
 
     except:
         traceback.print_exc()
@@ -774,7 +774,7 @@ def get_residual(
 def grid_independent_charging(
         edisgo,
         df_standing,
-        gdf_cps_total,
+        gdf_cps,
         setup_dict,
         use_case,
         grid_id,
@@ -782,15 +782,15 @@ def grid_independent_charging(
         strategy="dumb",
 ):
     try:
-        gdf_cps_total = pd.merge(
-            gdf_cps_total,
+        gdf_cps = pd.merge(
+            gdf_cps,
             edisgo.topology.charging_points_df["bus"],
             left_on="edisgo_id",
             right_index=True,
         )
 
-        gdf_cps_total = pd.merge(
-            gdf_cps_total,
+        gdf_cps = pd.merge(
+            gdf_cps,
             edisgo.topology.buses_df["v_nom"],
             left_on="bus",
             right_index=True,
@@ -798,15 +798,15 @@ def grid_independent_charging(
 
         df_standing = pd.merge(
             df_standing,
-            gdf_cps_total[["cp_idx", "v_nom"]],
-            left_on="cp_idx",
-            right_on="cp_idx",
+            gdf_cps[["ags", "cp_idx", "v_nom"]],
+            left_on=["ags", "cp_idx"],
+            right_on=["ags", "cp_idx"],
         )
 
         cp_ags_list = list(
             zip(
-                gdf_cps_total.ags.tolist(),
-                gdf_cps_total.cp_idx.tolist(),
+                gdf_cps.ags.tolist(),
+                gdf_cps.cp_idx.tolist(),
             )
         )
 
