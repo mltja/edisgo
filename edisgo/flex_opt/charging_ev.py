@@ -84,6 +84,7 @@ def charging(
                     if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
                         t1 = perf_counter()
                         grid_independent_charging(
+                            edisgo,
                             df_standing_data,
                             gdf_cp_data,
                             setup_dict,
@@ -767,6 +768,7 @@ def get_residual(
 
 
 def grid_independent_charging(
+        edisgo,
         df_standing,
         gdf_cps_total,
         setup_dict,
@@ -985,7 +987,7 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total = gpd.GeoDataFrame()
 
-        for ags_dir in ags_dirs:
+        for ags_dir in [ags_dirs[0]]: # TODO
             files = os.listdir(ags_dir)
 
             cp_files = [
