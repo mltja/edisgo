@@ -958,7 +958,7 @@ class EDisGo:
                     "Neither appropriate voltage level nor nominal power "
                     "were supplied.")
             # Calculate voltage level manually from nominal power:
-            if p_nom > 4.5 and p_nom <= 17.5:
+            if p_nom > 4.5:# and p_nom <= 17.5:
                 voltage_level = 4
             elif p_nom > 0.3 and p_nom <= 4.5:
                 voltage_level = 5

@@ -778,6 +778,27 @@ def grid_independent_charging(
         strategy="dumb",
 ):
     try:
+        gdf_cps_total = pd.merge(
+            gdf_cps_total,
+            edisgo.topology.charging_points_df["bus"],
+            left_on="edisgo_id",
+            right_index=True,
+        )
+
+        gdf_cps_total = pd.merge(
+            gdf_cps_total,
+            edisgo.topology.buses_df["v_nom"],
+            left_on="bus",
+            right_index=True,
+        )
+
+        df_standing = pd.merge(
+            df_standing,
+            gdf_cps_total[["cp_idx", "v_nom"]],
+            left_on="cp_idx",
+            right_on="cp_idx",
+        )
+
         cp_ags_list = list(
             zip(
                 gdf_cps_total.ags.tolist(),
@@ -801,11 +822,32 @@ def grid_independent_charging(
 
         time_factor = setup_dict["stepsize"] / 60
 
+        df_standing = df_standing.assign(
+            t_given=df_standing.charge_end - df_standing.charge_start + 1,
+            stop_dumb=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor)) \
+                .astype(float).round(1).apply(np.ceil).astype(int),
+        )
+
+        df_standing = df_standing.assign(
+            demand_reduced=df_standing.stop_dumb.multiply(time_factor) * df_standing.netto_charging_capacity,
+            min_cap_tech=df_standing.netto_charging_capacity.multiply(0.1),
+        )
+
+        df_standing = df_standing.assign(
+            min_cap_demand=df_standing.demand_reduced / df_standing.t_given.multiply(time_factor),
+        )
+
+        df_standing = df_standing.assign(
+            cap_reduced=df_standing[["min_cap_tech", "min_cap_demand"]].max(axis=1),
+        )
+
+        df_standing = df_standing.assign(
+            stop_reduced=(df_standing.demand_reduced / df_standing.cap_reduced.multiply(time_factor))
+                     .round(0).astype(np.int32) + df_standing.charge_start,
+            stop_dumb=df_standing.stop_dumb + df_standing.charge_start
+        )
+
         if strategy == "dumb":
-            df_standing = df_standing.assign(
-                stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor))\
-                         .astype(float).round(1).apply(np.ceil).astype(np.int32) + df_standing.charge_start
-            )
 
             for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
                 df_cp = df_standing.copy()[
@@ -813,45 +855,25 @@ def grid_independent_charging(
                     (df_standing.cp_idx == cp_idx)
                 ]
 
-                for cap, start, stop in list(
+                for cap_dumb, cap_reduced, start, stop_dumb, stop_reduced, v in list(
                     zip(
-                        df_cp.netto_charging_capacity.tolist(),
+                        df_cp.netto_charging_capacity.divide(setup_dict["eta_CP"]).tolist(),
+                        df_cp.cap_reduced.divide(setup_dict["eta_CP"]).tolist(),
                         df_cp.charge_start.tolist(),
-                        df_cp.stop.tolist(),
+                        df_cp.stop_dumb.tolist(),
+                        df_cp.stop_reduced.tolist(),
+                        df_cp.v_nom.tolist(),
                     )
                 ):
-                    cp_load[start:stop, count_cps] += (cap / setup_dict["eta_CP"])
+                    if use_case == 4 or use_case == 3: # TODO: für work UND home?
+                        if v < 1:
+                            cp_load[start:stop_dumb, count_cps] += cap_dumb
+                        else:
+                            cp_load[start:stop_reduced, count_cps] += cap_reduced
+                    else:
+                        cp_load[start:stop_dumb, count_cps] += cap_dumb
 
         elif strategy == "reduced":
-            df_standing = df_standing.assign(
-                time=df_standing.charge_end - df_standing.charge_start + 1
-            )
-
-            df_standing = df_standing.assign(
-                stop=(df_standing.chargingdemand / df_standing.netto_charging_capacity.multiply(time_factor))\
-                    .astype(float).round(1).apply(np.ceil).astype(np.int32)
-            )
-
-            df_standing = df_standing.assign(
-                chargingdemand=df_standing.stop.multiply(time_factor) * df_standing.netto_charging_capacity
-            )
-
-            df_standing = df_standing.assign(
-                min_cap=df_standing.netto_charging_capacity.multiply(0.1)
-            )
-
-            df_standing = df_standing.assign(
-                reduced_min_cap=df_standing.chargingdemand / df_standing.time.multiply(time_factor)
-            )
-
-            df_standing = df_standing.assign(
-                reduced_cap=df_standing[["min_cap", "reduced_min_cap"]].max(axis=1)
-            )
-
-            df_standing = df_standing.assign(
-                stop=(df_standing.chargingdemand / df_standing.reduced_cap.multiply(time_factor))\
-                         .round(0).astype(np.int32) + df_standing.charge_start
-            )
 
             for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
                 df_cp = df_standing.copy()[
@@ -861,12 +883,12 @@ def grid_independent_charging(
 
                 for cap, start, stop in list(
                     zip(
-                        df_cp.reduced_cap.tolist(),
+                        df_cp.cap_reduced.divide(setup_dict["eta_CP"]).tolist(),
                         df_cp.charge_start.tolist(),
-                        df_cp.stop.tolist(),
+                        df_cp.stop_reduced.tolist(),
                     )
                 ):
-                    cp_load[start:stop, count_cps] += (cap / setup_dict["eta_CP"])
+                    cp_load[start:stop, count_cps] += cap
 
         else:
             raise ValueError("Strategy '{}' does not exist.".format(strategy))
