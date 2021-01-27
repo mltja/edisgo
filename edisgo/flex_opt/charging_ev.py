@@ -45,8 +45,8 @@ def charging(
             df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float) \
                 .divide(setup_dict["eta_CP"]).round(1).multiply(setup_dict["eta_CP"])
 
-            print("It took {} seconds to read in the data for grid {}.".format(
-                round(perf_counter() - t1, 1), grid_id
+            print("It took {} seconds to read in the data for grid {} for scenario {}.".format(
+                round(perf_counter() - t1, 1), grid_id, data_dir.parts[-2]
             ))
 
             t1 = perf_counter()
@@ -61,8 +61,8 @@ def charging(
 
             gc.collect()
 
-            print("It took {} seconds to generate the eDisGo object for grid {}.".format(
-                round(perf_counter() - t1, 1), grid_id
+            print("It took {} seconds to generate the eDisGo object for grid {} for scenario {}.".format(
+                round(perf_counter() - t1, 1), grid_id, data_dir.parts[-2]
             ))
 
             use_cases = gdf_cps_total.use_case.unique().tolist()
@@ -95,8 +95,8 @@ def charging(
                         )
                         print(
                             "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                            "use case {} in grid {} with charging strategy {}.".format(
-                                get_use_case_name(use_case), grid_id, strategy,
+                            "use case {} in grid {} for scenario {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, data_dir.parts[-2], strategy,
                             )
                         )
                         gc.collect()
@@ -114,8 +114,8 @@ def charging(
                         )
                         print(
                             "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                            "use case {} in grid {} with charging strategy {}.".format(
-                                get_use_case_name(use_case), grid_id, strategy,
+                            "use case {} in grid {} for scenario {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, data_dir.parts[-2], strategy,
                             )
                         )
                         gc.collect()
@@ -150,8 +150,8 @@ def charging(
             )
             print(
                 "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                "grid {} with charging strategy {}.".format(
-                    grid_id, strategy,
+                "grid {} for scenario {} with charging strategy {}.".format(
+                    grid_id, data_dir.parts[-2], strategy,
                 )
             )
             gc.collect()
@@ -213,12 +213,16 @@ def residual_load_charging(
                 else:
                     raise ValueError("Use case {} is not in residual load charging.".format(use_case))
 
-        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
-            .astype(float).round(1).apply(np.ceil).astype(int)
-        df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
-
-        print("before:", df_standing.up.sum() / 0.9)
-        print("after:", (np.sum(cp_load_home) + np.sum(cp_load_work)) / 4)
+        # df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
+        #     .astype(float).round(1).apply(np.ceil).astype(int)
+        # df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
+        #
+        # print("before:", df_standing.up.sum() / 0.9)
+        print(
+            "E in grid {}:".format(str(grid_id)),
+            (np.sum(cp_load_home) + np.sum(cp_load_work)) / 4,
+            data_dir.parts[-2],
+        )
 
         df_residual_load = df_residual_load.assign(
             flex_residual=arr_residual
@@ -430,6 +434,8 @@ def grouped_charging(
 
         time_factor = setup_dict["stepsize"] / 60
 
+        df_standing.chargingdemand = df_standing.chargingdemand.astype(float)
+
         df_standing = get_groups(
             gdf_cps,
             df_standing,
@@ -490,12 +496,12 @@ def grouped_charging(
                 ):
                     cp_load[start:stop:2, count_cps] += cap
 
-        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
-            .astype(float).round(1).apply(np.ceil).astype(int)
-        df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
-
-        print("before:", df_standing.up.sum() / 0.9)
-        print("after:", np.sum(cp_load) / 4)
+        # df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
+        #     .astype(float).round(1).apply(np.ceil).astype(int)
+        # df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
+        #
+        # print("before:", df_standing.up.sum() / 0.9)
+        print("E in grid {}:".format(str(grid_id)), np.sum(cp_load) / 4, data_dir.parts[-2])
 
         time_series_to_hdf(
             cp_load,
@@ -844,8 +850,6 @@ def grid_independent_charging(
 
         df_standing.stop_dumb += df_standing.charge_start
 
-        print("breaker")
-
         if strategy == "dumb":
 
             for count_cps, (ags, cp_idx) in enumerate(cp_ags_list_unique):
@@ -892,12 +896,12 @@ def grid_independent_charging(
         else:
             raise ValueError("Strategy '{}' does not exist.".format(strategy))
 
-        df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
-            .astype(float).round(1).apply(np.ceil).astype(int)
-        df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
-
-        print("before:", df_standing.up.sum() / 0.9)
-        print("after:", np.sum(cp_load) / 4)
+        # df_standing["time"] = (df_standing.chargingdemand / df_standing.netto_charging_capacity.divide(4))\
+        #     .astype(float).round(1).apply(np.ceil).astype(int)
+        # df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
+        #
+        # print("before:", df_standing.up.sum() / 0.9)
+        print("E in grid {}:".format(str(grid_id)), np.sum(cp_load) / 4, data_dir.parts[-2])
 
         time_series_to_hdf(
             cp_load,
@@ -1082,6 +1086,8 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total = gdf_cps_total.fillna(0)
         df_standing_total = df_standing_total.fillna(0)
+        df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float)
+        df_standing_total.chargingdemand = df_standing_total.chargingdemand.astype(float)
 
         ags_series = gdf_cps_total.pop("ags")
         geometry_series = gdf_cps_total.pop("geometry")
