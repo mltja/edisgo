@@ -156,6 +156,8 @@ def charging(
             )
             gc.collect()
 
+            break # TODO
+
     except:
         traceback.print_exc()
 
