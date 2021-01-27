@@ -156,8 +156,6 @@ def charging(
             )
             gc.collect()
 
-            # break # TODO
-
     except:
         traceback.print_exc()
 
@@ -418,7 +416,7 @@ def grouped_charging(
     try:
         gdf_cps = gdf_cps.copy().loc[:, (gdf_cps != 0).any(axis=0)]
 
-        gdf_cps = pd.merge( # TODO: check if this is correct every time
+        gdf_cps = pd.merge(
             edisgo.topology.charging_points_df["bus"],
             gdf_cps,
             left_index=True,
@@ -673,8 +671,6 @@ def integrate_cps(
 
         del edisgo_residual, timeseries_generation_dispatchable, share, vls_bio, e_bio, p_bio, timeindex
 
-        # s_residual_load = None # TODO: comment out if not needed
-
         edisgo_wc = EDisGo(
             ding0_grid=os.path.join(
                 ding0_dir, str(grid_id)
@@ -844,8 +840,11 @@ def grid_independent_charging(
         df_standing = df_standing.assign(
             stop_reduced=(df_standing.demand_reduced / df_standing.cap_reduced.multiply(time_factor))
                      .round(0).astype(np.int32) + df_standing.charge_start,
-            stop_dumb=df_standing.stop_dumb + df_standing.charge_start
         )
+
+        df_standing.stop_dumb += df_standing.charge_start
+
+        print("breaker")
 
         if strategy == "dumb":
 
@@ -1009,7 +1008,7 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total = gpd.GeoDataFrame()
 
-        for ags_dir in ags_dirs:#[ags_dirs[0]]: # TODO
+        for ags_dir in ags_dirs:
             files = os.listdir(ags_dir)
 
             cp_files = [
