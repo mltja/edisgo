@@ -987,7 +987,7 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total = gpd.GeoDataFrame()
 
-        for ags_dir in [ags_dirs[0]]: # TODO
+        for ags_dir in ags_dirs:#[ags_dirs[0]]: # TODO
             files = os.listdir(ags_dir)
 
             cp_files = [
