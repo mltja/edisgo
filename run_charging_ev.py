@@ -36,7 +36,7 @@ scenarios = [
     "Mobility_Transition_2050_simbev_run",
     "Szenarette_Kleinwagen_2050_simbev_run",
     "Reference_2050_simbev_run",
-    # "NEP_C_2035_simbev_run",
+    "NEP_C_2035_simbev_run",
 ]
 
 sub_dir = "cp_standing_times_mapping"
