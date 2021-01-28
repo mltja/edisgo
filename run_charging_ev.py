@@ -52,7 +52,7 @@ data_tuples = [
 if __name__ == "__main__":
     if num_threads == 1:
         cEV.charging(
-            data_dirs[5],
+            data_dirs[1],
             ding0_dir,
         )
     else:
@@ -61,3 +61,4 @@ if __name__ == "__main__":
                 cEV.charging,
                 data_tuples,
             )
+
