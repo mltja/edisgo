@@ -220,11 +220,8 @@ def residual_load_charging(
         # df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
         #
         # print("before:", df_standing.up.sum() / 0.9)
-        print(
-            "E in grid {}:".format(str(grid_id)),
-            (np.sum(cp_load_home) + np.sum(cp_load_work)) / 4,
-            data_dir.parts[-2],
-        )
+        print(f"{round((np.sum(cp_load_home) + np.sum(cp_load_work)) / 4, 0)} kWh",
+              f"in grid {str(grid_id)} and scenario {data_dir.parts[-2]}.")
 
         df_residual_load = df_residual_load.assign(
             flex_residual=arr_residual
@@ -503,7 +500,7 @@ def grouped_charging(
         # df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
         #
         # print("before:", df_standing.up.sum() / 0.9)
-        print("E in grid {}:".format(str(grid_id)), np.sum(cp_load) / 4, data_dir.parts[-2])
+        print(f"{round(np.sum(cp_load) / 4, 0)} kWh in grid {str(grid_id)} and scenario {data_dir.parts[-2]}.")
 
         time_series_to_hdf(
             cp_load,
@@ -717,7 +714,7 @@ def integrate_cps(
             ) for geolocation, p_nom in list(
                 zip(
                     gdf_cps_total.geometry.tolist(),
-                    gdf_cps_total.cp_capacity.divide(1000).tolist(),  # kW -> MW
+                    gdf_cps_total.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
                 )
             )
         ]
@@ -751,7 +748,7 @@ def get_residual(
         # edisgo.timeseries.loads_active_power = edisgo.timeseries.loads_active_power.ffill()
         # edisgo.timeseries.loads_reactive_power = edisgo.timeseries.loads_reactive_power.ffill()
         # edisgo.timeseries.residual_load = edisgo.timeseries.residual_load.ffill() # FIXME: this gives an error
-
+        #
         # edisgo.timeseries._generators_active_power = edisgo.timeseries.generators_active_power.copy()
         # edisgo.timeseries._generators_reactive_power = edisgo.timeseries.generators_reactive_power.copy()
         # edisgo.timeseries._loads_active_power = edisgo.timeseries.loads_active_power.copy()
@@ -903,7 +900,7 @@ def grid_independent_charging(
         # df_standing["up"] = df_standing.time * df_standing.netto_charging_capacity.divide(4)
         #
         # print("before:", df_standing.up.sum() / 0.9)
-        print("E in grid {}:".format(str(grid_id)), np.sum(cp_load) / 4, data_dir.parts[-2])
+        print(f"{round(np.sum(cp_load) / 4, 0)} kWh in grid {str(grid_id)} and scenario {data_dir.parts[-2]}.")
 
         time_series_to_hdf(
             cp_load,
@@ -1106,9 +1103,20 @@ def get_grid_cps_and_charging_processes(
 
         gdf_cps_total.insert(2, "cp_count", cp_count)
 
-        cp_capacity = gdf_cps_total[cols].sum(axis=1).divide(eta_cp).astype(float).round(1)
+        cp_capacity = gdf_cps_total[cols].sum(axis=1).astype(float).divide(eta_cp).round(1)
 
         gdf_cps_total.insert(3, "cp_capacity", cp_capacity)
+
+        cp_connection_rating = [
+            get_connection_rating_factor(cap, use_case) * cap for cap, use_case in list(
+                zip(
+                    cp_capacity,
+                    gdf_cps_total.use_case.tolist(),
+                )
+            )
+        ]
+
+        gdf_cps_total.insert(4, "cp_connection_rating", cp_connection_rating)
 
         use_case_series = gdf_cps_total.pop("use_case")
 
@@ -1253,4 +1261,22 @@ def getIndexes(
             listOfPos.append((row, int(col[3:]) - 1))
     # Return a list of tuples indicating the positions of value in the dataframe
     return listOfPos
+
+
+def get_connection_rating_factor(
+        p,
+        use_case,
+        p_upper_limit=1000,
+        p_lower_limit=300,
+        f_upper=0.5,
+):
+    if use_case == 1 or use_case == 2:
+        return 1
+    else:
+        if p < p_lower_limit:
+            return 1
+        elif p > p_upper_limit:
+            return f_upper
+        else:
+            return - (0.5 / 700) * p + (17 / 14)
 
