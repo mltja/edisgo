@@ -120,6 +120,9 @@ for count, path in enumerate(ts_data_paths):
 
     print("{} %".format(round(count+1/len(ts_data_paths) * 100, 1)))
 
+    if count % 10 == 0:
+        gc.collect()
+
 df_plau.to_csv(
     os.path.join(
         data_dir,
