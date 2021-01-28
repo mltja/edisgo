@@ -229,7 +229,7 @@ def residual_load_charging(
 
         export_path = os.path.join(
             data_dir.parent,
-            "eDisGo_charging_timeseries",
+            "eDisGo_charging_time_series",
             str(grid_id),
             "residual_load.csv",
         )
@@ -362,7 +362,7 @@ def get_residual_load_with_evs(
             r"dumb_charging_timeseries_hpc.h5",
         ]
 
-        sub_dir = "eDisGo_charging_timeseries"
+        sub_dir = "eDisGo_charging_time_series"
 
         files = [
             os.path.join(data_dir.parent, sub_dir, str(grid_id), f) for f in files
@@ -521,10 +521,14 @@ def get_groups(
         time_factor,
 ):
     try:
+        cols = [
+            col for col in gdf.columns.tolist() if "cp_0" in col
+        ]
+
         mask = np.empty(
             shape=(
                 gdf.shape[0],
-                gdf.shape[1] - 8,  # FIXME: automate this to len of cols named "cp_#####"
+                len(cols),
             ),
             dtype=np.bool_,
         )
@@ -536,7 +540,7 @@ def get_groups(
         for bus in gdf.bus.unique():
             df_bus = gdf.copy()[gdf.bus == bus]
 
-            df_bus_cap = df_bus.copy().iloc[:, 7:-1].astype(float).round(1)
+            df_bus_cap = df_bus[cols].astype(float).round(1) # FIXME: automate this to len of cols named "cp_#####"
 
             unique_caps = list(pd.unique(df_bus_cap.values.ravel()))
 
@@ -936,7 +940,7 @@ def time_series_to_hdf(
 
         file_name = "{}_charging_timeseries_{}.h5".format(strategy, use_case_name)
 
-        sub_dir = "eDisGo_charging_timeseries"
+        sub_dir = "eDisGo_charging_time_series"
 
         export_path = Path(
             os.path.join(
@@ -973,7 +977,7 @@ def gdf_to_geojson(
 
         file_name = "cp_data_{}_within_grid_{}.geojson".format(use_case_name, grid_id)
 
-        sub_dir = "eDisGo_charging_timeseries"
+        sub_dir = "eDisGo_charging_time_series"
 
         export_path = Path(
             os.path.join(
