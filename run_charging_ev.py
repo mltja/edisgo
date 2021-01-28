@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 1
+num_threads = 5
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -36,7 +36,7 @@ scenarios = [
     "Mobility_Transition_2050_simbev_run",
     "Szenarette_Kleinwagen_2050_simbev_run",
     "Reference_2050_simbev_run",
-    "NEP_C_2035_simbev_run",
+    # "NEP_C_2035_simbev_run",
 ]
 
 sub_dir = "cp_standing_times_mapping"
