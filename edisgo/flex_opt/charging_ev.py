@@ -751,13 +751,11 @@ def get_residual(
         # edisgo.timeseries.generators_reactive_power = edisgo.timeseries.generators_reactive_power.ffill()
         # edisgo.timeseries.loads_active_power = edisgo.timeseries.loads_active_power.ffill()
         # edisgo.timeseries.loads_reactive_power = edisgo.timeseries.loads_reactive_power.ffill()
-        # edisgo.timeseries.residual_load = edisgo.timeseries.residual_load.ffill() # FIXME: this gives an error
         #
         # edisgo.timeseries._generators_active_power = edisgo.timeseries.generators_active_power.copy()
         # edisgo.timeseries._generators_reactive_power = edisgo.timeseries.generators_reactive_power.copy()
         # edisgo.timeseries._loads_active_power = edisgo.timeseries.loads_active_power.copy()
         # edisgo.timeseries._loads_reactive_power = edisgo.timeseries.loads_reactive_power.copy()
-        # edisgo.timeseries._residual_load = edisgo.timeseries.residual_load.copy()
 
         s_residual_load = edisgo.timeseries.residual_load.copy()
         s_residual_load = s_residual_load.ffill()

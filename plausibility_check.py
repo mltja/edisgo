@@ -11,8 +11,8 @@ gc.collect()
 num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 scenarios = [
@@ -47,7 +47,8 @@ rows = [
     for scenario in scenarios for grid_id in grid_ids for use_case in use_cases for strategy in strategies
 ]
 
-cols = ["max_simultaneousness", "e_sum"]
+cols = ["count_cps", "mean_simultaneousness", "max_simultaneousness", "min_simultaneousness",
+        "mean_connector_cap", "max_connector_cap", "min_connector_cap", "e_sum"]
 
 arr_base = np.empty(
     shape=(
@@ -110,13 +111,25 @@ for count, path in enumerate(ts_data_paths):
         simultaneousness=(df_simultan.p_max / df_simultan.cp_connection_rating * 100).round(1)
     )
 
+    cps = len(df_simultan)
+
+    mean_cap = df_simultan.cp_connection_rating.mean()
+
+    max_cap = df_simultan.cp_connection_rating.max()
+
+    min_cap = df_simultan.cp_connection_rating.min()
+
     df_simultan = df_simultan[df_simultan.cp_capacity >= 300]
+
+    mean_sim = df_simultan.simultaneousness.mean()
 
     max_sim = df_simultan.simultaneousness.max()
 
+    min_sim = df_simultan.simultaneousness.min()
+
     e_sum = df.sum().sum()
 
-    df_plau.iloc[count] = [max_sim, e_sum]
+    df_plau.iloc[count] = [cps, mean_sim, max_sim, min_sim, mean_cap, max_cap, min_cap, e_sum]
 
     print("{} %".format(round((count+1)/len(ts_data_paths) * 100, 1)))
 
