@@ -11,8 +11,8 @@ gc.collect()
 num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 scenarios = [
@@ -118,7 +118,7 @@ for count, path in enumerate(ts_data_paths):
 
     df_plau.iloc[count] = [max_sim, e_sum]
 
-    print("{} %".format(round(count+1/len(ts_data_paths) * 100, 1)))
+    print("{} %".format(round((count+1)/len(ts_data_paths) * 100, 1)))
 
     if count % 10 == 0:
         gc.collect()
