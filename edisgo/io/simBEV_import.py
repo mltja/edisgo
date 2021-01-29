@@ -164,7 +164,7 @@ def run_simBEV_import(
 
             print(
                 "It took {} seconds to read in the data in AGS Nr. {}.".format(
-                    perf_counter() - t1, ags_dir.parts[-1]
+                    round(perf_counter() - t1, 1), ags_dir.parts[-1]
                 )
             )
 
@@ -233,7 +233,7 @@ def run_simBEV_import(
 
                 print(
                     "It took {} seconds to distribute the demand for use case {} in AGS Nr. {}.".format(
-                        perf_counter() - t1, use_case, ags_dir.parts[-1]
+                        round(perf_counter() - t1, 1), use_case, ags_dir.parts[-1]
                     )
                 )
 
@@ -877,17 +877,17 @@ def data_preprocessing(
     try:
         car_idxs = df_standing.car_idx.unique()
 
-        if use_case == "public" or use_case == "hpc":
+        if use_case == "home":
             # max_cp_per_location = len(car_idxs) * 0.2
             max_cp_per_location = max(
                 int(np.ceil(len(car_idxs) / len(df_cp))),
                 1,
-            ) * 5
+            ) * 3
         else:
             max_cp_per_location = max(
                 int(np.ceil(len(car_idxs) / len(df_cp))),
                 1,
-            ) * 3
+            ) * 5
 
         cols = [
             "cp_{:05d}".format(x + 1) for x in range(max_cp_per_location)
