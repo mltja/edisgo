@@ -456,16 +456,25 @@ def get_charging_points(
         )
 
         if cp_dfs[3].empty:
-            cp_dfs[3] = df_append
-        else:
-            sum_weight_target = cp_dfs[3].weight.sum() / 0.7 * 0.3
-            sum_weight = df_append.weight.sum()
-            df_append.weight = df_append.weight.multiply(sum_weight_target / sum_weight)
+            if len(cp_dfs[1]) > 1:
+                cp_dfs[3] = cp_dfs[1].copy().drop(
+                    df_append.index.tolist(),
+                    axis=0,
+                ).sample(
+                    n=1,
+                    random_state=25588,
+                )
+            else:
+                cp_dfs[3] = cp_dfs[1].copy()
 
-            cp_dfs[3] = cp_dfs[3].append(
-                df_append,
-                ignore_index=True,
-            )
+        sum_weight_target = cp_dfs[3].weight.sum() / 0.7 * 0.3
+        sum_weight = df_append.weight.sum()
+        df_append.weight = df_append.weight.multiply(sum_weight_target / sum_weight)
+
+        cp_dfs[3] = cp_dfs[3].append(
+            df_append,
+            ignore_index=True,
+        )
 
         return tuple(cp_dfs)
 
