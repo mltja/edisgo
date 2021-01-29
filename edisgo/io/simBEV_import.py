@@ -331,8 +331,8 @@ def get_ags_data(
 
 
         dtypes = [
-            np.float32,
-            np.float32,
+            float,
+            float,
             np.uint32,
             np.uint32,
             np.uint32,
@@ -394,6 +394,10 @@ def get_charging_points(
                     ],
                     axis="columns",
                 )
+                cp_dfs[count].reset_index(
+                    drop=True,
+                    inplace=True,
+                )
                 # TODO: hpc has no weights @Johannes
             elif count == 1 and len(cp_dfs[count]) > 0:
                 cp_dfs[count] = cp_dfs[count].rename(
@@ -401,10 +405,14 @@ def get_charging_points(
                         "sum_pois": "weight",
                     }
                 )
-                cp_dfs[count].weight = cp_dfs[count].weight.astype(np.int32)
+                cp_dfs[count].weight = cp_dfs[count].weight.astype(int)
                 cp_dfs[count] = cp_dfs[count].sort_values(
                     by=["weight"],
                     ascending=False,
+                )
+                cp_dfs[count].reset_index(
+                    drop=True,
+                    inplace=True,
                 )
             elif count == 2 and len(cp_dfs[count]) > 0:
                 cp_dfs[count] = cp_dfs[count].rename(
@@ -412,10 +420,14 @@ def get_charging_points(
                         "building_wohneinheiten": "weight",
                     }
                 )
-                cp_dfs[count].weight = cp_dfs[count].weight.astype(np.int32)
+                cp_dfs[count].weight = cp_dfs[count].weight.astype(int)
                 cp_dfs[count] = cp_dfs[count].sort_values(
                     by=["weight"],
                     ascending=False,
+                )
+                cp_dfs[count].reset_index(
+                    drop=True,
+                    inplace=True,
                 )
             elif count == 3 and len(cp_dfs[count]) > 0:
                 cp_dfs[count] = cp_dfs[count].drop(
@@ -425,13 +437,35 @@ def get_charging_points(
                     ],
                     axis="columns",
                 )
-                cp_dfs[count].weight = cp_dfs[count].weight.astype(np.float32)
+                cp_dfs[count].weight = cp_dfs[count].weight.astype(float)
                 cp_dfs[count] = cp_dfs[count].sort_values(
                     by=["weight"],
                     ascending=False,
                 )
+                cp_dfs[count].reset_index(
+                    drop=True,
+                    inplace=True,
+                )
             else:
                 pass
+
+        # add some extra charging locations at work, because of a low number of charging stations
+        df_append = cp_dfs[1].copy().sample(
+            n=int(np.ceil(0.3 * len(cp_dfs[1]))),
+            random_state=25588,
+        )
+
+        if cp_dfs[3].empty:
+            cp_dfs[3] = df_append
+        else:
+            sum_weight_target = cp_dfs[3].weight.sum() / 0.7 * 0.3
+            sum_weight = df_append.weight.sum()
+            df_append.weight = df_append.weight.multiply(sum_weight_target / sum_weight)
+
+            cp_dfs[3] = cp_dfs[3].append(
+                df_append,
+                ignore_index=True,
+            )
 
         return tuple(cp_dfs)
 
@@ -910,7 +944,9 @@ def data_export(
         )
         df_cp = df_cp[df_cp.cp_00001.notna()].fillna(0)
         df_cp = df_cp.sort_index()
-        df_cp.reset_index(inplace=True)
+        df_cp.reset_index(
+            inplace=True,
+        )
 
         df_standing.cp_idx = df_standing.cp_idx.astype(np.int32)
         df_standing = df_standing.drop(
@@ -969,7 +1005,7 @@ def compress(
         df,
         verbose=True,
 ):
-    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+    numerics = ['int16', 'int32', 'int64']#, 'float16', 'float32', 'float64']
     start_mem = df.memory_usage().sum() / 1024**2
     for col in df.columns:
         col_type = df[col].dtypes
@@ -985,13 +1021,13 @@ def compress(
                     df[col] = df[col].astype(np.int32)
                 elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
                     df[col] = df[col].astype(np.int64)
-            else:
-                if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
-                    df[col] = df[col].astype(np.float16)
-                elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
-                    df[col] = df[col].astype(np.float32)
-                else:
-                    df[col] = df[col].astype(np.float64)
+            # else:
+            #     if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
+            #         df[col] = df[col].astype(np.float16)
+            #     elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+            #         df[col] = df[col].astype(np.float32)
+            #     else:
+            #         df[col] = df[col].astype(np.float64)
     end_mem = df.memory_usage().sum() / 1024**2
     if verbose: print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(end_mem, 100 * (start_mem - end_mem) / start_mem))
     return df
