@@ -236,6 +236,11 @@ class Topology:
 
     @buses_df.setter
     def buses_df(self, buses_df):
+        # make sure in_building takes on only True or False (not numpy bools)
+        # needs to tested using `== True`, not `is True`
+        buses_in_building = buses_df[buses_df.in_building == True].index
+        buses_df.loc[buses_in_building, "in_building"] = True
+        buses_df.loc[~buses_df.index.isin(buses_in_building), "in_building"] = False
         self._buses_df = buses_df
 
     @property
@@ -502,10 +507,9 @@ class Topology:
               Specifies if charging point is e.g. for charging at
               home, at work, in public, or public fast charging.
 
-            * polygon (shapely Polygon), optional
+            * number (int), optional
 
-              Polygon of the area, the charging point is located in, as
-              provided by 'simbev' tool.
+              Number of charging stations at charging point.
 
         Returns
         --------
@@ -903,22 +907,29 @@ class Topology:
         ----------
         generator_id : str
             Unique identifier of generator.
-        bus: str
-            Identifier of connected bus
-        control: str
-            Control type of generator. Defaults to 'PQ'.
-        p_nom: float
-            Nominal power [MW]
-        generator_type: str
-            Type of generator, e.g. 'solar' or 'gas'
-        weather_cell_id: int
+        bus : str
+            Identifier of bus to connect to.
+        p_nom : float
+            Nominal power in MW.
+        generator_type : str
+            Type of generator, e.g. 'solar' or 'gas'.
+
+        Other Parameters
+        ------------------
+        weather_cell_id : int
             ID of weather cell, required for fluctuating generators import from
             oedb.
-        subtype: str
-            Further specification of type, e.g. 'solar_roof_mounted'
+        subtype : str
+            Further specification of type, e.g. 'solar_roof_mounted'.
+        control : str
+            Control type of generator. Defaults to 'PQ'.
+
+        Returns
+        -------
+        str
+            Identifier of generator.
 
         """
-        # ToDo add test
         # check if bus exists
         try:
             bus_df = self.buses_df.loc[bus]
@@ -939,21 +950,21 @@ class Topology:
         )
         while generator_name in self.generators_df.index:
             random.seed(a=generator_name)
-            generator_name = "Generator_{}_{}".format(
-                generator_type, random.randint(10 ** 8, 10 ** 9)
+            generator_name = "Generator_{}_{}_{}".format(
+                generator_type, grid_name, random.randint(10 ** 8, 10 ** 9)
             )
 
         # unpack optional parameters
         weather_cell_id = kwargs.get("weather_cell_id", None)
         subtype = kwargs.get("subtype", None)
-        control = kwargs.get("control", None)
+        control = kwargs.get("control", "PQ")
 
         # create new generator dataframe
         new_gen_df = pd.DataFrame(
             data={
                 "bus": bus,
                 "p_nom": p_nom,
-                "control": control if control is not None else "PQ",
+                "control": control,
                 "type": generator_type,
                 "weather_cell_id": weather_cell_id,
                 "subtype": subtype,
@@ -972,15 +983,18 @@ class Topology:
         Parameters
         ----------
         load_id : str
-            Unique identifier of generator.
-        bus: str
-            identifier of connected bus
-        peak_load: float
-            peak load in [MVA]
-        annual_consumption: float
-            annual consumption in Todo: specify unit?
-        sector: str
-            can be 'agricultural', 'industrial', 'residential' or 'retail'
+            Unique identifier of load.
+        bus : str
+            Identifier of bus to connect to.
+        peak_load : float
+            Peak load in MW.
+        annual_consumption : float
+            Annual consumption in MWh.
+        sector : str
+            Specifies type of load. If demandlib is used to generate time
+            sector-specific time series, the sector needs to either be
+            'agricultural', 'industrial', 'residential' or 'retail'.
+
         """
         # Todo: overthink load_id as input parameter, only allow auto created
         #  names?
@@ -1018,7 +1032,7 @@ class Topology:
         self.loads_df = self._loads_df.append(new_load_df)
         return load_name
 
-    def add_storage_unit(self, bus, p_nom, control=None):
+    def add_storage_unit(self, bus, p_nom, control="PQ"):
         """
         Adds storage unit to topology.
 
@@ -1026,12 +1040,12 @@ class Topology:
 
         Parameters
         ----------
-        bus: str
-            Identifier of connected bus.
-        p_nom: float
-            Nominal power in MW
-        control: str
-            Control type, defaults to 'PQ'
+        bus : str
+            Identifier of bus to connect to.
+        p_nom : float
+            Nominal power in MW.
+        control : str
+            Control type, defaults to 'PQ'.
 
         """
         try:
@@ -1062,14 +1076,14 @@ class Topology:
             data={
                 "bus": bus,
                 "p_nom": p_nom,
-                "control": control if control is not None else "PQ",
+                "control": control,
             },
             index=[storage_name],
         )
         self.storage_units_df = self._storage_units_df.append(new_storage_df)
         return storage_name
 
-    def add_charging_point(self, bus, p_nom, use_case=None, polygon=None):
+    def add_charging_point(self, bus, p_nom, use_case, **kwargs):
         """
         Adds charging point to topology.
 
@@ -1081,12 +1095,17 @@ class Topology:
             Identifier of bus charging point is connected to.
         p_nom : float
             Nominal power in MW
-        use_case : str (optional)
+        use_case : str
             Specifies if charging point is e.g. used for charging at
             home, at work, in public, or public fast charging.
-        polygon : shapely Polygon (optional)
-            Polygon of the area, the charging point is located in, as
-            provided by 'simbev' tool.
+            In case charging points are integrated using
+            :attr:`~.EDisGo.integrate_component` allowed use case are 'home',
+            'work', 'public', and 'fast'.
+
+        Other Parameters
+        -----------------
+        number : int
+            Number of charging stations at charging point.
 
         """
         try:
@@ -1113,12 +1132,13 @@ class Topology:
                     grid_name, random.randint(10 ** 8, 10 ** 9)
                 )
 
+        number = kwargs.get("number", None)
         new_df = pd.DataFrame(
             data={
                 "bus": bus,
                 "p_nom": p_nom,
                 "use_case": use_case,
-                "polygon": polygon
+                "number": number
             },
             index=[name],
         )
@@ -1129,25 +1149,41 @@ class Topology:
         """
         Adds new bus to topology.
 
+        If provided bus name already exists, a unique name is created.
+
         Parameters
         ----------
         bus_name : str
             representative of bus
-        v_nom: float
+        v_nom : float
             nominal voltage at bus [kV]
-        x: float
+
+        Other Parameters
+        ----------------
+        x : float
             position (e.g. longitude); the Spatial Reference System Identifier
             (SRID) is saved in the network dataframe
-        y: float
+        y : float
             position (e.g. longitude); the Spatial Reference System Identifier
             (SRID) is saved in the network dataframe
-        lv_grid_id: int
+        lv_grid_id : int
             identifier of LVGrid, None if bus is MV component
-        in_building: bool
+        in_building : bool
             indicator if bus is inside a building
 
+        Returns
+        -------
+        str
+            Name of bus.
+
         """
-        # ToDo make sure bus_name is unique!
+        # check uniqueness of provided bus name and otherwise change bus name
+        while bus_name in self.buses_df.index:
+            random.seed(a=bus_name)
+            bus_name = "Bus_{}".format(
+                random.randint(10 ** 8, 10 ** 9)
+            )
+
         x = kwargs.get("x", None)
         y = kwargs.get("y", None)
         lv_grid_id = kwargs.get("lv_grid_id", None)
@@ -1169,6 +1205,7 @@ class Topology:
             index=[bus_name],
         )
         self._buses_df = self._buses_df.append(new_bus_df)
+        return bus_name
 
     def add_line(self, bus0, bus1, length, **kwargs):
         """
