@@ -199,7 +199,7 @@ class EDisGo:
     timeseries: :class:`~.network.timeseries.TimeSeries`
         Container for component timeseries.
     results : :class:`~.network.results.Results`
-        This is a container holding all calculation results from power flow
+        This is a container holding alls calculation results from power flow
         analyses, curtailment, storage integration, etc.
 
     """
@@ -988,61 +988,18 @@ class EDisGo:
         if not type(geolocation) is Point:
             geolocation = Point(geolocation)
 
-<<<<<<< HEAD
-        # Connect MV component
-        if voltage_level == 4:
-            comp_name = self.add_component(comp_type,
-                               bus=self.topology.mv_grid.station.index[0],
-                               add_ts=add_ts,
-                               ts_active_power=ts_active_power,
-                               ts_reactive_power=ts_reactive_power, **kwargs)
-        elif voltage_level == 5:
-            # Create common properties for Generator and Charging Point
-            properties = pd.Series()
-            properties['voltage_level'] = voltage_level
-            properties['geom'] = str(geolocation)
-            properties['electrical_capacity'] = p_nom
-            properties.name = kwargs.get('generator_id', None)
-            properties['generation_type'] = kwargs.get('generator_type', None)
-            properties['generation_subtype'] = kwargs.get(
-                'generator_subtype', None)
-            properties['w_id'] = kwargs.get('weather_cell_id', None)
-            comp_name = add_and_connect_mv_generator(
-                self, properties, comp_type)
-
-            if add_ts and comp_type == 'Generator':
-                timeseries.add_generators_timeseries(
-                    edisgo_obj=self, generator_names=comp_name, **kwargs
-                )
-            elif add_ts and comp_type == 'ChargingPoint':
-                timeseries.add_charging_points_timeseries(
-                    self, [comp_name],
-                    ts_active_power=pd.DataFrame({
-                        comp_name: ts_active_power}),
-                    ts_reactive_power=pd.DataFrame({
-                        comp_name: ts_reactive_power})
-                )
-=======
         # Connect in MV
         if voltage_level in [4, 5]:
             kwargs['voltage_level'] = voltage_level
             kwargs['geom'] = geolocation
             comp_name = connect_to_mv(
                 self, kwargs, comp_type)
->>>>>>> features/emob_integration
 
         # Connect in LV
         else:
             substations = self.topology.buses_df.loc[
                 self.topology.transformers_df.bus1]
             nearest_substation, _ = find_nearest_bus(geolocation, substations)
-<<<<<<< HEAD
-            comp_name = self.add_component(comp_type,
-                               bus=nearest_substation,
-                               add_ts=add_ts,
-                               ts_active_power=ts_active_power,
-                               ts_reactive_power=ts_reactive_power, **kwargs)
-=======
             kwargs['mvlv_subst_id'] = int(nearest_substation.split("_")[-2])
             kwargs['geom'] = geolocation
             kwargs['voltage_level'] = voltage_level
@@ -1062,9 +1019,6 @@ class EDisGo:
                 ts_reactive_power=pd.DataFrame({
                     comp_name: ts_reactive_power})
             )
-
-        return comp_name
->>>>>>> features/emob_integration
 
         return comp_name
 
