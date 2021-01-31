@@ -1,11 +1,22 @@
 import gc
 import os.path
+import logging
+import warnings
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 
+from copy import deepcopy
 from pathlib import Path
-from calculate_necessary_curtailment import calculate_curtailment, integrate_public_charging
+from calculate_necessary_curtailment import calculate_curtailment, integrate_public_charging, integrate_private_charging
+
+# suppress infos from pypsa
+logger = logging.getLogger("pypsa")
+logger.setLevel(logging.ERROR)
+
+# suppress warnings
+# disable for development
+warnings.filterwarnings("ignore")
 
 gc.collect()
 
@@ -58,6 +69,20 @@ for grid_dir in grid_dirs:
         generator_scenario="ego100",
     )
 
+    gc.collect()
+
     for strategy in strategies:
+        edisgo_strategy = deepcopy(edisgo)
+
+        edisgo_strategy = integrate_private_charging(
+            edisgo_strategy,
+            grid_dir,
+            files,
+            strategy,
+        )
 
         print("breaker")
+
+        del edisgo_strategy
+
+        gc.collect()

@@ -910,6 +910,7 @@ class EDisGo:
         self,
         comp_type,
         geolocation,
+        use_case=None,
         voltage_level=None,
         add_ts=True,
         ts_active_power=None,
@@ -992,6 +993,8 @@ class EDisGo:
         if voltage_level in [4, 5]:
             kwargs['voltage_level'] = voltage_level
             kwargs['geom'] = geolocation
+            if comp_type == "ChargingPoint":
+                kwargs['use_case'] = use_case
             comp_name = connect_to_mv(
                 self, kwargs, comp_type)
 
@@ -1003,6 +1006,8 @@ class EDisGo:
             kwargs['mvlv_subst_id'] = int(nearest_substation.split("_")[-2])
             kwargs['geom'] = geolocation
             kwargs['voltage_level'] = voltage_level
+            if comp_type == "ChargingPoint":
+                kwargs['use_case'] = use_case
             comp_name = connect_to_lv(self, kwargs, comp_type)
 
         if add_ts:

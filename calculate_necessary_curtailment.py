@@ -1,4 +1,6 @@
 import os
+import logging
+import warnings
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -11,12 +13,16 @@ from edisgo.edisgo import import_edisgo_from_files
 # from elia_project import results_helper_functions # TODO: @Birgit
 from edisgo.opf.results import opf_expand_network
 from edisgo.tools import pypsa_io
+from edisgo.network.timeseries import TimeSeries
 # from edisgo.tools.tools import assign_mv_feeder_to_buses_and_lines, \ # TODO: @Birgit
 #     get_path_length_to_station
 
-import logging
 logger = logging.getLogger("pypsa")
 logger.setLevel(logging.ERROR)
+
+# suppress warnings
+# disable for development
+warnings.filterwarnings("ignore")
 
 # possible options for scenario are "dumb_charging" and "smart_charging"
 scenario = "dumb"
@@ -947,38 +953,61 @@ def integrate_public_charging(
         generator_scenario="ego100",
 ):
     try:
-        # timeindex = pd.date_range(
-        #     '2011-01-01',
-        #     periods=8760,
-        #     freq='H',
-        # )
-        #
-        # p_bio = 9983  # MW
-        # e_bio = 50009  # GWh
-        #
-        # vls_bio = e_bio / (p_bio / 1000)
-        #
-        # share = vls_bio / 8760
-        #
-        # timeseries_generation_dispatchable = pd.DataFrame(
-        #     {
-        #         "biomass": [share] * len(timeindex),
-        #         "coal": [1] * len(timeindex),
-        #         "other": [1] * len(timeindex),
-        #     },
-        #     index=timeindex,
-        # )
-        #
-        # edisgo = EDisGo(
-        #     ding0_grid=os.path.join(
-        #         ding0_dir, str(grid_id)
-        #     ),
-        #     generator_scenario=generator_scenario,
-        #     timeseries_load="demandlib",
-        #     timeseries_generation_fluctuating="oedb",
-        #     timeseries_generation_dispatchable=timeseries_generation_dispatchable,
-        #     timeindex=timeindex,
-        # )
+        len_timeindex = 24
+
+        timeindex = pd.date_range(
+            '2011-01-01',
+            periods=len_timeindex,
+            freq='H',
+        )
+
+        p_bio = 9983  # MW
+        e_bio = 50009  # GWh
+
+        vls_bio = e_bio / (p_bio / 1000)
+
+        share = vls_bio / 8760
+
+        timeseries_generation_dispatchable = pd.DataFrame(
+            {
+                "biomass": [share] * len_timeindex,
+                "coal": [1] * len_timeindex,
+                "other": [1] * len_timeindex,
+            },
+            index=timeindex,
+        )
+
+        edisgo = EDisGo(
+            ding0_grid=os.path.join(
+                ding0_dir, str(grid_id)
+            ),
+            generator_scenario=generator_scenario,
+            timeseries_load="demandlib",
+            timeseries_generation_fluctuating="oedb",
+            timeseries_generation_dispatchable=timeseries_generation_dispatchable,
+            timeindex=timeindex,
+        )
+
+        timeindex = pd.date_range(
+            "2011-01-01",
+            periods=len_timeindex*4,
+            freq="15min",
+        )
+
+        edisgo.timeseries.timeindex = timeindex
+
+        edisgo.timeseries.generators_active_power = edisgo.timeseries.generators_active_power.ffill()
+        edisgo.timeseries.generators_reactive_power = edisgo.timeseries.generators_reactive_power.ffill()
+        edisgo.timeseries.loads_active_power = edisgo.timeseries.loads_active_power.ffill()
+        edisgo.timeseries.loads_reactive_power = edisgo.timeseries.loads_reactive_power.ffill()
+
+        comp_type = "ChargingPoint"
+
+        ts_reactive_power = pd.Series(
+            data=[0] * len(timeindex),
+            index=timeindex,
+            name="ts_reactive_power",
+        )
 
         geo_files = [
             Path(os.path.join(grid_dir, f)) for f in files
@@ -990,10 +1019,16 @@ def integrate_public_charging(
             if ("h5" in f and ("public" in f or "hpc" in f))
         ]
 
-        for geo_f, ts_f in list(
+        if len(ts_files) == 2:
+            use_cases = ["fast", "public"]
+        else:
+            use_cases = ["public"]
+
+        for geo_f, ts_f, use_case in list(
             zip(
                 geo_files,
                 ts_files,
+                use_cases,
             )
         ):
             gdf = gpd.read_file(
@@ -1005,8 +1040,109 @@ def integrate_public_charging(
                 key="df_load",
             )
 
-            print("breaker")
+            df = df.iloc[:len(timeindex)]
 
+            df.index = timeindex
+
+            _ = [
+                EDisGo.integrate_component(
+                    edisgo,
+                    comp_type=comp_type,
+                    geolocation=geolocation,
+                    use_case=use_case,
+                    voltage_level=None, # TODO: @Birgit
+                    mode="mv", # TODO: @Birgit
+                    add_ts=True,
+                    ts_active_power=df.loc[:, (ags, cp_idx)].divide(cp_connection_rating),
+                    ts_reactive_power=ts_reactive_power,
+                    p_nom=p_nom,
+                ) for ags, cp_idx, cp_connection_rating, geolocation, p_nom in list(
+                    zip(
+                        gdf.ags.tolist(),
+                        gdf.cp_idx.tolist(),
+                        gdf.cp_connection_rating.tolist(),
+                        gdf.geometry.tolist(),
+                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+                    )
+                )
+            ]
+
+        return edisgo
+
+    except:
+        traceback.print_exc()
+
+
+def integrate_private_charging(
+        edisgo,
+        grid_dir,
+        files,
+        strategy,
+):
+    try:
+        geo_files = [
+            Path(os.path.join(grid_dir, f)) for f in files
+            if ("geojson" in f and ("home" in f or "work" in f))
+        ]
+
+        ts_files = [
+            Path(os.path.join(grid_dir, f)) for f in files
+            if ("h5" in f and strategy in f and ("home" in f or "work" in f))
+        ]
+
+        use_cases = ["home", "work"]
+
+        timeindex = edisgo.timeseries.timeindex
+
+        comp_type = "ChargingPoint"
+
+        ts_reactive_power = pd.Series(
+            data=[0] * len(timeindex),
+            index=timeindex,
+            name="ts_reactive_power",
+        )
+
+        for geo_f, ts_f, use_case in list(
+                zip(
+                    geo_files,
+                    ts_files,
+                    use_cases,
+                )
+        ):
+            gdf = gpd.read_file(
+                geo_f,
+            )
+
+            df = pd.read_hdf(
+                ts_f,
+                key="df_load",
+            )
+
+            df = df.iloc[:len(timeindex)]
+
+            df.index = timeindex
+
+            _ = [
+                EDisGo.integrate_component(
+                    edisgo,
+                    comp_type=comp_type,
+                    geolocation=geolocation,
+                    use_case=use_case,
+                    voltage_level=None,
+                    add_ts=True,
+                    ts_active_power=df.loc[:, (ags, cp_idx)].divide(cp_connection_rating),
+                    ts_reactive_power=ts_reactive_power,
+                    p_nom=p_nom,
+                ) for ags, cp_idx, cp_connection_rating, geolocation, p_nom in list(
+                    zip(
+                        gdf.ags.tolist(),
+                        gdf.cp_idx.tolist(),
+                        gdf.cp_connection_rating.tolist(),
+                        gdf.geometry.tolist(),
+                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+                    )
+                )
+            ]
 
         return edisgo
 
