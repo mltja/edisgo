@@ -6,16 +6,16 @@ import geopandas as gpd
 import numpy as np
 import multiprocessing
 import traceback
+import results_helper_functions
+import timeseries_import
 
 from edisgo import EDisGo
 from pathlib import Path
 from edisgo.edisgo import import_edisgo_from_files
-# from elia_project import results_helper_functions # TODO: @Birgit
 from edisgo.opf.results import opf_expand_network
 from edisgo.tools import pypsa_io
-from edisgo.network.timeseries import TimeSeries
-# from edisgo.tools.tools import assign_mv_feeder_to_buses_and_lines, \ # TODO: @Birgit
-#     get_path_length_to_station
+from edisgo.tools.tools import assign_feeder, get_path_length_to_station
+from edisgo.network.timeseries import get_component_timeseries
 
 logger = logging.getLogger("pypsa")
 logger.setLevel(logging.ERROR)
@@ -24,31 +24,31 @@ logger.setLevel(logging.ERROR)
 # disable for development
 warnings.filterwarnings("ignore")
 
-# possible options for scenario are "dumb_charging" and "smart_charging"
-scenario = "dumb"
-
-results_base_path = "/home/local/RL-INSTITUT/birgit.schachler/rli-daten_02/open_BEA_Berechnungen"
-#results_base_path = "/home/birgit/Schreibtisch/Elia_Ergebnisse"
-if scenario == "dumb":
-    results_path = os.path.join(
-        results_base_path, "2020-12-11_22-13_simbev_scenario_dumb_charging")
-elif scenario == "reduced":
-    results_path = os.path.join(
-        results_base_path, "2020-12-11_22-14_simbev_scenario_reduced_charging")
-elif scenario == "grouped":
-    results_path = os.path.join(
-        results_base_path, "2020-12-13_18-51_simbev_scenario_grouped_charging")
-elif scenario == "residual_load":
-    results_path = os.path.join(
-        results_base_path, "2021-01-06_17-23_simbev_scenario_residual_load_charging")
-else:
-    raise ValueError
-
-mv_grid_ids = [176, 177, 1056, 1423, 1574, 1690, 1811, 1839,
-               2079, 2095, 2534, 3008, 3280] # 566, 3267
+# # possible options for scenario are "dumb_charging" and "smart_charging"
+# scenario = "dumb"
+#
+# results_base_path = "/home/local/RL-INSTITUT/birgit.schachler/rli-daten_02/open_BEA_Berechnungen"
+# #results_base_path = "/home/birgit/Schreibtisch/Elia_Ergebnisse"
+# if scenario == "dumb":
+#     results_path = os.path.join(
+#         results_base_path, "2020-12-11_22-13_simbev_scenario_dumb_charging")
+# elif scenario == "reduced":
+#     results_path = os.path.join(
+#         results_base_path, "2020-12-11_22-14_simbev_scenario_reduced_charging")
+# elif scenario == "grouped":
+#     results_path = os.path.join(
+#         results_base_path, "2020-12-13_18-51_simbev_scenario_grouped_charging")
+# elif scenario == "residual_load":
+#     results_path = os.path.join(
+#         results_base_path, "2021-01-06_17-23_simbev_scenario_residual_load_charging")
+# else:
+#     raise ValueError
+#
+# mv_grid_ids = [176, 177, 1056, 1423, 1574, 1690, 1811, 1839,
+#                2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 num_threads = 1
-curtailment_step = 0.05
+curtailment_step = 0.2 # 0.05 TODO
 max_iterations = 50
 
 
@@ -206,7 +206,7 @@ def calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
 
 def calculate_curtailment_mvlv_stations(
         edisgo, voltage_dev, rel_load, curtailment, max_iterations,
-        grid_results_dir):
+        grid_results_dir, scenario, strategy):
 
     elia_logger = elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -242,14 +242,27 @@ def calculate_curtailment_mvlv_stations(
 
     if len(stations_issues) > 0:
         edisgo.save(
-            os.path.join(grid_results_dir, "edisgo_curtailment_lv"),
-            parameters="powerflow_results")
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_edisgo_curtailment_lv".format(scenario, strategy),
+            ),
+            parameters="powerflow_results",
+        )
+
         rel_load.to_csv(
-            os.path.join(grid_results_dir, "edisgo_curtailment_lv",
-                         "relative_load.csv"))
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_edisgo_curtailment_lv".format(scenario, strategy),
+                "relative_load.csv"),
+        )
+
         voltage_dev.to_csv(
-            os.path.join(grid_results_dir, "edisgo_curtailment_lv",
-                         "voltage_deviation.csv"))
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_edisgo_curtailment_lv".format(scenario, strategy),
+                "voltage_deviation.csv")
+        )
+
         raise ValueError("Curtailment not sufficient to solve grid "
                          "issues in LV.")
 
@@ -306,151 +319,9 @@ def calculate_curtailment_mvlv_stations(
     return curtailment
 
 
-def calculate_curtailment_mv_lines_opf(
-        edisgo, voltage_dev, rel_load, curtailment, grid_results_dir):
-
-    mv_grid_id = edisgo.topology.id
-    elia_logger = elia_logger = logging.getLogger(
-        'elia_project: {}'.format(mv_grid_id))
-    curtailment.at["mv_problems", "feed-in"], curtailment.at[
-        "mv_problems", "load"] = [0, 0]
-
-    lines_issues, buses_issues, time_steps_issues = get_mv_lines_and_timesteps_with_issues(
-        voltage_dev, rel_load, mv_grid_id)
-    pypsa_network = edisgo.to_pypsa(mode="mvlv", timesteps=time_steps_issues)
-
-    if len(lines_issues) > 0:
-        # run power flow analysis on limited number of time steps
-        pf_results = pypsa_network.pf(time_steps_issues)
-        if all(pf_results["converged"]["0"].tolist()):
-            pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
-        else:
-            raise ValueError("Power flow analysis did not converge for the"
-                             "following time steps: {}.".format(
-                time_steps_issues[~pf_results["converged"]["0"]].tolist())
-            )
-
-        # recheck for overloading and voltage issues
-        rel_load = results_helper_functions.relative_load(edisgo)
-        voltage_dev = results_helper_functions.voltage_diff(edisgo)
-        lines_issues, buses_issues, time_steps_issues = get_mv_lines_and_timesteps_with_issues(
-            voltage_dev, rel_load, mv_grid_id)
-        elia_logger.debug(
-            "Remaining number of time steps with MV issues: {}".format(
-                len(time_steps_issues)))
-
-        # differentiate between load and feed-in case
-        timesteps_load_feedin_case = \
-        edisgo.timeseries.timesteps_load_feedin_case.loc[time_steps_issues]
-        time_steps_issues_lc = [_ for _ in timesteps_load_feedin_case.index
-                                if timesteps_load_feedin_case.loc[
-                                    _] == "load_case"]
-        time_steps_issues_fc = [_ for _ in timesteps_load_feedin_case.index
-                                if timesteps_load_feedin_case.loc[
-                                    _] == "feedin_case"]
-
-        # run MPOPF
-        if len(time_steps_issues_lc) > 0:
-            elia_logger.debug(
-                "Running OPF (load case) for {} time steps.".format(
-                    len(time_steps_issues_lc)))
-            edisgo.perform_mp_opf(
-                timesteps=time_steps_issues_lc,
-                scenario='curtailment_lc',
-                results_path=grid_results_dir,
-                load_case=True,
-                max_exp=1
-            )
-            # check NEP
-            nep_factor = edisgo.opf_results.lines.nep.values.astype("float")
-            if nep_factor.max().max() > (1+1e-3):
-                elia_logger.error(
-                    "Network expansion factor greater 1 detected.")
-            # get curtailed feed-in
-            curtailment_per_node = opf_expand_network.get_curtailment_per_node(
-                edisgo)
-            total_feedin_curtailment = curtailment_per_node.sum().sum()
-            curtailment.at["mv_problems", "feed-in"] += total_feedin_curtailment
-            if total_feedin_curtailment > 0:
-                opf_expand_network.integrate_curtailment_as_load(
-                    edisgo, curtailment_per_node)
-            # get curtailed load
-            load_curtailment_per_node = opf_expand_network.get_load_curtailment_per_node(
-                edisgo)
-            total_load_curtailment = load_curtailment_per_node.sum().sum()
-            curtailment.at["mv_problems", "load"] += total_load_curtailment
-            if total_load_curtailment > 0:
-                opf_expand_network.integrate_curtailment_as_load(
-                    edisgo, -load_curtailment_per_node)
-
-            # check if there are any line overloadings and voltage issues left
-            edisgo.analyze(mode="mvlv", timesteps=time_steps_issues_lc)
-
-            rel_load = results_helper_functions.relative_load(edisgo)
-            voltage_dev = results_helper_functions.voltage_diff(edisgo)
-            lines_issues, buses_issues, time_steps_issues = get_mv_lines_and_timesteps_with_issues(
-                voltage_dev, rel_load, mv_grid_id)
-
-            elia_logger.debug(
-                "Remaining number of time steps with MV issues after OPF: {}".format(
-                    len(time_steps_issues)))
-            if len(lines_issues) > 0:
-                curtailment.at["mv_problems", "feed-in"], \
-                curtailment.at["mv_problems", "load"] = [np.nan, np.nan]
-                return curtailment
-
-        if len(time_steps_issues_fc) > 0:
-            edisgo.perform_mp_opf(
-                timesteps=time_steps_issues_fc,
-                scenario='curtailment_fc',
-                results_path=grid_results_dir,
-                max_exp=1
-            )
-            # check NEP
-            nep_factor = edisgo.opf_results.lines.nep.values.astype("float")
-            if nep_factor.max().max() > (1 + 1e-3):
-                elia_logger.error(
-                    "Network expansion factor greater 1 detected.")
-            # get curtailed feed-in
-            curtailment_per_node = opf_expand_network.get_curtailment_per_node(
-                edisgo)
-            total_feedin_curtailment = curtailment_per_node.sum().sum()
-            curtailment.at[
-                "mv_problems", "feed-in"] += total_feedin_curtailment
-            if total_feedin_curtailment > 0:
-                opf_expand_network.integrate_curtailment_as_load(
-                    edisgo, curtailment_per_node)
-            # get curtailed load
-            load_curtailment_per_node = opf_expand_network.get_load_curtailment_per_node(
-                edisgo)
-            total_load_curtailment = load_curtailment_per_node.sum().sum()
-            curtailment.at["mv_problems", "load"] += total_load_curtailment
-            if total_load_curtailment > 0:
-                opf_expand_network.integrate_curtailment_as_load(
-                    edisgo, -load_curtailment_per_node)
-
-            # check if there are any line overloadings and voltage issues left
-            edisgo.analyze(mode="mvlv", timesteps=time_steps_issues_fc)
-
-            rel_load = results_helper_functions.relative_load(edisgo)
-            voltage_dev = results_helper_functions.voltage_diff(edisgo)
-            lines_issues, buses_issues, time_steps_issues = get_mv_lines_and_timesteps_with_issues(
-                voltage_dev, rel_load, mv_grid_id)
-
-            elia_logger.debug(
-                "Remaining number of time steps with MV issues after OPF: {}".format(
-                    len(time_steps_issues)))
-
-            if len(lines_issues) > 0:
-                curtailment.at["mv_problems", "feed-in"], \
-                curtailment.at["mv_problems", "load"] = [np.nan, np.nan]
-                return curtailment
-
-    return curtailment
-
-
 def calculate_curtailment_mv_lines(
-        edisgo, voltage_dev, rel_load, curtailment, grid_results_dir):
+        edisgo, voltage_dev, rel_load, curtailment, grid_results_dir,
+        scenario, strategy):
 
     mv_grid_id = edisgo.topology.id
     elia_logger = elia_logger = logging.getLogger(
@@ -467,7 +338,7 @@ def calculate_curtailment_mv_lines(
         pypsa_network_orig = pypsa_network.copy()
 
         # assign main MV feeder and path length to station
-        assign_mv_feeder_to_buses_and_lines(edisgo)
+        assign_feeder(edisgo)
         get_path_length_to_station(edisgo)
 
         buses_df = edisgo.topology.buses_df
@@ -597,14 +468,25 @@ def calculate_curtailment_mv_lines(
         # calculate curtailment
         if len(time_steps_issues) > 0:
             edisgo.save(
-                os.path.join(grid_results_dir, "edisgo_curtailment_mv"),
-                parameters="powerflow_results")
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_edisgo_curtailment_mv".format(scenario, strategy),
+                ),
+                parameters="powerflow_results",
+            )
             rel_load.to_csv(
-                os.path.join(grid_results_dir, "edisgo_curtailment_mv",
-                             "relative_load.csv"))
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_edisgo_curtailment_mv".format(scenario, strategy),
+                    "relative_load.csv",
+                )
+            )
             voltage_dev.to_csv(
-                os.path.join(grid_results_dir, "edisgo_curtailment_mv",
-                             "voltage_deviation.csv"))
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_edisgo_curtailment_mv".format(scenario, strategy),
+                    "voltage_deviation.csv")
+            )
             raise ValueError("Curtailment not sufficient to solve grid "
                              "issues in MV.")
 
@@ -663,14 +545,14 @@ def calculate_curtailment_mv_lines(
 
 
 def calculate_curtailment_mv_voltage(
-        edisgo, curtailment, voltage_dev, grid_results_dir, tolerance=2e-3):
+        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, tolerance=2e-3):
 
     mv_grid_id = edisgo.topology.id
     elia_logger = elia_logger = logging.getLogger(
         'elia_project: {}'.format(mv_grid_id))
 
     # assign main MV feeder
-    assign_mv_feeder_to_buses_and_lines(edisgo)
+    assign_feeder(edisgo)
 
     # find voltage issues in mv
     tmp = voltage_dev[abs(voltage_dev) > tolerance].dropna(how="all").dropna(
@@ -798,14 +680,28 @@ def calculate_curtailment_mv_voltage(
         # calculate curtailment
         if len(time_steps_issues) > 0:
             edisgo.save(
-                os.path.join(grid_results_dir, "edisgo_curtailment_mv_voltage"),
-                parameters="powerflow_results")
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_edisgo_curtailment_mv_voltage".format(scenario, strategy),
+                ),
+                parameters="powerflow_results",
+            )
             rel_load.to_csv(
-                os.path.join(grid_results_dir, "edisgo_curtailment_mv_voltage",
-                             "relative_load.csv"))
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_edisgo_curtailment_mv_voltage".format(scenario, strategy),
+                    "relative_load.csv"
+                )
+            )
+
             voltage_dev.to_csv(
-                os.path.join(grid_results_dir, "edisgo_curtailment_mv_voltage",
-                             "voltage_deviation.csv"))
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_edisgo_curtailment_mv_voltage".format(scenario, strategy),
+                    "voltage_deviation.csv"
+                )
+            )
+
             raise ValueError("Curtailment not sufficient to solve MV voltage "
                              "issues.")
 
@@ -847,35 +743,58 @@ def calculate_curtailment_mv_voltage(
     return curtailment
 
 
-def calculate_curtailment(mv_grid_id):
-
+def calculate_curtailment(
+        grid_dir,
+        edisgo,
+        strategy,
+):
     try:
+        mv_grid_id = int(grid_dir.parts[-1])
+        scenario = grid_dir.parts[-3][:-11]
+
         elia_logger = logging.getLogger('elia_project: {}'.format(mv_grid_id))
         elia_logger.setLevel(logging.DEBUG)
 
+        results_path = Path(
+            os.path.join(
+                grid_dir.parent.parent.parent,
+                "eDisGo_curtailment_results",
+            )
+        )
+
         grid_results_dir = os.path.join(
             results_path, str(mv_grid_id))
-        reload_dir = os.path.join(
-            results_path, str(mv_grid_id))
+        # reload_dir = os.path.join(
+        #     results_path, str(mv_grid_id))
 
-        # reimport edisgo object
-        edisgo = import_edisgo_from_files(
-            reload_dir,
-            import_timeseries=True,
-            import_results=True,
-            parameters="powerflow_results",
-            import_residual_load=False
+        os.makedirs(
+            grid_results_dir,
+            exist_ok=True,
         )
+
+        # # reimport edisgo object
+        # edisgo = import_edisgo_from_files(
+        #     reload_dir,
+        #     import_timeseries=True,
+        #     import_results=True,
+        #     parameters="powerflow_results",
+        #     import_residual_load=False
+        # )
 
         feedin_ts = edisgo.timeseries.generators_active_power.copy()
         load_ts = edisgo.timeseries.loads_active_power.copy()
         charging_ts = edisgo.timeseries.charging_points_active_power.copy()
 
         # import relative load and voltage deviation for all 8760 time steps
-        path = os.path.join(reload_dir, 'relative_load.csv')
-        rel_load = pd.read_csv(path, index_col=0, parse_dates=True)
-        path = os.path.join(reload_dir, 'voltage_deviation.csv')
-        voltage_dev = pd.read_csv(path, index_col=0, parse_dates=True)
+        edisgo.analyze()
+
+        rel_load = results_helper_functions.relative_load(edisgo)
+        voltage_dev = results_helper_functions.voltage_diff(edisgo)
+
+        # path = os.path.join(reload_dir, 'relative_load.csv')
+        # rel_load = pd.read_csv(path, index_col=0, parse_dates=True)
+        # path = os.path.join(reload_dir, 'voltage_deviation.csv')
+        # voltage_dev = pd.read_csv(path, index_col=0, parse_dates=True)
 
         curtailment = pd.DataFrame(
             data=0,
@@ -883,20 +802,28 @@ def calculate_curtailment(mv_grid_id):
             index=["lv_problems", "mv_problems"])
 
         curtailment = calculate_curtailment_mv_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir)
+            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy)
 
         curtailment = calculate_curtailment_mvlv_stations(
             edisgo, voltage_dev, rel_load, curtailment, max_iterations,
-            grid_results_dir)
+            grid_results_dir, scenario, strategy)
 
         curtailment.to_csv(
-            os.path.join(grid_results_dir, "curtailment_lv_problems.csv"))
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_curtailment_lv_problems.csv".format(scenario, strategy),
+            )
+        )
 
         curtailment = calculate_curtailment_mv_lines(
-            edisgo, voltage_dev, rel_load, curtailment, grid_results_dir)
+            edisgo, voltage_dev, rel_load, curtailment, grid_results_dir, scenario, strategy)
 
         curtailment.to_csv(
-            os.path.join(grid_results_dir, "curtailment.csv"))
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_curtailment.csv".format(scenario, strategy)
+            )
+        )
 
         # save time series
         curtailed_feedin = feedin_ts - edisgo.timeseries.generators_active_power
@@ -905,16 +832,28 @@ def calculate_curtailment(mv_grid_id):
              (charging_ts - edisgo.timeseries.charging_points_active_power)],
             axis=1)
         curtailed_feedin.to_csv(
-            os.path.join(grid_results_dir, "curtailment_ts_per_gen.csv")
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_curtailment_ts_per_gen.csv".format(scenario, strategy)
+            )
         )
         curtailed_load.to_csv(
-            os.path.join(grid_results_dir, "curtailment_ts_per_load.csv")
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_curtailment_ts_per_load.csv".format(scenario, strategy)
+            )
         )
         curtailed_feedin.sum(axis=1).to_csv(
-            os.path.join(grid_results_dir, "curtailment_ts_feedin.csv")
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_curtailment_ts_feedin.csv".format(scenario, strategy)
+            )
         )
         curtailed_load.sum(axis=1).to_csv(
-            os.path.join(grid_results_dir, "curtailment_ts_demand.csv")
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_curtailment_ts_demand.csv".format(scenario, strategy)
+            )
         )
 
         # calculate curtailment of generators in the LV
@@ -936,11 +875,16 @@ def calculate_curtailment(mv_grid_id):
             curtailment_lv.at["lv", "feed-in"] = curtailment.loc[
                 "lv_problems", "feed-in"]
             curtailment_lv.at["mv", "feed-in"] = 0
+
         curtailment_lv.to_csv(
-            os.path.join(grid_results_dir, "curtailment_lv.csv")
+            os.path.join(
+                grid_results_dir,
+                "{}_{}_curtailment_lv.csv".format(scenario, strategy)
+            )
         )
 
     except Exception as e:
+        mv_grid_id = int(grid_dir.parts[-1])
         print("Error in MV grid {}.".format(mv_grid_id))
         traceback.print_exc()
 
@@ -988,6 +932,40 @@ def integrate_public_charging(
             timeindex=timeindex,
         )
 
+        timeseries_data_path = r"installed_capacities.csv"
+
+        timeseries_fluctuating, timeseries_dispatchable = timeseries_import.get_rated_generator_timeseries(
+            timeseries_data_path,
+            timeindex,
+        )
+
+        timeseries_data_path = r"conventional_load.csv"
+
+        load_data = timeseries_import.get_rated_load_timeseries(
+            timeseries_data_path,
+            timeindex,
+            edisgo,
+        )
+
+        timeseries_data_path = r"hp.csv"
+
+        timeseries_HP = timeseries_import.get_residential_heat_pump_timeseries(
+            timeseries_data_path,
+            timeindex,
+        )
+
+        # add heat pump load to residential load
+        residential_annual_consumption_ego = 131166982.09864908
+        load_data.residential += (timeseries_HP.HP / residential_annual_consumption_ego)
+
+        # get_component_timeseries(
+        #     edisgo_obj=edisgo,
+        #     timeseries_generation_fluctuating=timeseries_fluctuating,
+        #     timeseries_generation_dispatchable=timeseries_dispatchable,
+        #     timeseries_load=load_data,
+        #     timeindex=timeindex,
+        # )
+
         timeindex = pd.date_range(
             "2011-01-01",
             periods=len_timeindex*4,
@@ -1000,6 +978,9 @@ def integrate_public_charging(
         edisgo.timeseries.generators_reactive_power = edisgo.timeseries.generators_reactive_power.ffill()
         edisgo.timeseries.loads_active_power = edisgo.timeseries.loads_active_power.ffill()
         edisgo.timeseries.loads_reactive_power = edisgo.timeseries.loads_reactive_power.ffill()
+
+        edisgo.timeseries.storage_units_active_power = pd.DataFrame(index=edisgo.timeseries.timeindex)
+        edisgo.timeseries.storage_units_reactive_power = pd.DataFrame(index=edisgo.timeseries.timeindex)
 
         comp_type = "ChargingPoint"
 
@@ -1050,17 +1031,15 @@ def integrate_public_charging(
                     comp_type=comp_type,
                     geolocation=geolocation,
                     use_case=use_case,
-                    voltage_level=None, # TODO: @Birgit
-                    mode="mv", # TODO: @Birgit
+                    voltage_level=None,
                     add_ts=True,
-                    ts_active_power=df.loc[:, (ags, cp_idx)].divide(cp_connection_rating),
+                    ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
                     p_nom=p_nom,
-                ) for ags, cp_idx, cp_connection_rating, geolocation, p_nom in list(
+                ) for ags, cp_idx, geolocation, p_nom in list(
                     zip(
                         gdf.ags.tolist(),
                         gdf.cp_idx.tolist(),
-                        gdf.cp_connection_rating.tolist(),
                         gdf.geometry.tolist(),
                         gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
                     )
@@ -1130,14 +1109,13 @@ def integrate_private_charging(
                     use_case=use_case,
                     voltage_level=None,
                     add_ts=True,
-                    ts_active_power=df.loc[:, (ags, cp_idx)].divide(cp_connection_rating),
+                    ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
                     p_nom=p_nom,
-                ) for ags, cp_idx, cp_connection_rating, geolocation, p_nom in list(
+                ) for ags, cp_idx, geolocation, p_nom in list(
                     zip(
                         gdf.ags.tolist(),
                         gdf.cp_idx.tolist(),
-                        gdf.cp_connection_rating.tolist(),
                         gdf.geometry.tolist(),
                         gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
                     )
@@ -1150,10 +1128,10 @@ def integrate_private_charging(
         traceback.print_exc()
 
 
-if __name__ == "__main__":
-    if num_threads == 1:
-        for mv_grid_id in mv_grid_ids:
-            calculate_curtailment(mv_grid_id)
-    else:
-        with multiprocessing.Pool(num_threads) as pool:
-            pool.map(calculate_curtailment, mv_grid_ids)
+# if __name__ == "__main__":
+#     if num_threads == 1:
+#         for mv_grid_id in mv_grid_ids:
+#             calculate_curtailment(mv_grid_id)
+#     else:
+#         with multiprocessing.Pool(num_threads) as pool:
+#             pool.map(calculate_curtailment, mv_grid_ids)
