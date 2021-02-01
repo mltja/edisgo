@@ -2,13 +2,12 @@ import gc
 import os.path
 import logging
 import warnings
-import numpy as np
-import pandas as pd
-import geopandas as gpd
+import multiprocessing
+import traceback
+import calculate_necessary_curtailment as cc
 
 from copy import deepcopy
 from pathlib import Path
-from calculate_necessary_curtailment import calculate_curtailment, integrate_public_charging, integrate_private_charging
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -52,37 +51,61 @@ grid_dirs = [
     for scenario in scenarios for grid_id in grid_ids
 ]
 
-for grid_dir in grid_dirs:
-    files = os.listdir(grid_dir)
-
-    files.sort()
-
-    grid_id = grid_dir.parts[-1]
-
-    scenario = grid_dir.parts[-3][:-11]
-
-    edisgo = integrate_public_charging(
-        ding0_dir,
+def run_calculate_curtailment(
         grid_dir,
-        grid_id,
-        files,
-        generator_scenario="ego100",
-    )
+):
+    try:
+        files = os.listdir(grid_dir)
 
-    gc.collect()
+        files.sort()
 
-    for strategy in strategies:
-        edisgo_strategy = deepcopy(edisgo)
+        grid_id = grid_dir.parts[-1]
 
-        edisgo_strategy = integrate_private_charging(
-            edisgo_strategy,
+        scenario = grid_dir.parts[-3][:-11]
+
+        edisgo = cc.integrate_public_charging(
+            ding0_dir,
             grid_dir,
+            grid_id,
             files,
-            strategy,
+            generator_scenario="ego100",
         )
 
-        print("breaker")
-
-        del edisgo_strategy
-
         gc.collect()
+
+        for strategy in strategies:
+            edisgo_strategy = deepcopy(edisgo)
+
+            edisgo_strategy = cc.integrate_private_charging(
+                edisgo_strategy,
+                grid_dir,
+                files,
+                strategy,
+            )
+
+            cc.calculate_curtailment(
+                grid_dir,
+                edisgo_strategy,
+                strategy,
+            )
+
+            print("breaker")
+
+            del edisgo_strategy
+
+            gc.collect()
+
+    except:
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    if num_threads == 1:
+        for grid_dir in grid_dirs:
+            run_calculate_curtailment(grid_dir)
+    else:
+        with multiprocessing.Pool(num_threads) as pool:
+            pool.map(
+                run_calculate_curtailment,
+                grid_dirs,
+            )
