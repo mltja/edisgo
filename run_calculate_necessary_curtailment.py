@@ -83,13 +83,13 @@ def run_calculate_curtailment(
                 strategy,
             )
 
-            cc.calculate_curtailment(
-                grid_dir,
-                edisgo_strategy,
-                strategy,
-            )
-
-            print("breaker")
+            # cc.calculate_curtailment(
+            #     grid_dir,
+            #     edisgo_strategy,
+            #     strategy,
+            # )
+            #
+            # print("breaker")
 
             del edisgo_strategy
 

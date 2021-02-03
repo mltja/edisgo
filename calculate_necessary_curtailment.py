@@ -48,7 +48,7 @@ warnings.filterwarnings("ignore")
 #                2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 num_threads = 1
-curtailment_step = 0.2 # 0.05 TODO
+curtailment_step = 0.2  # 0.05 TODO
 max_iterations = 50
 
 
@@ -130,7 +130,6 @@ def get_time_steps_issues_bus(voltage_dev, rel_load, b, edisgo):
 
 
 def curtail(edisgo, pypsa_network, voltage_dev, rel_load):
-
     elia_logger = elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
 
@@ -207,7 +206,6 @@ def calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
 def calculate_curtailment_mvlv_stations(
         edisgo, voltage_dev, rel_load, curtailment, max_iterations,
         grid_results_dir, scenario, strategy):
-
     elia_logger = elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
 
@@ -322,7 +320,6 @@ def calculate_curtailment_mvlv_stations(
 def calculate_curtailment_mv_lines(
         edisgo, voltage_dev, rel_load, curtailment, grid_results_dir,
         scenario, strategy):
-
     mv_grid_id = edisgo.topology.id
     elia_logger = elia_logger = logging.getLogger(
         'elia_project: {}'.format(mv_grid_id))
@@ -368,7 +365,7 @@ def calculate_curtailment_mv_lines(
                 buses_in_feeder = buses_df_issues[
                     buses_df_issues.mv_feeder == feeder]
                 b = buses_in_feeder.loc[
-                         :, "path_length_to_station"].sort_values(
+                    :, "path_length_to_station"].sort_values(
                     ascending=False).index[0]
 
                 # get all generators and loads downstream
@@ -546,7 +543,6 @@ def calculate_curtailment_mv_lines(
 
 def calculate_curtailment_mv_voltage(
         edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, tolerance=2e-3):
-
     mv_grid_id = edisgo.topology.id
     elia_logger = elia_logger = logging.getLogger(
         'elia_project: {}'.format(mv_grid_id))
@@ -932,43 +928,48 @@ def integrate_public_charging(
             timeindex=timeindex,
         )
 
-        timeseries_data_path = r"installed_capacities.csv"
-
-        timeseries_fluctuating, timeseries_dispatchable = timeseries_import.get_rated_generator_timeseries(
-            timeseries_data_path,
-            timeindex,
-        )
-
-        timeseries_data_path = r"conventional_load.csv"
-
-        load_data = timeseries_import.get_rated_load_timeseries(
-            timeseries_data_path,
-            timeindex,
-            edisgo,
-        )
-
         timeseries_data_path = r"hp.csv"
 
         timeseries_HP = timeseries_import.get_residential_heat_pump_timeseries(
             timeseries_data_path,
-            timeindex,
         )
 
         # add heat pump load to residential load
-        residential_annual_consumption_ego = 131166982.09864908
-        load_data.residential += (timeseries_HP.HP / residential_annual_consumption_ego)
+        residential_annual_consumption_ego = 131166982.09864908 # MWh
 
-        # get_component_timeseries(
-        #     edisgo_obj=edisgo,
-        #     timeseries_generation_fluctuating=timeseries_fluctuating,
-        #     timeseries_generation_dispatchable=timeseries_dispatchable,
-        #     timeseries_load=load_data,
-        #     timeindex=timeindex,
-        # )
+        df_topology_residential = edisgo.topology.loads_df[edisgo.topology.loads_df.sector == "residential"]
+
+        df_topology_residential = df_topology_residential.assign(
+            consumption_factor=df_topology_residential.annual_consumption.divide(
+                df_topology_residential.annual_consumption.sum()
+            )
+        )
+
+        grid_factor = df_topology_residential.annual_consumption.sum() / residential_annual_consumption_ego
+
+        timeseries_HP = timeseries_HP.assign(
+            HP_grid=timeseries_HP.HP * grid_factor
+        )
+
+        for col, con_factor in list(
+                zip(
+                    df_topology_residential.index.tolist(),
+                    df_topology_residential.consumption_factor.tolist(),
+                )
+        ):
+            edisgo.timeseries._loads_active_power[col] += timeseries_HP.HP_grid.multiply(con_factor)
+
+        edisgo.topology.loads_df.annual_consumption = [
+            edisgo.timeseries._loads_active_power[col].sum() for col in edisgo.topology.loads_df.index.tolist()
+        ]
+
+        edisgo.topology.loads_df.peak_load = [
+            edisgo.timeseries._loads_active_power[col].max() for col in edisgo.topology.loads_df.index.tolist()
+        ]
 
         timeindex = pd.date_range(
             "2011-01-01",
-            periods=len_timeindex*4,
+            periods=len_timeindex * 4,
             freq="15min",
         )
 
@@ -1006,11 +1007,11 @@ def integrate_public_charging(
             use_cases = ["public"]
 
         for geo_f, ts_f, use_case in list(
-            zip(
-                geo_files,
-                ts_files,
-                use_cases,
-            )
+                zip(
+                    geo_files,
+                    ts_files,
+                    use_cases,
+                )
         ):
             gdf = gpd.read_file(
                 geo_f,
@@ -1024,6 +1025,17 @@ def integrate_public_charging(
             df = df.iloc[:len(timeindex)]
 
             df.index = timeindex
+
+            if "cp_idx" not in gdf.columns:
+                if len(df.columns.levels[1]) == 1:
+                    cp_idx = df.columns.levels[1][0]
+
+                    gdf = gdf.assign(
+                        cp_idx=cp_idx,
+                    )
+
+                else:
+                    raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
             _ = [
                 EDisGo.integrate_component(
@@ -1101,6 +1113,16 @@ def integrate_private_charging(
 
             df.index = timeindex
 
+            if not "cp_idx" in gdf.columns:
+                if len(df.columns.level[1]) == 1:
+                    cp_idx = df.columns.level[1][0]
+
+                    gdf = gdf.assign(
+                        cp_idx=cp_idx,
+                    )
+                else:
+                    raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
+
             _ = [
                 EDisGo.integrate_component(
                     edisgo,
@@ -1122,11 +1144,31 @@ def integrate_private_charging(
                 )
             ]
 
+        grid_results_dir = Path(
+            os.path.join(
+                r"\\192.168.10.221\UserShares\Kilian.Helfenbein\eDisGo_results\generators",
+                grid_dir.parts[-1],
+            )
+        )
+
+        os.makedirs(
+            grid_results_dir,
+            exist_ok=True,
+        )
+
+        edisgo.save(
+            grid_results_dir,
+            save_results=False,
+            save_topology=True,
+            save_timeseries=False,
+        )
+
+        print("Grid {} saved.".format(grid_dir.parts[-1]))
+
         return edisgo
 
     except:
         traceback.print_exc()
-
 
 # if __name__ == "__main__":
 #     if num_threads == 1:

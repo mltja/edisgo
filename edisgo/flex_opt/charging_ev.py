@@ -991,7 +991,11 @@ def gdf_to_geojson(
             exist_ok=True,
         )
 
-        gdf = gdf.loc[:, (gdf != 0).any(axis=0)]
+        cp_idx = gdf.pop("cp_idx")
+
+        gdf = gdf.loc[:, (gdf != 0).any(axis=0)] # TODO: this also removes cp_idx if all are 0
+
+        gdf.insert(2, "cp_idx", cp_idx)
 
         gdf.pop("use_case")
 
