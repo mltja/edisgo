@@ -709,16 +709,17 @@ def integrate_cps(
                 edisgo_wc,
                 comp_type=comp_type,
                 geolocation=geolocation,
+                use_case=get_edisgo_use_case_name(use_case),
                 voltage_level=None,
-                mode="mv",
                 add_ts=True,
                 ts_active_power=ts_active_power,
                 ts_reactive_power=ts_reactive_power,
                 p_nom=p_nom,
-            ) for geolocation, p_nom in list(
+            ) for geolocation, p_nom, use_case in list(
                 zip(
                     gdf_cps_total.geometry.tolist(),
                     gdf_cps_total.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+                    gdf_cps_total.use_case.tolist(),
                 )
             )
         ]
@@ -1237,6 +1238,23 @@ def get_use_case_name(
 ):
     if use_case_nr == 1:
         use_case_name = "hpc"
+    elif use_case_nr == 2:
+        use_case_name = "public"
+    elif use_case_nr == 3:
+        use_case_name = "home"
+    elif use_case_nr == 4:
+        use_case_name = "work"
+    else:
+        raise ValueError("Use case {} is not valid.".format(use_case_nr))
+
+    return use_case_name
+
+
+def get_edisgo_use_case_name(
+        use_case_nr,
+):
+    if use_case_nr == 1:
+        use_case_name = "fast"
     elif use_case_nr == 2:
         use_case_name = "public"
     elif use_case_nr == 3:
