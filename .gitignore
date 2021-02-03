@@ -36,3 +36,14 @@ eDisGo.egg-info/
 
 # exclude ipynb_checkpoints
 examples/.ipynb_checkpoints/*
+
+# kh
+German production and load data_v2.xlsx
+conventional_load.csv
+examples/Untitled.ipynb
+examples/Untitled1.ipynb
+grid_data/*.xlsx
+installed_capacities.csv
+installed_capacities.xlsx
+timeseries_of_production.csv
+timeseries_of_production.xlsx

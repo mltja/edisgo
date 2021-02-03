@@ -928,7 +928,10 @@ def integrate_public_charging(
             timeindex=timeindex,
         )
 
-        timeseries_data_path = r"hp.csv"
+        timeseries_data_path = os.path.join(
+            grid_dir.parent.parent.parent,
+            r"hp.csv",
+        )
 
         timeseries_HP = timeseries_import.get_residential_heat_pump_timeseries(
             timeseries_data_path,
