@@ -893,7 +893,7 @@ def integrate_public_charging(
         generator_scenario="ego100",
 ):
     try:
-        len_timeindex = 24
+        len_timeindex = 8760
 
         timeindex = pd.date_range(
             '2011-01-01',
@@ -1022,7 +1022,7 @@ def integrate_public_charging(
                 key="df_load",
             )
 
-            df = df.iloc[:len(timeindex)]
+            df = df.iloc[:len(timeindex)].divide(1000) # kW -> MW
 
             df.index = timeindex
 
@@ -1037,6 +1037,7 @@ def integrate_public_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
+            # TODO: choose
             _ = [
                 EDisGo.integrate_component(
                     edisgo,
@@ -1047,16 +1048,36 @@ def integrate_public_charging(
                     add_ts=True,
                     ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
-                    p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
+                    p_nom=df.loc[:, (ags, cp_idx)].max(),
+                ) for ags, cp_idx, geolocation in list(
                     zip(
                         gdf.ags.tolist(),
                         gdf.cp_idx.tolist(),
                         gdf.geometry.tolist(),
-                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
                     )
                 )
             ]
+
+            # _ = [
+            #     EDisGo.integrate_component(
+            #         edisgo,
+            #         comp_type=comp_type,
+            #         geolocation=geolocation,
+            #         use_case=use_case,
+            #         voltage_level=None,
+            #         add_ts=True,
+            #         ts_active_power=df.loc[:, (ags, cp_idx)],
+            #         ts_reactive_power=ts_reactive_power,
+            #         p_nom=p_nom,
+            #     ) for ags, cp_idx, geolocation, p_nom in list(
+            #         zip(
+            #             gdf.ags.tolist(),
+            #             gdf.cp_idx.tolist(),
+            #             gdf.geometry.tolist(),
+            #             gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+            #         )
+            #     )
+            # ]
 
         return edisgo
 
@@ -1109,7 +1130,7 @@ def integrate_private_charging(
                 key="df_load",
             )
 
-            df = df.iloc[:len(timeindex)]
+            df = df.iloc[:len(timeindex)].divide(1000)
 
             df.index = timeindex
 
@@ -1123,6 +1144,7 @@ def integrate_private_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
+            # TODO: choose
             _ = [
                 EDisGo.integrate_component(
                     edisgo,
@@ -1133,16 +1155,36 @@ def integrate_private_charging(
                     add_ts=True,
                     ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
-                    p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
+                    p_nom=df.loc[:, (ags, cp_idx)].max(),
+                ) for ags, cp_idx, geolocation in list(
                     zip(
                         gdf.ags.tolist(),
                         gdf.cp_idx.tolist(),
                         gdf.geometry.tolist(),
-                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
                     )
                 )
             ]
+
+            # _ = [
+            #     EDisGo.integrate_component(
+            #         edisgo,
+            #         comp_type=comp_type,
+            #         geolocation=geolocation,
+            #         use_case=use_case,
+            #         voltage_level=None,
+            #         add_ts=True,
+            #         ts_active_power=df.loc[:, (ags, cp_idx)],
+            #         ts_reactive_power=ts_reactive_power,
+            #         p_nom=p_nom,
+            #     ) for ags, cp_idx, geolocation, p_nom in list(
+            #         zip(
+            #             gdf.ags.tolist(),
+            #             gdf.cp_idx.tolist(),
+            #             gdf.geometry.tolist(),
+            #             gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+            #         )
+            #     )
+            # ]
 
         grid_results_dir = Path(
             os.path.join(
