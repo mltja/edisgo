@@ -156,8 +156,6 @@ def charging(
             )
             gc.collect()
 
-            # break # TODO
-
     except:
         traceback.print_exc()
 
@@ -994,7 +992,7 @@ def gdf_to_geojson(
 
         cp_idx = gdf.pop("cp_idx")
 
-        gdf = gdf.loc[:, (gdf != 0).any(axis=0)] # TODO: this also removes cp_idx if all are 0
+        gdf = gdf.loc[:, (gdf != 0).any(axis=0)] # FIXME: this also removes cp_idx if all are 0
 
         gdf.insert(2, "cp_idx", cp_idx)
 

@@ -239,7 +239,7 @@ def run_simBEV_import(
 
             gc.collect()
             print("AGS Nr. {} has been processed in scenario {}.".format(ags_dir.parts[-1], ags_dir.parts[-3]))
-            # break  # TODO: remove this when all data is available
+
     except:
         traceback.print_exc()
 
