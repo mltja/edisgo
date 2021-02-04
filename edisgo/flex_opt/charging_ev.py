@@ -4,6 +4,7 @@ import geopandas as gpd
 import os.path
 import traceback
 import gc
+import timeseries_import
 
 from edisgo import EDisGo
 from edisgo.io.simBEV_import import get_grid_data, hasNumbers
@@ -679,6 +680,43 @@ def integrate_cps(
         timeseries_HP = timeseries_import.get_residential_heat_pump_timeseries(
             timeseries_data_path,
         )
+
+        # add heat pump load to residential load
+        residential_annual_consumption_ego = 131166982.09864908  # MWh
+
+        df_topology_residential = edisgo_residual.topology.loads_df[
+            edisgo_residual.topology.loads_df.sector == "residential"
+        ]
+
+        df_topology_residential = df_topology_residential.assign(
+            consumption_factor=df_topology_residential.annual_consumption.divide(
+                df_topology_residential.annual_consumption.sum()
+            )
+        )
+
+        grid_factor = df_topology_residential.annual_consumption.sum() / residential_annual_consumption_ego
+
+        timeseries_HP = timeseries_HP.assign(
+            HP_grid=timeseries_HP.HP * grid_factor
+        )
+
+        for col, con_factor in list(
+                zip(
+                    df_topology_residential.index.tolist(),
+                    df_topology_residential.consumption_factor.tolist(),
+                )
+        ):
+            edisgo_residual.timeseries._loads_active_power[col] += timeseries_HP.HP_grid.multiply(con_factor)
+
+        edisgo_residual.topology.loads_df.annual_consumption = [
+            edisgo_residual.timeseries._loads_active_power[col].sum()
+            for col in edisgo_residual.topology.loads_df.index.tolist()
+        ]
+
+        edisgo_residual.topology.loads_df.peak_load = [
+            edisgo_residual.timeseries._loads_active_power[col].max()
+            for col in edisgo_residual.topology.loads_df.index.tolist()
+        ]
 
         s_residual_load = get_residual(
             edisgo_residual,
