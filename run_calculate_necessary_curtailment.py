@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 16
+num_threads = 6
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -79,6 +79,8 @@ def run_calculate_curtailment(
 
         gc.collect()
 
+        print("Public charging was integrated in scenario {} in grid {}.".format(scenario, grid_id))
+
         for strategy in strategies:
             edisgo_strategy = deepcopy(edisgo)
 
@@ -89,17 +91,21 @@ def run_calculate_curtailment(
                 strategy,
             )
 
+            gc.collect()
+
             cur.calculate_curtailment(
                 grid_dir,
                 edisgo_strategy,
                 strategy,
             )
 
-            print("breaker")
-
             del edisgo_strategy
 
             gc.collect()
+
+            print("Curtailment for strategy {} in scenario {} in grid {} was calculated.".format(
+                strategy, scenario, grid_id
+            ))
 
         print("It took {} seconds for scenario {} in grid {}.".format(
             round(perf_counter()-t1, 1), scenario, grid_id
