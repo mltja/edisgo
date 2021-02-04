@@ -1019,6 +1019,8 @@ def gdf_to_geojson(
         data_dir,
 ):
     try:
+        gdf_export = gdf.copy()
+
         use_case_name = get_use_case_name(use_case)
 
         file_name = "cp_data_{}_within_grid_{}.geojson".format(use_case_name, grid_id)
@@ -1039,15 +1041,15 @@ def gdf_to_geojson(
             exist_ok=True,
         )
 
-        cp_idx = gdf.pop("cp_idx")
+        cp_idx = gdf_export.pop("cp_idx")
 
-        gdf = gdf.loc[:, (gdf != 0).any(axis=0)] # FIXME: this also removes cp_idx if all are 0
+        gdf_export = gdf_export.loc[:, (gdf_export != 0).any(axis=0)] # FIXME: this also removes cp_idx if all are 0
 
-        gdf.insert(2, "cp_idx", cp_idx)
+        gdf_export.insert(3, "cp_idx", cp_idx)
 
-        gdf.pop("use_case")
+        gdf_export.pop("use_case")
 
-        gdf.to_file(
+        gdf_export.to_file(
             export_path,
             driver="GeoJSON",
         )
@@ -1339,7 +1341,7 @@ def get_connection_rating_factor(
         use_case,
         p_upper_limit=1000,
         p_lower_limit=300,
-        f_upper=0.5,
+        f_upper=0.45,
 ):
     if use_case == 1 or use_case == 2:
         return 1
@@ -1349,5 +1351,6 @@ def get_connection_rating_factor(
         elif p > p_upper_limit:
             return f_upper
         else:
-            return - (0.5 / 700) * p + (17 / 14)
+            return - (0.55 / 700) * p + (173 / 140) # f_upper=0.45
+            # return - (0.5 / 700) * p + (17 / 14) # f_upper=0.5
 

@@ -3,6 +3,7 @@ import logging
 import os.path
 import edisgo.io.simBEV_import as sB
 import multiprocessing
+import warnings
 
 from pathlib import Path
 
@@ -10,6 +11,10 @@ from pathlib import Path
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
 logger.setLevel(logging.ERROR)
+
+# suppress warnings
+# disable for development
+warnings.filterwarnings("ignore")
 
 gc.collect()
 
