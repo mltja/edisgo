@@ -55,6 +55,7 @@ def charging(
                 gdf_cps_total,
                 ding0_dir,
                 grid_id,
+                data_dir,
                 worst_case_analysis="worst-case",
                 generator_scenario="ego100",
             )
@@ -632,6 +633,7 @@ def integrate_cps(
         gdf_cps_total,
         ding0_dir,
         grid_id,
+        data_dir,
         worst_case_analysis="worst-case",
         generator_scenario=None,
 ):
@@ -667,6 +669,15 @@ def integrate_cps(
             timeseries_generation_fluctuating="oedb",
             timeseries_generation_dispatchable=timeseries_generation_dispatchable,
             timeindex=timeindex,
+        )
+
+        timeseries_data_path = os.path.join(
+            data_dir.parent.parent,
+            r"hp.csv",
+        )
+
+        timeseries_HP = timeseries_import.get_residential_heat_pump_timeseries(
+            timeseries_data_path,
         )
 
         s_residual_load = get_residual(
