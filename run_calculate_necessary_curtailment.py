@@ -7,6 +7,7 @@ import traceback
 import calculate_necessary_curtailment as cc
 import curtailment as cur
 
+from random import shuffle
 from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
@@ -52,6 +53,8 @@ grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
     for scenario in scenarios for grid_id in grid_ids
 ]
+
+shuffle(grid_dirs)
 
 def run_calculate_curtailment(
         grid_dir,
