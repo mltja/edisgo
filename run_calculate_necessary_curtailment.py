@@ -9,6 +9,7 @@ import curtailment as cur
 
 from copy import deepcopy
 from pathlib import Path
+from time import perf_counter
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -20,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 1
+num_threads = 16
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -45,7 +46,7 @@ sub_dir = r"eDisGo_charging_time_series"
 
 grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"]
+strategies = ["dumb", "grouped", "reduced", "residual"]
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
@@ -56,6 +57,8 @@ def run_calculate_curtailment(
         grid_dir,
 ):
     try:
+        t1 = perf_counter()
+
         files = os.listdir(grid_dir)
 
         files.sort()
@@ -63,6 +66,8 @@ def run_calculate_curtailment(
         grid_id = grid_dir.parts[-1]
 
         scenario = grid_dir.parts[-3][:-11]
+
+        print("Scenario {} in grid {} is being processed.".format(scenario, grid_id))
 
         edisgo = cc.integrate_public_charging(
             ding0_dir,
@@ -84,17 +89,21 @@ def run_calculate_curtailment(
                 strategy,
             )
 
-            # cur.calculate_curtailment(
-            #     grid_dir,
-            #     edisgo_strategy,
-            #     strategy,
-            # )
-            #
-            # print("breaker")
+            cur.calculate_curtailment(
+                grid_dir,
+                edisgo_strategy,
+                strategy,
+            )
+
+            print("breaker")
 
             del edisgo_strategy
 
             gc.collect()
+
+        print("It took {} seconds for scenario {} in grid {}.".format(
+            round(perf_counter()-t1, 1), scenario, grid_id
+        ))
 
     except:
         traceback.print_exc()
