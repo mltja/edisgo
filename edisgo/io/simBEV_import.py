@@ -1002,8 +1002,8 @@ def data_export(
                     path_or_buf=export_path,
                     key="export_df",
                     mode="w",
-                    format="table",
-                    data_columns=True,
+                    # format="table", # TODO
+                    # data_columns=True,
                 )
 
         # print("Data for use case {} has been exported for AGS Nr. {}.".format(use_case, ags_dir.parts[-1]))
