@@ -910,6 +910,8 @@ def calculate_curtailment(
         load_ts = edisgo.timeseries.loads_active_power.copy()
         charging_ts = edisgo.timeseries.charging_points_active_power.copy()
 
+        edisgo.analyze()
+
         # assign feeders and path length to station
         assign_feeder(edisgo, mode="mv_feeder")
         assign_feeder(edisgo, mode="lv_feeder")
