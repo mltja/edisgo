@@ -1002,7 +1002,7 @@ def data_export(
                     path_or_buf=export_path,
                     key="export_df",
                     mode="w",
-                    # format="table", # TODO
+                    format="fixed", #"table", # TODO
                     # data_columns=True,
                 )
 

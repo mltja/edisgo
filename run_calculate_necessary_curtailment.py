@@ -5,6 +5,7 @@ import warnings
 import multiprocessing
 import traceback
 import calculate_necessary_curtailment as cc
+import curtailment as cur
 
 from copy import deepcopy
 from pathlib import Path
@@ -83,7 +84,7 @@ def run_calculate_curtailment(
                 strategy,
             )
 
-            # cc.calculate_curtailment(
+            # cur.calculate_curtailment(
             #     grid_dir,
             #     edisgo_strategy,
             #     strategy,
