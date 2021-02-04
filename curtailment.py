@@ -42,7 +42,7 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 num_threads = 1
-curtailment_step = 0.2 # 0.5
+curtailment_step = 0.05 # 0.5 # TODO
 max_iterations = 10
 
 
@@ -999,6 +999,10 @@ def calculate_curtailment(
         )
         curtailed_load.sum(axis=1).to_csv(
             os.path.join(grid_results_dir, "{}_{}_curtailment_ts_demand.csv".format(scenario, strategy))
+        )
+
+        edisgo.timeseries.residual_load.to_csv(
+            os.path.join(grid_results_dir, "{}_{}_residual_load.csv".format(scenario, strategy))
         )
 
     except Exception as e:
