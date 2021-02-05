@@ -75,7 +75,7 @@ def run_calculate_curtailment(
 
         start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
 
-        offsets = [*range(5)]
+        offsets = [*range(73)]
 
         for day_offset in offsets:
             date = start_date + timedelta(days=int(day_offset*365/len(offsets)))
