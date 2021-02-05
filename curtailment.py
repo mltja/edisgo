@@ -167,7 +167,7 @@ def _calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
 
 
 def curtailment_lv_voltage(
-        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy):
+        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, chunk):
 
     elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -261,7 +261,7 @@ def curtailment_lv_voltage(
         if len(time_steps_issues) > 0:
 
             _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_lv_voltage".format(scenario, strategy))
+                edisgo, grid_results_dir, "{}_{}_{}_lv_voltage".format(scenario, strategy, chunk))
 
             raise ValueError("Curtailment not sufficient to solve LV voltage "
                              "issues.")
@@ -280,7 +280,7 @@ def curtailment_lv_voltage(
 
 
 def curtailment_mvlv_stations_voltage(
-        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy):
+        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, chunk):
 
     elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -371,7 +371,7 @@ def curtailment_mvlv_stations_voltage(
         if len(stations_issues) > 0:
 
             _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_mvlv_stations_voltage".format(scenario, strategy))
+                edisgo, grid_results_dir, "{}_{}_{}_mvlv_stations_voltage".format(scenario, strategy, chunk))
 
             raise ValueError("Curtailment not sufficient to solve voltage "
                              "issues at MV/LV stations.")
@@ -387,7 +387,7 @@ def curtailment_mvlv_stations_voltage(
 
 
 def curtailment_mv_voltage(
-        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy):
+        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, chunk):
 
     elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -481,7 +481,7 @@ def curtailment_mv_voltage(
         if len(time_steps_issues) > 0:
 
             _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_mv_voltage".format(scenario, strategy))
+                edisgo, grid_results_dir, "{}_{}_{}_mv_voltage".format(scenario, strategy, chunk))
 
             raise ValueError("Curtailment not sufficient to solve MV voltage "
                              "issues.")
@@ -499,7 +499,7 @@ def curtailment_mv_voltage(
 
 
 def curtailment_lv_lines_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk):
 
     elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -613,7 +613,7 @@ def curtailment_lv_lines_overloading(
         if len(time_steps_issues) > 0:
 
             _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_lv_overloading".format(scenario, strategy))
+                edisgo, grid_results_dir, "{}_{}_{}_lv_overloading".format(scenario, strategy, chunk))
 
             raise ValueError("Curtailment not sufficient to solve overloading "
                              "issues in LV.")
@@ -631,7 +631,7 @@ def curtailment_lv_lines_overloading(
 
 
 def curtailment_mvlv_stations_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk):
 
     elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -724,7 +724,7 @@ def curtailment_mvlv_stations_overloading(
         if len(time_steps_issues) > 0:
 
             _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_mvlv_stations_overloading".format(scenario, strategy))
+                edisgo, grid_results_dir, "{}_{}_{}_mvlv_stations_overloading".format(scenario, strategy, chunk))
 
             raise ValueError("Curtailment not sufficient to solve overloading "
                              "issues at MV/LV stations.")
@@ -742,7 +742,7 @@ def curtailment_mvlv_stations_overloading(
 
 
 def curtailment_mv_lines_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk):
 
     elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -855,7 +855,7 @@ def curtailment_mv_lines_overloading(
         if len(time_steps_issues) > 0:
 
             _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_mv_overloading".format(scenario, strategy))
+                edisgo, grid_results_dir, "{}_{}_{}_mv_overloading".format(scenario, strategy, chunk))
 
             raise ValueError("Curtailment not sufficient to solve grid "
                              "issues in MV.")
@@ -876,6 +876,7 @@ def calculate_curtailment(
         grid_dir,
         edisgo,
         strategy,
+        chunk,
 ):
     try:
         mv_grid_id = int(grid_dir.parts[-1])
@@ -930,19 +931,19 @@ def calculate_curtailment(
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
         curtailment = curtailment_lv_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy)
+            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, chunk)
 
         # ToDo Only recalculate voltage deviation if curtailment was conducted
         #  (will be done when voltage deviation is attribute in results object)
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
         curtailment = curtailment_mvlv_stations_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy)
+            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, chunk)
 
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
         curtailment = curtailment_mv_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy)
+            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, chunk)
 
         # curtailment due to overloading issues
 
@@ -950,17 +951,17 @@ def calculate_curtailment(
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment = curtailment_lv_lines_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy)
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk)
 
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment = curtailment_mvlv_stations_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy)
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk)
 
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment = curtailment_mv_lines_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy)
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk)
 
         # check if everything was solved
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
@@ -982,7 +983,7 @@ def calculate_curtailment(
 
         # save curtailment sums
         curtailment.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_curtailment.csv".format(scenario, strategy)))
+            os.path.join(grid_results_dir, "{}_{}_{}_curtailment.csv".format(scenario, strategy, chunk)))
 
         # save time series
         curtailed_feedin = feedin_ts - edisgo.timeseries.generators_active_power
@@ -991,20 +992,20 @@ def calculate_curtailment(
              (charging_ts - edisgo.timeseries.charging_points_active_power)],
             axis=1)
         curtailed_feedin.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_curtailment_ts_per_gen.csv".format(scenario, strategy))
+            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_per_gen.csv".format(scenario, strategy, chunk))
         )
         curtailed_load.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_curtailment_ts_per_load.csv".format(scenario, strategy))
+            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_per_load.csv".format(scenario, strategy, chunk))
         )
         curtailed_feedin.sum(axis=1).to_csv(
-            os.path.join(grid_results_dir, "{}_{}_curtailment_ts_feedin.csv".format(scenario, strategy))
+            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_feedin.csv".format(scenario, strategy, chunk))
         )
         curtailed_load.sum(axis=1).to_csv(
-            os.path.join(grid_results_dir, "{}_{}_curtailment_ts_demand.csv".format(scenario, strategy))
+            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_demand.csv".format(scenario, strategy, chunk))
         )
 
         edisgo.timeseries.residual_load.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_residual_load.csv".format(scenario, strategy))
+            os.path.join(grid_results_dir, "{}_{}_{}_residual_load.csv".format(scenario, strategy, chunk))
         )
 
     except Exception as e:

@@ -7,6 +7,7 @@ import traceback
 import calculate_necessary_curtailment as cc
 import curtailment as cur
 
+from datetime import datetime, timedelta
 from random import shuffle
 from copy import deepcopy
 from pathlib import Path
@@ -22,16 +23,16 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 6
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [
@@ -72,42 +73,60 @@ def run_calculate_curtailment(
 
         print("Scenario {} in grid {} is being processed.".format(scenario, grid_id))
 
-        edisgo = cc.integrate_public_charging(
-            ding0_dir,
-            grid_dir,
-            grid_id,
-            files,
-            generator_scenario="ego100",
-        )
+        start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
 
-        gc.collect()
+        offsets = [*range(5)]
 
-        print("Public charging was integrated in scenario {} in grid {}.".format(scenario, grid_id))
+        for day_offset in offsets:
+            date = start_date + timedelta(days=int(day_offset*365/len(offsets)))
 
-        for strategy in strategies:
-            edisgo_strategy = deepcopy(edisgo)
-
-            edisgo_strategy = cc.integrate_private_charging(
-                edisgo_strategy,
+            edisgo = cc.integrate_public_charging(
+                ding0_dir,
                 grid_dir,
+                grid_id,
                 files,
-                strategy,
+                date=date,
+                chunks=len(offsets),
+                generator_scenario="ego100",
             )
 
             gc.collect()
 
-            cur.calculate_curtailment(
-                grid_dir,
-                edisgo_strategy,
-                strategy,
-            )
+            print("Public charging was integrated in scenario {} in grid {}.".format(scenario, grid_id))
 
-            del edisgo_strategy
+            for strategy in strategies:
+                edisgo_strategy = deepcopy(edisgo)
+
+                edisgo_strategy = cc.integrate_private_charging(
+                    edisgo_strategy,
+                    grid_dir,
+                    files,
+                    strategy,
+                )
+
+                gc.collect()
+
+                cur.calculate_curtailment(
+                    grid_dir,
+                    edisgo_strategy,
+                    strategy,
+                    day_offset,
+                )
+
+                del edisgo_strategy
+
+                gc.collect()
+
+                print("Curtailment for strategy {} and chunk Nr. {} in scenario {} in grid {} was calculated.".format(
+                    strategy, day_offset, scenario, grid_id
+                ))
+
+            del edisgo
 
             gc.collect()
 
-            print("Curtailment for strategy {} in scenario {} in grid {} was calculated.".format(
-                strategy, scenario, grid_id
+            print("Curtailment for Chunk Nr. {} in scenario {} in grid {} was calculated.".format(
+                day_offset, scenario, grid_id
             ))
 
         print("It took {} seconds for scenario {} in grid {}.".format(
