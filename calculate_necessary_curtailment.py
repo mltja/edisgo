@@ -46,10 +46,10 @@ warnings.filterwarnings("ignore")
 #
 # mv_grid_ids = [176, 177, 1056, 1423, 1574, 1690, 1811, 1839,
 #                2079, 2095, 2534, 3008, 3280] # 566, 3267
-
-num_threads = 1
-curtailment_step = 0.2  # 0.05 TODO
-max_iterations = 50
+#
+# num_threads = 1
+# curtailment_step = 0.2  # 0.05 TODO
+# max_iterations = 50
 
 
 def get_stations_and_timesteps_with_issues(voltage_dev, rel_load, mv_grid_id):

@@ -41,7 +41,7 @@ logger.setLevel(logging.ERROR)
 # mv_grid_ids = [176]#[176, 177, 1056, 1423, 1574, 1690, 1811, 1839,
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
-num_threads = 1
+# num_threads = 1
 curtailment_step = 0.2 # 0.2 # TODO
 max_iterations = 10
 
