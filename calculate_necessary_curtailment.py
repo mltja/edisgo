@@ -890,13 +890,15 @@ def integrate_public_charging(
         grid_dir,
         grid_id,
         files,
+        date="2011-01-01",
+        chunks=1,
         generator_scenario="ego100",
 ):
     try:
-        len_timeindex = 8760
+        len_timeindex = int(8760 / chunks)
 
         timeindex = pd.date_range(
-            '2011-01-01',
+            date,
             periods=len_timeindex,
             freq='H',
         )
@@ -971,7 +973,7 @@ def integrate_public_charging(
         ]
 
         timeindex = pd.date_range(
-            "2011-01-01",
+            date,
             periods=len_timeindex * 4,
             freq="15min",
         )
@@ -1025,9 +1027,15 @@ def integrate_public_charging(
                 key="df_load",
             )
 
-            df = df.iloc[:len(timeindex)].divide(1000) # kW -> MW
+            temp_timeindex = pd.date_range(
+                "2011-01-01",
+                periods=len(df),
+                freq="15min",
+            )
 
-            df.index = timeindex
+            df.index = temp_timeindex
+
+            df = df.loc[timeindex[0]:timeindex[-1]].divide(1000) # kW -> MW
 
             if "cp_idx" not in gdf.columns:
                 if len(df.columns.levels[1]) == 1:
@@ -1133,9 +1141,15 @@ def integrate_private_charging(
                 key="df_load",
             )
 
-            df = df.iloc[:len(timeindex)].divide(1000)
+            temp_timeindex = pd.date_range(
+                "2011-01-01",
+                periods=len(df),
+                freq="15min",
+            )
 
-            df.index = timeindex
+            df.index = temp_timeindex
+
+            df = df.loc[timeindex[0]:timeindex[-1]].divide(1000)  # kW -> MW
 
             if not "cp_idx" in gdf.columns:
                 if len(df.columns.level[1]) == 1:
