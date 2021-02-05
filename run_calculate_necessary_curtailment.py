@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 6
+num_threads = 24
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -55,7 +55,7 @@ grid_dirs = [
     for scenario in scenarios for grid_id in grid_ids
 ]
 
-shuffle(grid_dirs)
+shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
 
 def run_calculate_curtailment(
         grid_dir,
@@ -92,7 +92,9 @@ def run_calculate_curtailment(
 
             gc.collect()
 
-            print("Public charging was integrated in scenario {} in grid {}.".format(scenario, grid_id))
+            print("Public charging has been integrated for chunk Nr. {} in scenario {} in grid {}.".format(
+                day_offset, scenario, grid_id
+            ))
 
             for strategy in strategies:
                 edisgo_strategy = deepcopy(edisgo)
@@ -117,7 +119,7 @@ def run_calculate_curtailment(
 
                 gc.collect()
 
-                print("Curtailment for strategy {} and chunk Nr. {} in scenario {} in grid {} was calculated.".format(
+                print("Curtailment for strategy {} and chunk Nr. {} in scenario {} in grid {} has been calculated.".format(
                     strategy, day_offset, scenario, grid_id
                 ))
 
@@ -125,7 +127,7 @@ def run_calculate_curtailment(
 
             gc.collect()
 
-            print("Curtailment for Chunk Nr. {} in scenario {} in grid {} was calculated.".format(
+            print("Curtailment for Chunk Nr. {} in scenario {} in grid {} has been calculated.".format(
                 day_offset, scenario, grid_id
             ))
 
