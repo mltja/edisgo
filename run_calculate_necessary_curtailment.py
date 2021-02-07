@@ -8,7 +8,7 @@ import calculate_necessary_curtailment as cc
 import curtailment as cur
 
 from datetime import datetime, timedelta
-from random import shuffle
+from numpy.random import default_rng
 from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
@@ -55,7 +55,11 @@ grid_dirs = [
     for scenario in scenarios for grid_id in grid_ids
 ]
 
-shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
+rng = default_rng(
+    seed=25588,
+)
+
+rng.shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
 
 def run_calculate_curtailment(
         grid_dir,
@@ -108,6 +112,10 @@ def run_calculate_curtailment(
 
                 gc.collect()
 
+                print("Private charging has been integrated for chunk Nr. {} in scenario {} in grid {} with strategy {}.".format(
+                    day_offset, scenario, grid_id, strategy
+                ))
+
                 cur.calculate_curtailment(
                     grid_dir,
                     edisgo_strategy,
@@ -141,7 +149,7 @@ def run_calculate_curtailment(
 
 if __name__ == "__main__":
     if num_threads == 1:
-        for grid_dir in grid_dirs:
+        for grid_dir in [grid_dirs[0]]:
             run_calculate_curtailment(grid_dir)
     else:
         with multiprocessing.Pool(num_threads) as pool:
