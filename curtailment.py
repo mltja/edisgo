@@ -927,7 +927,7 @@ def calculate_curtailment(
 
         pypsa_network_orig = pypsa_network.copy()
 
-        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+        # pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
         gens_ts = pypsa_network.generators_t.p_set.copy()
         loads_ts = pypsa_network.loads_t.p_set.copy()
