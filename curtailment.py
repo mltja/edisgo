@@ -932,7 +932,7 @@ def calculate_curtailment(
 
         t1 = perf_counter()
 
-        for count, perc in enumerate(np.linspace(0.2, 1, 5)):
+        for count, perc in enumerate(np.linspace(0.1, 1, 10)):
             pypsa_network.generators_t.p_set = gens_ts.multiply(perc)
             pypsa_network.loads_t.p_set = loads_ts.multiply(perc)
 
