@@ -425,8 +425,7 @@ class EDisGo:
         pypsa_network = self.to_pypsa(mode=mode, timesteps=timesteps)
 
         # run power flow analysis
-        pypsa_network.lpf()
-        pf_results = pypsa_network.pf(timesteps, use_seed=True)
+        pf_results = pypsa_network.pf(timesteps)
 
         if all(pf_results["converged"]["0"].tolist()):
             pypsa_io.process_pfa_results(self, pypsa_network, timesteps)

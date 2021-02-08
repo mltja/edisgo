@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from edisgo.flex_opt.check_tech_constraints import lines_allowed_load, \
-    lines_relative_load, _mv_allowed_voltage_limits
+    lines_relative_load, _mv_allowed_voltage_limits, _lv_allowed_voltage_limits
 
 
 def relative_load(edisgo_obj):
@@ -32,7 +32,7 @@ def relative_load(edisgo_obj):
         lv_lines_allowed_load = lines_allowed_load(edisgo_obj, "lv")
         allowed_load_lines = pd.concat([mv_lines_allowed_load,
                                         lv_lines_allowed_load],
-                                       sort=True)
+                                       axis=1)
     else:
         allowed_load_lines = mv_lines_allowed_load
     rel_load = lines_relative_load(edisgo_obj, allowed_load_lines)
@@ -181,7 +181,7 @@ def voltage_diff(edisgo_obj):
         flow analysis, the MV-LV station's secondary side buses.
 
     """
-    # MV lines
+    # MV buses
     v_dev_allowed_upper, v_dev_allowed_lower = _mv_allowed_voltage_limits(
         edisgo_obj, voltage_levels="mv")
 
@@ -208,6 +208,7 @@ def voltage_diff(edisgo_obj):
     # undervoltage diff (negative)
     undervoltage_diff = undervoltage - v_dev_allowed_lower_format
     voltage_difference = overvoltage_diff.fillna(0) + undervoltage_diff.fillna(0)
+    voltage_difference = voltage_difference.T
 
     # MV-LV stations
     # check if power flow was conducted for stations
@@ -215,11 +216,53 @@ def voltage_diff(edisgo_obj):
            :,
            edisgo_obj.results.s_res.columns.str.contains("Transformer")].empty:
 
-        voltage_difference_all = voltage_diff_stations(edisgo_obj)
+        voltage_difference_stations = voltage_diff_stations(edisgo_obj)
         voltage_difference = pd.concat(
-            [voltage_difference.T, voltage_difference_all],
+            [voltage_difference, voltage_difference_stations],
             sort=False, axis=1
         )
-        return voltage_difference
-    else:
-        return voltage_difference.T
+
+    # LV buses
+    # check if power flow was as well conducted for LV
+    lv_lines = edisgo_obj.topology.lines_df[
+        ~edisgo_obj.topology.lines_df.index.isin(
+            edisgo_obj.topology.mv_grid.lines_df.index)
+    ].index
+    if any(lv_lines.isin(edisgo_obj.results.i_res.columns)):
+
+        for lv_grid in edisgo_obj.topology.mv_grid.lv_grids:
+            v_dev_allowed_upper, v_dev_allowed_lower = \
+                _lv_allowed_voltage_limits(
+                    edisgo_obj, lv_grid, mode=None)
+
+            v_mag_pu_pfa = edisgo_obj.results.v_res.loc[
+                           :, lv_grid.buses_df.index]
+
+            v_dev_allowed_upper_format = np.tile(
+                (v_dev_allowed_upper.loc[v_mag_pu_pfa.index]).values,
+                (v_mag_pu_pfa.shape[1], 1),
+            )
+            v_dev_allowed_lower_format = np.tile(
+                (v_dev_allowed_lower.loc[v_mag_pu_pfa.index]).values,
+                (v_mag_pu_pfa.shape[1], 1),
+            )
+            overvoltage = v_mag_pu_pfa.T[
+                v_mag_pu_pfa.T > v_dev_allowed_upper_format
+                ]
+            undervoltage = v_mag_pu_pfa.T[
+                v_mag_pu_pfa.T < v_dev_allowed_lower_format
+                ]
+
+            # overvoltage diff (positive)
+            overvoltage_diff = overvoltage - v_dev_allowed_upper_format
+            # undervoltage diff (negative)
+            undervoltage_diff = undervoltage - v_dev_allowed_lower_format
+            voltage_difference_lv_grid = (
+                    overvoltage_diff.fillna(0) + undervoltage_diff.fillna(0)
+            )
+            voltage_difference = pd.concat(
+                [voltage_difference, voltage_difference_lv_grid.T],
+                sort=False, axis=1
+            )
+
+    return voltage_difference

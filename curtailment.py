@@ -42,7 +42,7 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-curtailment_step = 0.2 # 0.2 # TODO
+curtailment_step = 0.05 # 0.2 # TODO
 max_iterations = 50
 
 
@@ -911,8 +911,6 @@ def calculate_curtailment(
         load_ts = edisgo.timeseries.loads_active_power.copy()
         charging_ts = edisgo.timeseries.charging_points_active_power.copy()
 
-        edisgo.analyze()
-
         # assign feeders and path length to station
         assign_feeder(edisgo, mode="mv_feeder")
         assign_feeder(edisgo, mode="lv_feeder")
@@ -921,7 +919,31 @@ def calculate_curtailment(
         curtailment = pd.DataFrame(
             data=0,
             columns=["feed-in", "load"],
-            index=["lv_problems", "mv_problems"])
+            index=["lv_problems", "mv_problems", "convergence_problems"])
+
+        pypsa_network = edisgo.to_pypsa()
+
+        pypsa_network_orig = pypsa_network.copy()
+
+        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+
+        i = 0
+
+        while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
+            _curtail(
+                pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
+                edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
+            )
+
+            pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+
+            i += 1
+
+        curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_network_orig, pypsa_network)
+
+        curtailment.loc[
+            "convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
+        curtailment.loc["convergence_problems", "load"] += curtailed_load.sum().sum()
 
         # curtailment due to voltage issues
 
