@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 import multiprocessing
 import traceback
@@ -925,7 +926,19 @@ def calculate_curtailment(
 
         pypsa_network_orig = pypsa_network.copy()
 
-        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+        gens_ts = pypsa_network.generators_t.p_set.copy()
+        loads_ts = pypsa_network.loads_t.p_set.copy()
+
+        for count, perc in enumerate(np.linspace(0.1, 1, 10)):
+            pypsa_network.generators_t.p_set = gens_ts.multiply(perc)
+            pypsa_network.loads_t.p_set = loads_ts.multiply(perc)
+
+            if count == 0:
+                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+            else:
+                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex, use_seed=True)
+
+            print(count)
 
         i = 0
 
@@ -943,7 +956,8 @@ def calculate_curtailment(
 
         curtailment.loc[
             "convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
-        curtailment.loc["convergence_problems", "load"] += curtailed_load.sum().sum()
+        curtailment.loc[
+            "convergence_problems", "load"] += curtailed_load.sum().sum()
 
         # curtailment due to voltage issues
 
@@ -1026,9 +1040,9 @@ def calculate_curtailment(
             os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_demand.csv".format(scenario, strategy, chunk))
         )
 
-        edisgo.timeseries.residual_load.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_residual_load.csv".format(scenario, strategy, chunk))
-        )
+        # edisgo.timeseries.residual_load.to_csv(
+        #     os.path.join(grid_results_dir, "{}_{}_{}_residual_load.csv".format(scenario, strategy, chunk))
+        # )
 
     except Exception as e:
         mv_grid_id = int(grid_dir.parts[-1])
