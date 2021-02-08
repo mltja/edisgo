@@ -26,13 +26,13 @@ gc.collect()
 num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [
@@ -65,7 +65,7 @@ def run_calculate_curtailment(
         grid_dir,
 ):
     try:
-        t1 = perf_counter()
+        t0 = perf_counter()
 
         files = os.listdir(grid_dir)
 
@@ -84,6 +84,8 @@ def run_calculate_curtailment(
         for day_offset in offsets:
             date = start_date + timedelta(days=int(day_offset*365/len(offsets)))
 
+            t1 = perf_counter()
+
             edisgo = cc.integrate_public_charging(
                 ding0_dir,
                 grid_dir,
@@ -96,11 +98,16 @@ def run_calculate_curtailment(
 
             gc.collect()
 
-            print("Public charging has been integrated for chunk Nr. {} in scenario {} in grid {}.".format(
-                day_offset, scenario, grid_id
-            ))
+            print(
+                "Public charging has been integrated for chunk Nr. {} in scenario {} in grid {}.".format(
+                    day_offset, scenario, grid_id
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            )
 
             for strategy in strategies:
+                t1 = perf_counter()
+
                 edisgo_strategy = deepcopy(edisgo)
 
                 edisgo_strategy = cc.integrate_private_charging(
@@ -112,9 +119,13 @@ def run_calculate_curtailment(
 
                 gc.collect()
 
-                print("Private charging has been integrated for chunk Nr. {} in scenario {} in grid {} with strategy {}.".format(
-                    day_offset, scenario, grid_id, strategy
-                ))
+                print(
+                    "Private charging has been integrated for chunk Nr.",
+                    "{} in scenario {} in grid {} with strategy {}.".format(
+                        day_offset, scenario, grid_id, strategy
+                    ),
+                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                )
 
                 cur.calculate_curtailment(
                     grid_dir,
@@ -140,7 +151,7 @@ def run_calculate_curtailment(
             ))
 
         print("It took {} seconds for scenario {} in grid {}.".format(
-            round(perf_counter()-t1, 1), scenario, grid_id
+            round(perf_counter()-t0, 1), scenario, grid_id
         ))
 
     except:

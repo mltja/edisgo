@@ -9,6 +9,7 @@ from edisgo.edisgo import import_edisgo_from_files
 from edisgo.tools import pypsa_io
 from edisgo.tools.tools import assign_feeder, get_path_length_to_station
 from pathlib import Path
+from time import perf_counter
 
 import logging
 logger = logging.getLogger("pypsa")
@@ -929,7 +930,9 @@ def calculate_curtailment(
         gens_ts = pypsa_network.generators_t.p_set.copy()
         loads_ts = pypsa_network.loads_t.p_set.copy()
 
-        for count, perc in enumerate(np.linspace(0.1, 1, 10)):
+        t1 = perf_counter()
+
+        for count, perc in enumerate(np.linspace(0.2, 1, 5)):
             pypsa_network.generators_t.p_set = gens_ts.multiply(perc)
             pypsa_network.loads_t.p_set = loads_ts.multiply(perc)
 
@@ -938,7 +941,12 @@ def calculate_curtailment(
             else:
                 pf_results = pypsa_network.pf(edisgo.timeseries.timeindex, use_seed=True)
 
-            print(count)
+            if all(pf_results["converged"]["0"].tolist()) is False:
+                print("{}: False".format(count))
+            else:
+                print("{}: True".format(count))
+
+        print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
 
         i = 0
 
@@ -949,6 +957,8 @@ def calculate_curtailment(
             )
 
             pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+
+            print(i)
 
             i += 1
 
