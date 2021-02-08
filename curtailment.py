@@ -927,30 +927,38 @@ def calculate_curtailment(
 
         pypsa_network_orig = pypsa_network.copy()
 
-        gens_ts = pypsa_network.generators_t.p_set.copy()
-        loads_ts = pypsa_network.loads_t.p_set.copy()
+        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
-        t1 = perf_counter()
-
-        for count, perc in enumerate(np.linspace(0.1, 1, 10)):
-            pypsa_network.generators_t.p_set = gens_ts.multiply(perc)
-            pypsa_network.loads_t.p_set = loads_ts.multiply(perc)
-
-            if count == 0:
-                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
-            else:
-                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex, use_seed=True)
-
-            if all(pf_results["converged"]["0"].tolist()) is False:
-                print("{}: False".format(count))
-            else:
-                print("{}: True".format(count))
-
-        print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
+        # gens_ts = pypsa_network.generators_t.p_set.copy()
+        # loads_ts = pypsa_network.loads_t.p_set.copy()
+        # gens_q_ts = pypsa_network.generators_t.q_set.copy()
+        # loads_q_ts = pypsa_network.loads_t.q_set.copy()
+        #
+        # t1 = perf_counter()
+        #
+        # for count, perc in enumerate(np.linspace(0.1, 1, 10)):
+        #     pypsa_network.generators_t.p_set = gens_ts.multiply(perc)
+        #     pypsa_network.loads_t.p_set = loads_ts.multiply(perc)
+        #     pypsa_network.generators_t.q_set = gens_q_ts.multiply(perc)
+        #     pypsa_network.loads_t.q_set = loads_q_ts.multiply(perc)
+        #
+        #     if count == 0:
+        #         pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+        #     else:
+        #         pf_results = pypsa_network.pf(edisgo.timeseries.timeindex, use_seed=True)
+        #
+        #     if all(pf_results["converged"]["0"].tolist()) is False:
+        #         print("{}: False".format(count))
+        #     else:
+        #         print("{}: True".format(count))
+        #
+        # print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
 
         i = 0
 
         t1 = perf_counter()
+
+        pypsa_network = pypsa_network_orig.copy()
 
         while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
             _curtail(
@@ -963,6 +971,8 @@ def calculate_curtailment(
             print(i)
 
             i += 1
+
+        pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
 
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_network_orig, pypsa_network)
 
