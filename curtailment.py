@@ -44,7 +44,7 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-curtailment_step = 0.05 # 0.2 # TODO
+curtailment_step = 0.1 # 0.2 # TODO
 max_iterations = 50
 
 
@@ -923,34 +923,13 @@ def calculate_curtailment(
             columns=["feed-in", "load"],
             index=["lv_problems", "mv_problems", "convergence_problems"])
 
+        t1 = perf_counter()
+
         pypsa_network = edisgo.to_pypsa()
 
         pypsa_network_orig = pypsa_network.copy()
 
-        # pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
-
-        gens_ts = pypsa_network.generators_t.p_set.copy()
-        loads_ts = pypsa_network.loads_t.p_set.copy()
-        gens_q_ts = pypsa_network.generators_t.q_set.copy()
-        loads_q_ts = pypsa_network.loads_t.q_set.copy()
-
-        t1 = perf_counter()
-
-        for count, perc in enumerate(np.linspace(0.1, 1, 10)):
-            pypsa_network.generators_t.p_set = gens_ts.multiply(perc)
-            pypsa_network.loads_t.p_set = loads_ts.multiply(perc)
-            pypsa_network.generators_t.q_set = gens_q_ts.multiply(perc)
-            pypsa_network.loads_t.q_set = loads_q_ts.multiply(perc)
-
-            if count == 0:
-                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
-            else:
-                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex, use_seed=True)
-
-            if all(pf_results["converged"]["0"].tolist()) is False:
-                print("{}: False".format(count))
-            else:
-                print("{}: True".format(count))
+        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
         print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
 
@@ -972,11 +951,7 @@ def calculate_curtailment(
 
             i += 1
 
-        pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
-
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_network_orig, pypsa_network)
-
-        _overwrite_edisgo_timeseries(edisgo, pypsa_network)
 
         curtailment.loc[
             "convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
@@ -986,6 +961,10 @@ def calculate_curtailment(
         print("It took {} seconds to overcome the initial convergence problems.".format(
             round(perf_counter() - t1, 0)
         ))
+
+        pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+
+        _overwrite_edisgo_timeseries(edisgo, pypsa_network)
 
         # curtailment due to voltage issues
 
