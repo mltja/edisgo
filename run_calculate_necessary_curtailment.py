@@ -56,7 +56,7 @@ grid_dirs = [
 ]
 
 rng = default_rng(
-    seed=25588,
+    seed=5,
 )
 
 rng.shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
