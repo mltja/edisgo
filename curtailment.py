@@ -950,6 +950,8 @@ def calculate_curtailment(
 
         i = 0
 
+        t1 = perf_counter()
+
         while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
             _curtail(
                 pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
@@ -968,6 +970,10 @@ def calculate_curtailment(
             "convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
         curtailment.loc[
             "convergence_problems", "load"] += curtailed_load.sum().sum()
+
+        print("It took {} seconds to overcome the initial convergence problems.".format(
+            round(perf_counter() - t1, 0)
+        ))
 
         # curtailment due to voltage issues
 
