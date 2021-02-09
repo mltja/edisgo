@@ -979,7 +979,7 @@ def integrate_public_charging(
 
         edisgo.timeseries.timeindex = timeindex
 
-        edisgo.timeseries.generators_active_power = edisgo.timeseries.generators_active_power.ffill()
+    edisgo.timeseries.generators_active_power = edisgo.timeseries.generators_active_power.ffill()
         edisgo.timeseries.generators_reactive_power = edisgo.timeseries.generators_reactive_power.ffill()
         edisgo.timeseries.loads_active_power = edisgo.timeseries.loads_active_power.ffill()
         edisgo.timeseries.loads_reactive_power = edisgo.timeseries.loads_reactive_power.ffill()
