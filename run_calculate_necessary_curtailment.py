@@ -100,7 +100,7 @@ def run_calculate_curtailment(
             "It took {} seconds.".format(round(perf_counter() - t1, 0)),
         )
 
-        offsets = [*range(365)]
+        offsets = [*range(73)]
 
         for strategy in strategies:
             t1 = perf_counter()
