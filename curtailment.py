@@ -1021,17 +1021,25 @@ def calculate_curtailment(
             abs(voltage_dev) > 2e-3].dropna(
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
-            print("Not all voltage issues solved.")
+            print("Not all voltage issues solved in chunk {} of Grid {} with strategy {}.".format(
+                chunk, mv_grid_id, strategy
+            ))
         else:
-            print("Success. All voltage issues solved.")
+            print("Success. All voltage issues solved in chunk {} of Grid {} with strategy {}.".format(
+                chunk, mv_grid_id, strategy
+            ))
         rel_load = results_helper_functions.relative_load(edisgo)
         issues = rel_load[
             rel_load > 1+2e-3].dropna(
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
-            print("Not all overloading issues solved.")
+            print("Not all overloading issues solved in chunk {} of Grid {} with strategy {}.".format(
+                chunk, mv_grid_id, strategy
+            ))
         else:
-            print("Success. All overloading issues solved.")
+            print("Success. All overloading issues solved in chunk {} of Grid {} with strategy {}.".format(
+                chunk, mv_grid_id, strategy
+            ))
 
         # save curtailment sums
         curtailment.to_csv(
