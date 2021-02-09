@@ -1090,6 +1090,13 @@ def integrate_public_charging(
                 )
             ]
 
+        new_switch_line = edisgo.topology.lines_df.loc[
+            (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
+            (edisgo.topology.lines_df["bus1"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"])
+        ].index.tolist()[0]
+
+        edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
+
         return edisgo
 
     except:
