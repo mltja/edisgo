@@ -9,7 +9,6 @@ import calculate_necessary_curtailment as cc
 import curtailment as cur
 
 from datetime import datetime, timedelta
-from numpy.random import default_rng
 from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
@@ -55,12 +54,6 @@ grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
     for scenario in scenarios for grid_id in grid_ids
 ]
-
-# rng = default_rng(
-#     seed=5,
-# )
-#
-# rng.shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
 
 def run_calculate_curtailment(
         grid_dir,
