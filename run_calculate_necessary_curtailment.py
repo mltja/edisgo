@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 27
+num_threads = 4
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -37,16 +37,16 @@ ding0_dir = Path( # TODO: set dir
 
 scenarios = [
     "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    "Mobility_Transition_2050_simbev_run",
-    "Szenarette_Kleinwagen_2050_simbev_run",
-    "Reference_2050_simbev_run",
-    "NEP_C_2035_simbev_run",
+    # "Electrification_2050_sensitivity_low_work_simbev_run",
+    # "Mobility_Transition_2050_simbev_run",
+    # "Szenarette_Kleinwagen_2050_simbev_run",
+    # "Reference_2050_simbev_run",
+    # "NEP_C_2035_simbev_run",
 ]
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -132,6 +132,15 @@ def run_calculate_curtailment(
                     (day_offset, start_date, len(offsets), strategy, edisgo_strategy)
                     for day_offset in offsets
                 ]
+
+                mv_grid_id = int(grid_dir.parts[-1])
+
+                if mv_grid_id == 176:
+                    num_threads = 4
+                elif mv_grid_id == 2534:
+                    num_threads = 20
+                else:
+                    pass
 
                 with multiprocessing.Pool(num_threads) as pool:
                     pool.starmap(
