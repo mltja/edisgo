@@ -891,11 +891,10 @@ def integrate_public_charging(
         grid_id,
         files,
         date="2011-01-01",
-        chunks=1,
         generator_scenario="ego100",
 ):
     try:
-        len_timeindex = int(8760 / chunks)
+        len_timeindex = 8760
 
         timeindex = pd.date_range(
             date,
