@@ -196,12 +196,12 @@ def curtailment_lv_voltage(
             buses_df_issues = edisgo.topology.buses_df.loc[buses_issues, :]
             feeders = buses_df_issues.loc[:, "lv_feeder"].unique()
 
-            elia_logger.debug(
-                "Number of LV feeders with voltage issues: {}".format(
-                    len(feeders)))
-            elia_logger.debug(
-                "Number of time steps with voltage issues in LV: {}".format(
-                    len(time_steps_issues)))
+            # elia_logger.debug(
+            #     "Number of LV feeders with voltage issues: {}".format(
+            #         len(feeders)))
+            # elia_logger.debug(
+            #     "Number of time steps with voltage issues in LV: {}".format(
+            #         len(time_steps_issues)))
 
             for feeder in feeders:
                 # get all buses in feeder
@@ -241,8 +241,8 @@ def curtailment_lv_voltage(
 
             curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
                 pypsa_network_orig, pypsa_network)
-            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+            #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             # get voltage issues in LV
             voltage_dev = results_helper_functions.voltage_diff(edisgo)
@@ -277,7 +277,8 @@ def curtailment_lv_voltage(
         curtailment.loc["lv_problems", "load"] += curtailed_load.sum().sum()
 
     else:
-        elia_logger.debug("No LV voltage issues to solve.")
+        # elia_logger.debug("No LV voltage issues to solve.")
+        pass
     return curtailment
 
 
@@ -313,13 +314,13 @@ def curtailment_mvlv_stations_voltage(
         iteration_count = 0
         while len(stations_issues) > 0 and iteration_count < max_iterations:
 
-            elia_logger.debug(
-                "Number of MV/LV stations with voltage issues: {}".format(
-                    len(stations_issues)))
-            elia_logger.debug(
-                "Number of time steps with voltage issues at "
-                "MV/LV stations: {}".format(
-                    len(time_steps_issues)))
+            # elia_logger.debug(
+            #     "Number of MV/LV stations with voltage issues: {}".format(
+            #         len(stations_issues)))
+            # elia_logger.debug(
+            #     "Number of time steps with voltage issues at "
+            #     "MV/LV stations: {}".format(
+            #         len(time_steps_issues)))
 
             # for each station calculate curtailment
             for station in stations_issues:
@@ -351,8 +352,8 @@ def curtailment_mvlv_stations_voltage(
 
             curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
                 pypsa_network_orig, pypsa_network)
-            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+            #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             # get stations with voltage issues
             voltage_dev = results_helper_functions.voltage_diff(edisgo)
@@ -384,7 +385,8 @@ def curtailment_mvlv_stations_voltage(
         curtailment.loc["lv_problems", "load"] += curtailed_load.sum().sum()
 
     else:
-        elia_logger.debug("No MV/LV stations with voltage issues.")
+        # elia_logger.debug("No MV/LV stations with voltage issues.")
+        pass
     return curtailment
 
 
@@ -416,12 +418,12 @@ def curtailment_mv_voltage(
             buses_df_issues = edisgo.topology.buses_df.loc[buses_issues, :]
             feeders = buses_df_issues.loc[:, "mv_feeder"].unique()
 
-            elia_logger.debug(
-                "Number of MV feeders with voltage issues: {}".format(
-                    len(feeders)))
-            elia_logger.debug(
-                "Number of time steps with voltage issues in MV: {}".format(
-                    len(time_steps_issues)))
+            # elia_logger.debug(
+            #     "Number of MV feeders with voltage issues: {}".format(
+            #         len(feeders)))
+            # elia_logger.debug(
+            #     "Number of time steps with voltage issues in MV: {}".format(
+            #         len(time_steps_issues)))
 
             for feeder in feeders:
                 # get all buses in feeder
@@ -461,8 +463,8 @@ def curtailment_mv_voltage(
 
             curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
                 pypsa_network_orig, pypsa_network)
-            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+            #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             # get voltage issues in MV
             voltage_dev = results_helper_functions.voltage_diff(edisgo)
@@ -496,7 +498,8 @@ def curtailment_mv_voltage(
         curtailment.loc["mv_problems", "load"] += curtailed_load.sum().sum()
 
     else:
-        elia_logger.debug("No MV voltage issues to solve.")
+        # elia_logger.debug("No MV voltage issues to solve.")
+        pass
     return curtailment
 
 
@@ -532,13 +535,13 @@ def curtailment_lv_lines_overloading(
             buses_df_issues = buses_df.loc[buses_issues, :]
             feeders = buses_df_issues.loc[:, "lv_feeder"].dropna().unique()
 
-            elia_logger.debug(
-                "Number of LV feeders with overloading issues: {}".format(
-                    len(feeders)))
-            elia_logger.debug(
-                "Number of time steps with overloading issues "
-                "in LV: {}".format(
-                    len(time_steps_issues)))
+            # elia_logger.debug(
+            #     "Number of LV feeders with overloading issues: {}".format(
+            #         len(feeders)))
+            # elia_logger.debug(
+            #     "Number of time steps with overloading issues "
+            #     "in LV: {}".format(
+            #         len(time_steps_issues)))
 
             for feeder in feeders:
                 # get bus with issues in feeder farthest away from station
@@ -594,8 +597,8 @@ def curtailment_lv_lines_overloading(
 
             curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
                 pypsa_network_orig, pypsa_network)
-            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+            #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             # recheck for overloading issues in LV
             rel_load = results_helper_functions.relative_load(edisgo)
@@ -628,7 +631,8 @@ def curtailment_lv_lines_overloading(
         curtailment.loc["lv_problems", "load"] += curtailed_load.sum().sum()
 
     else:
-        elia_logger.debug("No LV overloading issues to solve.")
+        # elia_logger.debug("No LV overloading issues to solve.")
+        pass
     return curtailment
 
 
@@ -664,13 +668,13 @@ def curtailment_mvlv_stations_overloading(
         iteration_count = 0
         while len(stations_issues) > 0 and iteration_count < max_iterations:
 
-            elia_logger.debug(
-                "Number of MV/LV stations with overloading issues: {}".format(
-                    len(stations_issues)))
-            elia_logger.debug(
-                "Number of time steps with overloading issues at "
-                "MV/LV stations: {}".format(
-                    len(time_steps_issues)))
+            # elia_logger.debug(
+            #     "Number of MV/LV stations with overloading issues: {}".format(
+            #         len(stations_issues)))
+            # elia_logger.debug(
+            #     "Number of time steps with overloading issues at "
+            #     "MV/LV stations: {}".format(
+            #         len(time_steps_issues)))
 
             # for each station calculate curtailment
             for station in stations_issues:
@@ -704,8 +708,8 @@ def curtailment_mvlv_stations_overloading(
 
             curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
                 pypsa_network_orig, pypsa_network)
-            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+            #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             # recheck for overloading and voltage issues at stations
             rel_load = results_helper_functions.relative_load(edisgo)
@@ -739,7 +743,8 @@ def curtailment_mvlv_stations_overloading(
         curtailment.loc["lv_problems", "load"] += curtailed_load.sum().sum()
 
     else:
-        elia_logger.debug("No MV/LV stations with overloading issues.")
+        # elia_logger.debug("No MV/LV stations with overloading issues.")
+        pass
     return curtailment
 
 
@@ -775,13 +780,13 @@ def curtailment_mv_lines_overloading(
             buses_df_issues = edisgo.topology.buses_df.loc[buses_issues, :]
             feeders = buses_df_issues.loc[:, "mv_feeder"].dropna().unique()
 
-            elia_logger.debug(
-                "Number of MV feeders with overloading issues: {}".format(
-                    len(feeders)))
-            elia_logger.debug(
-                "Number of time steps with overloading issues "
-                "in LV: {}".format(
-                    len(time_steps_issues)))
+            # elia_logger.debug(
+            #     "Number of MV feeders with overloading issues: {}".format(
+            #         len(feeders)))
+            # elia_logger.debug(
+            #     "Number of time steps with overloading issues "
+            #     "in LV: {}".format(
+            #         len(time_steps_issues)))
 
             for feeder in feeders:
                 # get bus with issues in feeder farthest away from station
@@ -836,8 +841,8 @@ def curtailment_mv_lines_overloading(
 
             curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
                 pypsa_network_orig, pypsa_network)
-            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+            #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             # recheck for overloading issues in LV
             rel_load = results_helper_functions.relative_load(edisgo)
@@ -870,7 +875,8 @@ def curtailment_mv_lines_overloading(
         curtailment.loc["mv_problems", "load"] += curtailed_load.sum().sum()
 
     else:
-        elia_logger.debug("No MV overloading issues to solve.")
+        # elia_logger.debug("No MV overloading issues to solve.")
+        pass
     return curtailment
 
 
@@ -1057,7 +1063,7 @@ def calculate_curtailment(
     except Exception as e:
         mv_grid_id = int(grid_dir.parts[-1])
         scenario = grid_dir.parts[-3][:-11]
-        print("Error in {} MV grid {}.".format(scenario, mv_grid_id))
+        print("Error in {} in chunk {} MV grid {}.".format(scenario, chunk, mv_grid_id))
         traceback.print_exc()
 
 
