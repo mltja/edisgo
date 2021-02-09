@@ -98,12 +98,12 @@ def run_calculate_curtailment(
 
             gc.collect()
 
-            print(
-                "Public charging has been integrated for chunk Nr. {} in scenario {} in grid {}.".format(
-                    day_offset, scenario, grid_id
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
+            # print(
+            #     "Public charging has been integrated for chunk Nr. {} in scenario {} in grid {}.".format(
+            #         day_offset, scenario, grid_id
+            #     ),
+            #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            # )
 
             for strategy in strategies:
                 t1 = perf_counter()
@@ -119,13 +119,13 @@ def run_calculate_curtailment(
 
                 gc.collect()
 
-                print(
-                    "Private charging has been integrated for chunk Nr.",
-                    "{} in scenario {} in grid {} with strategy {}.".format(
-                        day_offset, scenario, grid_id, strategy
-                    ),
-                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-                )
+                # print(
+                #     "Private charging has been integrated for chunk Nr.",
+                #     "{} in scenario {} in grid {} with strategy {}.".format(
+                #         day_offset, scenario, grid_id, strategy
+                #     ),
+                #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                # )
 
                 cur.calculate_curtailment(
                     grid_dir,
@@ -138,16 +138,16 @@ def run_calculate_curtailment(
 
                 gc.collect()
 
-                print("Curtailment for strategy {} and chunk Nr. {} in scenario {} in grid {} has been calculated.".format(
-                    strategy, day_offset, scenario, grid_id
-                ))
+                # print("Curtailment for strategy {} and chunk Nr. {} in scenario {} in grid {} has been calculated.".format(
+                #     strategy, day_offset, scenario, grid_id
+                # ))
 
             del edisgo
 
             gc.collect()
 
-            print("Curtailment for Chunk Nr. {} in scenario {} in grid {} has been calculated.".format(
-                day_offset, scenario, grid_id
+            print("Curtailment for Chunk Nr. {} / {} in scenario {} in grid {} has been calculated.".format(
+                day_offset, len(offsets), scenario, grid_id
             ))
 
         print("It took {} seconds for scenario {} in grid {}.".format(

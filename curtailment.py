@@ -44,7 +44,7 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-curtailment_step = 0.1 # 0.2 # TODO
+curtailment_step = 0.15 # 0.2 # TODO
 max_iterations = 50
 
 
@@ -633,7 +633,7 @@ def curtailment_lv_lines_overloading(
 
 
 def curtailment_mvlv_stations_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk, mv_grid_id):
 
     elia_logger = logging.getLogger(
         'elia_project: {}'.format(edisgo.topology.id))
@@ -931,7 +931,7 @@ def calculate_curtailment(
 
         pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
-        print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
+        # print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
 
         i = 0
 
@@ -956,9 +956,9 @@ def calculate_curtailment(
         curtailment.loc[
             "convergence_problems", "load"] += curtailed_load.sum().sum()
 
-        print("It took {} seconds to overcome the initial convergence problems.".format(
-            round(perf_counter() - t1, 0)
-        ))
+        # print("It took {} seconds to overcome the initial convergence problems.".format(
+        #     round(perf_counter() - t1, 0)
+        # ))
 
         pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
 
@@ -997,7 +997,7 @@ def calculate_curtailment(
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment = curtailment_mvlv_stations_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk)
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, chunk, mv_grid_id)
 
         rel_load = results_helper_functions.relative_load(edisgo)
 
