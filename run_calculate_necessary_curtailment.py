@@ -56,11 +56,11 @@ grid_dirs = [
     for scenario in scenarios for grid_id in grid_ids
 ]
 
-rng = default_rng(
-    seed=5,
-)
-
-rng.shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
+# rng = default_rng(
+#     seed=5,
+# )
+#
+# rng.shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
 
 def run_calculate_curtailment(
         grid_dir,
@@ -184,6 +184,31 @@ def stepwise_curtailment(
         edisgo_chunk = deepcopy(edisgo)
 
         edisgo_chunk.timeseries.timeindex = timeindex
+
+        edisgo_chunk.timeseries.generation_dispatchable = edisgo_chunk.timeseries.generation_dispatchable.loc[
+            (edisgo_chunk.timeseries.generation_dispatchable.index >= timeindex[0]) &
+            (edisgo_chunk.timeseries.generation_dispatchable.index <= timeindex[-1])
+        ]
+
+        edisgo_chunk.timeseries.generation_fluctuating = edisgo_chunk.timeseries.generation_fluctuating.loc[
+            (edisgo_chunk.timeseries.generation_fluctuating.index >= timeindex[0]) &
+            (edisgo_chunk.timeseries.generation_fluctuating.index <= timeindex[-1])
+        ]
+
+        edisgo_chunk.timeseries.load = edisgo_chunk.timeseries.load.loc[
+            (edisgo_chunk.timeseries.load.index >= timeindex[0]) &
+            (edisgo_chunk.timeseries.load.index <= timeindex[-1])
+        ]
+
+        edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
+            (edisgo_chunk.timeseries.storage_units_active_power.index >= timeindex[0]) &
+            (edisgo_chunk.timeseries.storage_units_active_power.index <= timeindex[-1])
+        ]
+
+        edisgo_chunk.timeseries.storage_units_reactive_power = edisgo_chunk.timeseries.storage_units_reactive_power.loc[
+            (edisgo_chunk.timeseries.storage_units_reactive_power.index >= timeindex[0]) &
+            (edisgo_chunk.timeseries.storage_units_reactive_power.index <= timeindex[-1])
+        ]
 
         cur.calculate_curtailment(
             grid_dir,

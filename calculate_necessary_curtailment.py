@@ -9,6 +9,7 @@ import traceback
 import results_helper_functions
 import timeseries_import
 
+from datetime import datetime, timedelta
 from edisgo import EDisGo
 from pathlib import Path
 from edisgo.edisgo import import_edisgo_from_files
@@ -986,6 +987,30 @@ def integrate_public_charging(
 
         edisgo.timeseries.storage_units_active_power = pd.DataFrame(index=edisgo.timeseries.timeindex)
         edisgo.timeseries.storage_units_reactive_power = pd.DataFrame(index=edisgo.timeseries.timeindex)
+
+        edisgo.timeseries.generation_dispatchable = edisgo.timeseries.generation_dispatchable.append(
+            pd.Series(
+                name=edisgo.timeseries.generation_dispatchable.index.tolist()[-1] + timedelta(hours=1)
+            )
+        )
+
+        edisgo.timeseries.generation_dispatchable = edisgo.timeseries.generation_dispatchable.append(
+            pd.Series(
+                name=edisgo.timeseries.generation_dispatchable.index.tolist()[-1] + timedelta(hours=1)
+            )
+        ).resample("15min").ffill().iloc[:-1]
+
+        edisgo.timeseries.generation_fluctuating = edisgo.timeseries.generation_fluctuating.append(
+            pd.Series(
+                name=edisgo.timeseries.generation_fluctuating.index.tolist()[-1] + timedelta(hours=1)
+            )
+        ).resample("15min").ffill().iloc[:-1]
+
+        edisgo.timeseries.load = edisgo.timeseries.load.append(
+            pd.Series(
+                name=edisgo.timeseries.load.index.tolist()[-1] + timedelta(hours=1)
+            )
+        ).resample("15min").ffill().iloc[:-1]
 
         comp_type = "ChargingPoint"
 
