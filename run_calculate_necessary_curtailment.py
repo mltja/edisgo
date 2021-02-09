@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 4
+num_threads = 26
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -146,25 +146,20 @@ def run_calculate_curtailment(
                         data_tuples,
                     )
 
-                # del edisgo_strategy
-                #
-                # gc.collect()
-                #
-                # print("Curtailment for strategy {} and chunk Nr. {} in scenario {} in grid {} has been calculated.".format(
-                #     strategy, day_offset, scenario, grid_id
-                # ))
+            print(
+                "Curtailment for strategy {} in scenario {} in grid {} has been calculated.".format(
+                    strategy, day_offset, scenario, grid_id
+                ),
+                "It took {} seconds".format(round(perf_counter()-t0, 0))
+            )
 
-            # del edisgo
-            #
-            # gc.collect()
+            del edisgo_strategy
 
-            print("Curtailment for Chunk Nr. {} / {} in scenario {} in grid {} has been calculated.".format(
-                day_offset + 1, len(offsets), scenario, grid_id
-            ))
+            gc.collect()
 
-        print("It took {} seconds for scenario {} in grid {}.".format(
-            round(perf_counter()-t0, 1), scenario, grid_id
-        ))
+        del edisgo
+
+        gc.collect()
 
     except:
         traceback.print_exc()
@@ -197,7 +192,10 @@ def stepwise_curtailment(
             day_offset,
         )
 
+        del edisgo_chunk
+
         gc.collect()
+
     except:
         traceback.print_exc()
 
