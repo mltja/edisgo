@@ -899,6 +899,11 @@ def calculate_curtailment(
         # reload_dir = os.path.join(
         #     results_path, str(mv_grid_id))
 
+        os.makedirs(
+            grid_results_dir,
+            exist_ok=True,
+        )
+
         # # reimport edisgo object
         # edisgo = import_edisgo_from_files(
         #     reload_dir,
