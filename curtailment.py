@@ -947,8 +947,6 @@ def calculate_curtailment(
 
             pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
-            print(i)
-
             i += 1
 
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_network_orig, pypsa_network)
