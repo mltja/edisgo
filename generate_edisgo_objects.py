@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 6
+num_threads = 3
 
 rng = default_rng(seed=5)
 
