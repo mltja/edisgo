@@ -9,7 +9,7 @@ import calculate_necessary_curtailment as cc
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-# from numpy.random import default_rng
+from numpy.random import default_rng
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -21,9 +21,9 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 3
+num_threads = 10
 
-# rng = default_rng(seed=5)
+rng = default_rng(seed=5)
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -55,7 +55,7 @@ grid_dirs = [
     for scenario in scenarios for grid_id in grid_ids
 ]
 
-# rng.shuffle(grid_dirs)
+rng.shuffle(grid_dirs)
 
 def generate_edisgo_objects(
         grid_dir,
