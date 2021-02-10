@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 4
+num_threads = 32
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -137,7 +137,7 @@ def run_calculate_curtailment(
                 if mv_grid_id == 176:
                     num_threads = 4
                 elif mv_grid_id == 2534:
-                    num_threads = 20
+                    num_threads = 32
                 else:
                     pass
 
