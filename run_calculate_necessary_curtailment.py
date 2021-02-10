@@ -23,6 +23,8 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
+global edisgo
+
 num_threads = 32
 
 data_dir = Path( # TODO: set dir
@@ -115,8 +117,6 @@ def run_calculate_curtailment(
                 ),
                 "It took {} seconds.".format(round(perf_counter() - t1, 0)),
             )
-
-            global edisgo
 
             if num_threads == 1:
                 for day_offset in offsets:
