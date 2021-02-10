@@ -46,7 +46,7 @@ scenarios = [
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -206,6 +206,8 @@ def stepwise_curtailment(
             (edisgo_chunk.timeseries.storage_units_reactive_power.index >= timeindex[0]) &
             (edisgo_chunk.timeseries.storage_units_reactive_power.index <= timeindex[-1])
         ]
+
+        gc.collect()
 
         cur.calculate_curtailment(
             grid_dir,
