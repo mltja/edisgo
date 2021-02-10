@@ -62,6 +62,8 @@ def run_calculate_curtailment(
         num_threads,
 ):
     try:
+        global edisgo
+        
         t0 = perf_counter()
 
         files = os.listdir(grid_dir)
