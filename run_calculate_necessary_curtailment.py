@@ -63,7 +63,7 @@ def run_calculate_curtailment(
 ):
     try:
         global edisgo
-        
+
         t0 = perf_counter()
 
         files = os.listdir(grid_dir)
