@@ -46,7 +46,7 @@ scenarios = [
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["1056"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -135,11 +135,13 @@ def run_calculate_curtailment(
                 mv_grid_id = int(grid_dir.parts[-1])
 
                 if mv_grid_id == 176:
-                    num_threads = 4
+                    num_threads = 6
+                elif mv_grid_id == 177:
+                    num_threads = 20
                 elif mv_grid_id == 2534:
                     num_threads = 32
                 else:
-                    num_threads = 4
+                    num_threads = 2
 
                 with multiprocessing.Pool(num_threads) as pool:
                     pool.starmap(
