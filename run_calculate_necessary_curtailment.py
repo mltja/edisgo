@@ -74,35 +74,33 @@ def run_calculate_curtailment(
 
         start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
 
-        t1 = perf_counter()
-
-        edisgo = cc.integrate_public_charging(
-            ding0_dir,
-            grid_dir,
-            grid_id,
-            files,
-            date=start_date,
-            generator_scenario="ego100",
-        )
-
-        gc.collect()
-
-        print(
-            "Public charging has been integrated in scenario {} in grid {}.".format(
-                scenario, grid_id
-            ),
-            "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-        )
-
         offsets = [*range(365)]
 
         for strategy in strategies:
             t1 = perf_counter()
 
-            edisgo_strategy = deepcopy(edisgo)
+            edisgo = cc.integrate_public_charging(
+                ding0_dir,
+                grid_dir,
+                grid_id,
+                files,
+                date=start_date,
+                generator_scenario="ego100",
+            )
 
-            edisgo_strategy = cc.integrate_private_charging(
-                edisgo_strategy,
+            gc.collect()
+
+            print(
+                "Public charging has been integrated in scenario {} in grid {}.".format(
+                    scenario, grid_id
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            )
+
+            t1 = perf_counter()
+
+            edisgo = cc.integrate_private_charging(
+                edisgo,
                 grid_dir,
                 files,
                 strategy,
@@ -125,12 +123,12 @@ def run_calculate_curtailment(
                         start_date,
                         len(offsets),
                         strategy,
-                        edisgo_strategy,
+                        edisgo,
                     )
 
             else:
                 data_tuples = [
-                    (day_offset, start_date, len(offsets), strategy, edisgo_strategy)
+                    (day_offset, start_date, len(offsets), strategy, edisgo)
                     for day_offset in offsets
                 ]
 
@@ -156,13 +154,9 @@ def run_calculate_curtailment(
                 "It took {} seconds".format(round(perf_counter()-t0, 0))
             )
 
-            del edisgo_strategy
+            del edisgo
 
             gc.collect()
-
-        del edisgo
-
-        gc.collect()
 
     except:
         traceback.print_exc()
