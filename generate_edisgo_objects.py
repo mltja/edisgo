@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 3
+num_threads = 1
 
 rng = default_rng(seed=5)
 
@@ -166,13 +166,3 @@ if __name__ == "__main__":
                 generate_edisgo_objects,
                 grid_dirs,
             )
-
-    # if num_threads == 1:
-    #     for grid_dir in [grid_dirs[0]]:
-    #         run_calculate_curtailment(grid_dir)
-    # else:
-    #     with multiprocessing.Pool(num_threads) as pool:
-    #         pool.map(
-    #             run_calculate_curtailment,
-    #             grid_dirs,
-    #         )
