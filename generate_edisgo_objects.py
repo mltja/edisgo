@@ -123,9 +123,9 @@ def generate_edisgo_objects(
                 os.path.join(
                     data_dir,
                     "eDisGo_curtailment_results",
-                    "scenario",
-                    "grid_id",
-                    "strategy",
+                    scenario,
+                    grid_id,
+                    strategy,
                 )
             )
 
