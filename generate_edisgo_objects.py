@@ -129,6 +129,11 @@ def generate_edisgo_objects(
                 )
             )
 
+            os.makedirs(
+                export_dir,
+                exist_ok=True,
+            )
+
             edisgo.save(
                 directory=export_dir,
             )
