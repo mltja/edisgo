@@ -116,6 +116,8 @@ def run_calculate_curtailment(
                 "It took {} seconds.".format(round(perf_counter() - t1, 0)),
             )
 
+            global edisgo
+
             if num_threads == 1:
                 for day_offset in offsets:
                     stepwise_curtailment(
@@ -123,12 +125,11 @@ def run_calculate_curtailment(
                         start_date,
                         len(offsets),
                         strategy,
-                        edisgo,
                     )
 
             else:
                 data_tuples = [
-                    (day_offset, start_date, len(offsets), strategy, edisgo)
+                    (day_offset, start_date, len(offsets), strategy)
                     for day_offset in offsets
                 ]
 
@@ -138,6 +139,12 @@ def run_calculate_curtailment(
                     num_threads = 6
                 elif mv_grid_id == 177:
                     num_threads = 20
+                elif mv_grid_id == 1056:
+                    pass
+                elif mv_grid_id == 1690:
+                    pass
+                elif mv_grid_id == 1811:
+                    pass
                 elif mv_grid_id == 2534:
                     num_threads = 32
                 else:
@@ -169,7 +176,6 @@ def stepwise_curtailment(
         date,
         chunks,
         strategy,
-        edisgo,
 ):
     try:
         start = date + timedelta(days=int(day_offset * 365 / chunks))
