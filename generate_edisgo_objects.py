@@ -69,15 +69,6 @@ def generate_edisgo_objects(
 
         data_dir = grid_dir.parent.parent.parent
 
-        export_dir = Path(
-            os.path.join(
-                data_dir,
-                "eDisGo_curtailment_results",
-                "scenario",
-                "grid_id",
-            )
-        )
-
         files = os.listdir(grid_dir)
 
         files.sort()
@@ -127,6 +118,16 @@ def generate_edisgo_objects(
             )
 
             t1 = perf_counter()
+
+            export_dir = Path(
+                os.path.join(
+                    data_dir,
+                    "eDisGo_curtailment_results",
+                    "scenario",
+                    "grid_id",
+                    "strategy",
+                )
+            )
 
             edisgo.save(
                 directory=export_dir,
