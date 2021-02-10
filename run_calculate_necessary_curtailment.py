@@ -57,6 +57,7 @@ grid_dirs = [
 
 def run_calculate_curtailment(
         grid_dir,
+        num_threads,
 ):
     try:
         t0 = perf_counter()
@@ -229,7 +230,10 @@ def stepwise_curtailment(
 
 if __name__ == "__main__":
     for grid_dir in grid_dirs:
-        run_calculate_curtailment(grid_dir)
+        run_calculate_curtailment(
+            grid_dir,
+            num_threads,
+        )
 
     # if num_threads == 1:
     #     for grid_dir in [grid_dirs[0]]:
