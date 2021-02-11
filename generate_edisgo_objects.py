@@ -92,8 +92,8 @@ def generate_edisgo_objects(
             gc.collect()
 
             print(
-                "Public charging has been integrated in scenario {} in grid {}.".format(
-                    scenario, grid_id
+                "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
+                    strategy, scenario, grid_id
                 ),
                 "It took {} seconds.".format(round(perf_counter() - t1, 0)),
             )
