@@ -887,21 +887,16 @@ def calculate_curtailment(
         chunk,
 ):
     try:
-        mv_grid_id = int(grid_dir.parts[-1])
-        scenario = grid_dir.parts[-3][:-11]
+        mv_grid_id = int(grid_dir.parts[-2])
+        scenario = grid_dir.parts[-3]
 
         elia_logger = logging.getLogger('elia_project: {}'.format(mv_grid_id))
         elia_logger.setLevel(logging.DEBUG)
 
-        results_path = Path(
-            os.path.join(
-                grid_dir.parent.parent.parent,
-                "eDisGo_curtailment_results",
-            )
-        )
-
         grid_results_dir = os.path.join(
-            results_path, str(mv_grid_id))
+            grid_dir,
+            "curtailment",
+        )
         # reload_dir = os.path.join(
         #     results_path, str(mv_grid_id))
 
