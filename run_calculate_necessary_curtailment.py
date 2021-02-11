@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
+from edisgo import EDisGo
+from edisgo.edisgo import import_edisgo_from_files
+
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -25,40 +28,41 @@ gc.collect()
 
 global edisgo
 
-num_threads = 32
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
+sub_dir = r"eDisGo_curtailment_results"
+
 scenarios = [
-    # "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    # "Mobility_Transition_2050_simbev_run",
-    # "Szenarette_Kleinwagen_2050_simbev_run",
-    # "Reference_2050_simbev_run",
-    # "NEP_C_2035_simbev_run",
+    # "NEP_C_2035",
+    # "Reference_2050",
+    # "Szenarette_Kleinwagen_2050",
+    # "Mobility_Transition_2050",
+    # "Electrification_2050",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
-sub_dir = r"eDisGo_charging_time_series"
+grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
 
-grid_ids = ["1056"]#["176", "177", "1056", "1690", "1811", "2534"]
+strategies = ["dumb"]#, "grouped", "reduced", "residual"]
 
-strategies = ["dumb", "grouped", "reduced", "residual"]
-
-grid_dirs = [
-    Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
-    for scenario in scenarios for grid_id in grid_ids
+data_dirs = [
+    Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
+    for scenario in scenarios for grid_id in grid_ids for strategy in strategies
 ]
+
 
 def run_calculate_curtailment(
-        grid_dir,
+        directory,
         num_threads,
 ):
     try:
@@ -66,114 +70,84 @@ def run_calculate_curtailment(
 
         t0 = perf_counter()
 
-        files = os.listdir(grid_dir)
+        strategy = directory.parts[-1]
 
-        files.sort()
+        grid_id = directory.parts[-2]
 
-        grid_id = grid_dir.parts[-1]
+        scenario = directory.parts[-3]
 
-        scenario = grid_dir.parts[-3][:-11]
-
-        print("Scenario {} in grid {} is being processed.".format(scenario, grid_id))
+        print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
         start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
 
+        edisgo = import_edisgo_from_files(
+            directory=directory,
+            import_topology=True,
+            import_timeseries=True,
+            import_results=True,
+        )
+
+        print(
+            "EDisGo Object for scenario {} with strategy {} in grid {} has been loaded.".format(
+                scenario, strategy, grid_id
+            ),
+            "It took {} seconds.".format(round(perf_counter() - t0, 0)),
+        )
+
         offsets = [*range(365)]
 
-        for strategy in strategies:
-            t1 = perf_counter()
+        if num_threads == 1:
+            for day_offset in offsets:
+                stepwise_curtailment(
+                    directory,
+                    day_offset,
+                    start_date,
+                    len(offsets),
+                    strategy,
+                )
 
-            edisgo = cc.integrate_public_charging(
-                ding0_dir,
-                grid_dir,
-                grid_id,
-                files,
-                date=start_date,
-                generator_scenario="ego100",
-            )
+        else:
+            data_tuples = [
+                (directory, day_offset, start_date, len(offsets), strategy)
+                for day_offset in offsets
+            ]
 
-            gc.collect()
-
-            print(
-                "Public charging has been integrated in scenario {} in grid {}.".format(
-                    scenario, grid_id
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
-
-            t1 = perf_counter()
-
-            edisgo = cc.integrate_private_charging(
-                edisgo,
-                grid_dir,
-                files,
-                strategy,
-            )
-
-            gc.collect()
-
-            print(
-                "Private charging has been integrated for",
-                "scenario {} in grid {} with strategy {}.".format(
-                    scenario, grid_id, strategy
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
-
-            if num_threads == 1:
-                for day_offset in offsets:
-                    stepwise_curtailment(
-                        day_offset,
-                        start_date,
-                        len(offsets),
-                        strategy,
-                    )
-
+            if grid_id == 176:
+                num_threads = 2
+            elif grid_id == 177:
+                num_threads = 2
+            elif grid_id == 1056:
+                num_threads = 2
+            elif grid_id == 1690:
+                num_threads = 2
+            elif grid_id == 1811:
+                num_threads = 2
+            elif grid_id == 2534:
+                num_threads = 2
             else:
-                data_tuples = [
-                    (day_offset, start_date, len(offsets), strategy)
-                    for day_offset in offsets
-                ]
+                num_threads = 2
 
-                mv_grid_id = int(grid_dir.parts[-1])
+            with multiprocessing.Pool(num_threads) as pool:
+                pool.starmap(
+                    stepwise_curtailment,
+                    data_tuples,
+                )
 
-                if mv_grid_id == 176:
-                    num_threads = 6
-                elif mv_grid_id == 177:
-                    num_threads = 20
-                elif mv_grid_id == 1056:
-                    pass
-                elif mv_grid_id == 1690:
-                    pass
-                elif mv_grid_id == 1811:
-                    pass
-                elif mv_grid_id == 2534:
-                    num_threads = 32
-                else:
-                    num_threads = 2
+        print(
+            "Curtailment for strategy {} in scenario {} in grid {} has been calculated.".format(
+                strategy, scenario, grid_id
+            ),
+            "It took {} seconds".format(round(perf_counter()-t0, 0))
+        )
 
-                with multiprocessing.Pool(num_threads) as pool:
-                    pool.starmap(
-                        stepwise_curtailment,
-                        data_tuples,
-                    )
-
-            print(
-                "Curtailment for strategy {} in scenario {} in grid {} has been calculated.".format(
-                    strategy, day_offset, scenario, grid_id
-                ),
-                "It took {} seconds".format(round(perf_counter()-t0, 0))
-            )
-
-            del edisgo
-
-            gc.collect()
+        gc.collect()
 
     except:
         traceback.print_exc()
 
 
 def stepwise_curtailment(
+        directory,
         day_offset,
         date,
         chunks,
@@ -192,21 +166,6 @@ def stepwise_curtailment(
 
         edisgo_chunk.timeseries.timeindex = timeindex
 
-        edisgo_chunk.timeseries.generation_dispatchable = edisgo_chunk.timeseries.generation_dispatchable.loc[
-            (edisgo_chunk.timeseries.generation_dispatchable.index >= timeindex[0]) &
-            (edisgo_chunk.timeseries.generation_dispatchable.index <= timeindex[-1])
-        ]
-
-        edisgo_chunk.timeseries.generation_fluctuating = edisgo_chunk.timeseries.generation_fluctuating.loc[
-            (edisgo_chunk.timeseries.generation_fluctuating.index >= timeindex[0]) &
-            (edisgo_chunk.timeseries.generation_fluctuating.index <= timeindex[-1])
-        ]
-
-        edisgo_chunk.timeseries.load = edisgo_chunk.timeseries.load.loc[
-            (edisgo_chunk.timeseries.load.index >= timeindex[0]) &
-            (edisgo_chunk.timeseries.load.index <= timeindex[-1])
-        ]
-
         edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
             (edisgo_chunk.timeseries.storage_units_active_power.index >= timeindex[0]) &
             (edisgo_chunk.timeseries.storage_units_active_power.index <= timeindex[-1])
@@ -219,8 +178,10 @@ def stepwise_curtailment(
 
         gc.collect()
 
+        print("breaker")
+
         cur.calculate_curtailment(
-            grid_dir,
+            directory,
             edisgo_chunk,
             strategy,
             day_offset,
@@ -235,18 +196,9 @@ def stepwise_curtailment(
 
 
 if __name__ == "__main__":
-    for grid_dir in grid_dirs:
+    for d in data_dirs:
         run_calculate_curtailment(
-            grid_dir,
+            d,
             num_threads,
         )
 
-    # if num_threads == 1:
-    #     for grid_dir in [grid_dirs[0]]:
-    #         run_calculate_curtailment(grid_dir)
-    # else:
-    #     with multiprocessing.Pool(num_threads) as pool:
-    #         pool.map(
-    #             run_calculate_curtailment,
-    #             grid_dirs,
-    #         )

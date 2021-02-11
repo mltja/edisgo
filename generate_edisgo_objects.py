@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 10
+num_threads = 12
 
 rng = default_rng(seed=5)
 
@@ -151,7 +151,7 @@ def generate_edisgo_objects(
 
         print(
             "Scenario {} in grid {} has been saved.".format(
-                strategy, scenario, grid_id
+                scenario, grid_id
             ),
             "It took {} seconds".format(round(perf_counter() - t0, 0))
         )
