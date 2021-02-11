@@ -51,7 +51,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["176"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"]
 
@@ -123,7 +123,7 @@ def run_calculate_curtailment(
             elif grid_id == 1811:
                 num_threads = 2
             elif grid_id == 2534:
-                num_threads = 2
+                num_threads = 32
             else:
                 num_threads = 2
 
@@ -177,8 +177,6 @@ def stepwise_curtailment(
         ]
 
         gc.collect()
-
-        print("breaker")
 
         cur.calculate_curtailment(
             directory,
