@@ -51,7 +51,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["1690"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["1811"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"]
 
