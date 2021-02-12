@@ -38,15 +38,15 @@ ding0_dir = Path( # TODO: set dir
 sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
-    # "NEP_C_2035",
-    # "Reference_2050",
-    # "Szenarette_Kleinwagen_2050",
-    # "Mobility_Transition_2050",
-    # "Electrification_2050",
+    "NEP_C_2035",
+    "Reference_2050",
+    "Szenarette_Kleinwagen_2050",
+    "Mobility_Transition_2050",
+    "Electrification_2050",
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["1811"]#["2534", "177", "1056", "1690", "1811", "176"]
+grid_ids = ["2534", "177", "1056", "1690", "1811", "176"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -87,7 +87,7 @@ def run_calculate_curtailment(
             elif grid_id == "177":
                 num_threads = 21
             elif grid_id == "1056":
-                num_threads = 7
+                num_threads = 14
             elif grid_id == "1690":
                 num_threads = 12
             elif grid_id == "1811":
@@ -167,7 +167,7 @@ def stepwise_curtailment(
         gc.collect()
 
         print(
-            "EDisGo Object for scenario {} with strategy {} in grid {} has been loaded for chunk Nr. {}.".format(
+            "EDisGo Object for chunk Nr. {} has been loaded.".format(
                 scenario, strategy, grid_id, day_offset
             ),
             "It took {} seconds.".format(round(perf_counter() - t1, 0)),
@@ -183,6 +183,13 @@ def stepwise_curtailment(
         del edisgo_chunk
 
         gc.collect()
+
+        print(
+            "Curtailment for chunk Nr. {} has been calculated.".format(
+                scenario, strategy, grid_id, day_offset
+            ),
+            "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+        )
 
     except:
         traceback.print_exc()
