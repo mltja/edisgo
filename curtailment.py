@@ -924,23 +924,29 @@ def calculate_curtailment(
 
         pypsa_network_orig = pypsa_network.copy()
 
-        converged = False
+        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
-        while not converged:
-
-            try:
-                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
-
-                converged = True
-
-            except:
-                timeindex = edisgo.timeseries.residual_load.nsmallest(
-                    int(len(edisgo.timeseries.residual_load) / 20), "0")
-
-                _curtail(
-                    pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
-                    edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
-                )
+        # i = 0
+        #
+        # converged = False
+        #
+        # while i < max_iterations and not converged:
+        #
+        #     try:
+        #         pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+        #
+        #         converged = True
+        #
+        #     except:
+        #         timeindex = edisgo.timeseries.residual_load.nsmallest(
+        #             int(len(edisgo.timeseries.residual_load) / 20), "0").index
+        #
+        #         _curtail(
+        #             pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
+        #             edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
+        #         )
+        #
+        #         i += 1
 
         # print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
 
