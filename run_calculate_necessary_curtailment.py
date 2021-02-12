@@ -131,10 +131,6 @@ def stepwise_curtailment(
 
         strategy = directory.parts[-1]
 
-        grid_id = directory.parts[-2]
-
-        scenario = directory.parts[-3]
-
         date = datetime.strptime("2011-01-01", "%Y-%m-%d")
 
         edisgo_chunk = import_edisgo_from_files(
@@ -168,10 +164,12 @@ def stepwise_curtailment(
 
         print(
             "EDisGo Object for chunk Nr. {} has been loaded.".format(
-                scenario, strategy, grid_id, day_offset
+                day_offset
             ),
             "It took {} seconds.".format(round(perf_counter() - t1, 0)),
         )
+
+        t1 = perf_counter()
 
         cur.calculate_curtailment(
             directory,
@@ -186,7 +184,7 @@ def stepwise_curtailment(
 
         print(
             "Curtailment for chunk Nr. {} has been calculated.".format(
-                scenario, strategy, grid_id, day_offset
+                day_offset
             ),
             "It took {} seconds.".format(round(perf_counter() - t1, 0)),
         )
