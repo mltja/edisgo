@@ -38,21 +38,21 @@ ding0_dir = Path( # TODO: set dir
 sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
-    # "NEP_C_2035",
-    # "Reference_2050",
-    # "Szenarette_Kleinwagen_2050",
-    # "Mobility_Transition_2050",
-    # "Electrification_2050",
+    "NEP_C_2035",
+    "Reference_2050",
+    "Szenarette_Kleinwagen_2050",
+    "Mobility_Transition_2050",
+    "Electrification_2050",
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["1056"]#["2534", "177", "176", "1056", "1690", "1811"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
-    for scenario in scenarios for grid_id in grid_ids for strategy in strategies
+    for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
 
@@ -83,7 +83,7 @@ def run_calculate_curtailment(
 
         else:
             if grid_id == "176":
-                num_threads = 6
+                num_threads = 11
             elif grid_id == "177":
                 num_threads = 12
             elif grid_id == "1056":
