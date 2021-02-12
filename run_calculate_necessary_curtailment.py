@@ -51,7 +51,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["176"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"]
 
@@ -112,18 +112,18 @@ def run_calculate_curtailment(
                 for day_offset in offsets
             ]
 
-            if grid_id == 176:
+            if grid_id == "176":
                 num_threads = 5
-            elif grid_id == 177:
+            elif grid_id == "177":
                 num_threads = 12
-            elif grid_id == 1056:
+            elif grid_id == "1056":
                 num_threads = 7
-            elif grid_id == 1690:
+            elif grid_id == "1690":
                 num_threads = 7
-            elif grid_id == 1811:
-                num_threads = 2
-            elif grid_id == 2534:
-                num_threads = 12
+            elif grid_id == "1811":
+                num_threads = 6
+            elif grid_id == "2534":
+                num_threads = 32
             else:
                 num_threads = 2
 
