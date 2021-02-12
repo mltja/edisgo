@@ -26,8 +26,6 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-global edisgo
-
 num_threads = 2
 
 data_dir = Path( # TODO: set dir
@@ -51,7 +49,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["176"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -66,8 +64,6 @@ def run_calculate_curtailment(
         num_threads,
 ):
     try:
-        global edisgo
-
         t0 = perf_counter()
 
         strategy = directory.parts[-1]
@@ -78,32 +74,14 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
-
-        edisgo = import_edisgo_from_files(
-            directory=directory,
-            import_topology=True,
-            import_timeseries=True,
-            import_results=True,
-        )
-
-        print(
-            "EDisGo Object for scenario {} with strategy {} in grid {} has been loaded.".format(
-                scenario, strategy, grid_id
-            ),
-            "It took {} seconds.".format(round(perf_counter() - t0, 0)),
-        )
-
-        offsets = [*range(73)]
+        offsets = [*range(365)]
 
         if num_threads == 1:
             for day_offset in offsets:
                 stepwise_curtailment(
                     directory,
                     day_offset,
-                    start_date,
                     len(offsets),
-                    strategy,
                 )
 
         else:
@@ -123,7 +101,7 @@ def run_calculate_curtailment(
                 num_threads = 2
 
             data_tuples = [
-                (directory, day_offset, start_date, len(offsets), strategy)
+                (directory, day_offset, len(offsets))
                 for day_offset in offsets
             ]
 
@@ -149,11 +127,26 @@ def run_calculate_curtailment(
 def stepwise_curtailment(
         directory,
         day_offset,
-        date,
         chunks,
-        strategy,
 ):
     try:
+        t1 = perf_counter()
+
+        strategy = directory.parts[-1]
+
+        grid_id = directory.parts[-2]
+
+        scenario = directory.parts[-3]
+
+        date = datetime.strptime("2011-01-01", "%Y-%m-%d")
+
+        edisgo_chunk = import_edisgo_from_files(
+            directory=directory,
+            import_topology=True,
+            import_timeseries=True,
+            import_results=True,
+        )
+
         start = date + timedelta(days=int(day_offset * 365 / chunks))
 
         timeindex = pd.date_range(
@@ -161,8 +154,6 @@ def stepwise_curtailment(
             periods=int(365 / chunks * 24 * 4),
             freq="15min",
         )
-
-        edisgo_chunk = deepcopy(edisgo)
 
         edisgo_chunk.timeseries.timeindex = timeindex
 
@@ -177,6 +168,13 @@ def stepwise_curtailment(
         ]
 
         gc.collect()
+
+        print(
+            "EDisGo Object for scenario {} with strategy {} in grid {} has been loaded for chunk {}.".format(
+                scenario, strategy, grid_id, day_offset
+            ),
+            "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+        )
 
         cur.calculate_curtailment(
             directory,
