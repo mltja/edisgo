@@ -31,13 +31,13 @@ global edisgo
 num_threads = 2
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 sub_dir = r"eDisGo_curtailment_results"
@@ -53,7 +53,7 @@ scenarios = [
 
 grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"]
+strategies = ["dumb", "grouped", "reduced", "residual"]
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
@@ -94,7 +94,7 @@ def run_calculate_curtailment(
             "It took {} seconds.".format(round(perf_counter() - t0, 0)),
         )
 
-        offsets = [*range(365)]
+        offsets = [*range(73)]
 
         if num_threads == 1:
             for day_offset in offsets:

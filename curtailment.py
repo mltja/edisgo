@@ -954,7 +954,7 @@ def calculate_curtailment(
 
                 i += 1
 
-        print("It took {} seconds for the initial power flow analysis in chunk {}.".format(
+        print("It took {} seconds for the initial power flow analysis in chunk Nr. {}.".format(
             round(perf_counter() - t1, 0), chunk
         ))
 
@@ -1007,9 +1007,9 @@ def calculate_curtailment(
         curtailment.loc[
             "convergence_problems", "load"] += curtailed_load.sum().sum()
 
-        # print("It took {} seconds to overcome the initial convergence problems.".format(
-        #     round(perf_counter() - t1, 0)
-        # ))
+        print("It took {} seconds to overcome the initial convergence problems.".format(
+            round(perf_counter() - t1, 0)
+        ))
 
         pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
 
