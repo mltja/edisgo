@@ -897,22 +897,11 @@ def calculate_curtailment(
             grid_dir,
             "curtailment",
         )
-        # reload_dir = os.path.join(
-        #     results_path, str(mv_grid_id))
 
         os.makedirs(
             grid_results_dir,
             exist_ok=True,
         )
-
-        # # reimport edisgo object
-        # edisgo = import_edisgo_from_files(
-        #     reload_dir,
-        #     import_timeseries=True,
-        #     import_results=True,
-        #     parameters="powerflow_results",
-        #     import_residual_load=False
-        # )
 
         # save original time series before curtailment
         feedin_ts = edisgo.timeseries.generators_active_power.copy()
@@ -935,7 +924,23 @@ def calculate_curtailment(
 
         pypsa_network_orig = pypsa_network.copy()
 
-        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+        converged = False
+
+        while not converged:
+
+            try:
+                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+
+                converged = True
+
+            except:
+                timeindex = edisgo.timeseries.residual_load.nsmallest(
+                    int(len(edisgo.timeseries.residual_load) / 20), "0")
+
+                _curtail(
+                    pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
+                    edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
+                )
 
         # print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
 
