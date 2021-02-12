@@ -954,8 +954,6 @@ def calculate_curtailment(
 
         t1 = perf_counter()
 
-        pypsa_network = pypsa_network_orig.copy()
-
         while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
             _curtail(
                 pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
