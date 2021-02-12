@@ -1074,7 +1074,7 @@ def calculate_curtailment(
             rel_load > 1+2e-3].dropna(
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
-            print("Not all overloading issues solved in chunk {} of Grid {} with strategy {}.".format(
+            print("Not all overloading issues  solved in chunk {} of Grid {} with strategy {}.".format(
                 chunk, mv_grid_id, strategy
             ))
         else:

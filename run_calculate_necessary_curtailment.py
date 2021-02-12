@@ -44,11 +44,11 @@ sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
     "NEP_C_2035",
-    # "Reference_2050",
-    # "Szenarette_Kleinwagen_2050",
-    # "Mobility_Transition_2050",
-    # "Electrification_2050",
-    # "Electrification_2050_sensitivity_low_work",
+    "Reference_2050",
+    "Szenarette_Kleinwagen_2050",
+    "Mobility_Transition_2050",
+    "Electrification_2050",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
 grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
@@ -60,15 +60,12 @@ data_dirs = [
     for scenario in scenarios for grid_id in grid_ids for strategy in strategies
 ]
 
-print("breaker")
 
 def run_calculate_curtailment(
         directory,
         num_threads,
 ):
     try:
-        print(directory)
-
         global edisgo
 
         t0 = perf_counter()
