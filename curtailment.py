@@ -924,29 +924,37 @@ def calculate_curtailment(
 
         pypsa_network_orig = pypsa_network.copy()
 
-        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+        # pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
-        # i = 0
-        #
-        # converged = False
-        #
-        # while i < max_iterations and not converged:
-        #
-        #     try:
-        #         pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
-        #
-        #         converged = True
-        #
-        #     except:
-        #         timeindex = edisgo.timeseries.residual_load.nsmallest(
-        #             int(len(edisgo.timeseries.residual_load) / 20), "0").index
-        #
-        #         _curtail(
-        #             pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
-        #             edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
-        #         )
-        #
-        #         i += 1
+        i = 0
+
+        converged = False
+
+        while i < max_iterations and not converged:
+            try:
+                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+
+                converged = True
+
+            except:
+                if i == 0:
+                    print(
+                        "First PF didn't converge for chunk {} in grid {} with scenario {} and strategy {}".format(
+                            chunk, mv_grid_id, scenario, strategy
+                        )
+                    )
+
+                timeindex = edisgo.timeseries.residual_load.nsmallest(
+                    int(len(edisgo.timeseries.residual_load) / 10)
+                ).index.tolist()
+
+                _curtail(
+                    pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex
+                )
+
+                _overwrite_edisgo_timeseries(edisgo, pypsa_network)
+
+                i += 1
 
         # print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
 
