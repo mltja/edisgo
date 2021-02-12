@@ -954,7 +954,9 @@ def calculate_curtailment(
 
                 i += 1
 
-        # print("It took {} seconds for the initial power flow analysis.".format(round(perf_counter() - t1, 0)))
+        print("It took {} seconds for the initial power flow analysis in chunk {}.".format(
+            round(perf_counter() - t1, 0), chunk
+        ))
 
         i = 0
 
