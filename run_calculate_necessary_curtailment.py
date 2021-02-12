@@ -60,12 +60,15 @@ data_dirs = [
     for scenario in scenarios for grid_id in grid_ids for strategy in strategies
 ]
 
+print("breaker")
 
 def run_calculate_curtailment(
         directory,
         num_threads,
 ):
     try:
+        print(directory)
+
         global edisgo
 
         t0 = perf_counter()

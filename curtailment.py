@@ -1113,8 +1113,8 @@ def calculate_curtailment(
         # )
 
     except Exception as e:
-        mv_grid_id = int(grid_dir.parts[-1])
-        scenario = grid_dir.parts[-3][:-11]
+        mv_grid_id = int(grid_dir.parts[-2])
+        scenario = grid_dir.parts[-3]
         print("Error in {} in chunk {} MV grid {}.".format(scenario, chunk, mv_grid_id))
         traceback.print_exc()
 
