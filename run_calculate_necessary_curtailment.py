@@ -5,14 +5,11 @@ import logging
 import warnings
 import multiprocessing
 import traceback
-import calculate_necessary_curtailment as cc
 import curtailment as cur
 
 from datetime import datetime, timedelta
-from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
-from edisgo import EDisGo
 from edisgo.edisgo import import_edisgo_from_files
 
 
@@ -49,7 +46,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["176"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
