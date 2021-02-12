@@ -44,16 +44,16 @@ sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
     "NEP_C_2035",
-    # "Reference_2050",
-    # "Szenarette_Kleinwagen_2050",
-    # "Mobility_Transition_2050",
-    # "Electrification_2050",
-    # "Electrification_2050_sensitivity_low_work",
+    "Reference_2050",
+    "Szenarette_Kleinwagen_2050",
+    "Mobility_Transition_2050",
+    "Electrification_2050",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"]
+strategies = ["dumb", "grouped", "reduced", "residual"]
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
@@ -94,7 +94,7 @@ def run_calculate_curtailment(
             "It took {} seconds.".format(round(perf_counter() - t0, 0)),
         )
 
-        offsets = [*range(73)]
+        offsets = [*range(365)]
 
         if num_threads == 1:
             for day_offset in offsets:
@@ -107,11 +107,6 @@ def run_calculate_curtailment(
                 )
 
         else:
-            data_tuples = [
-                (directory, day_offset, start_date, len(offsets), strategy)
-                for day_offset in offsets
-            ]
-
             if grid_id == "176":
                 num_threads = 6
             elif grid_id == "177":
@@ -126,6 +121,11 @@ def run_calculate_curtailment(
                 num_threads = 32
             else:
                 num_threads = 2
+
+            data_tuples = [
+                (directory, day_offset, start_date, len(offsets), strategy)
+                for day_offset in offsets
+            ]
 
             with multiprocessing.Pool(num_threads) as pool:
                 pool.starmap(
