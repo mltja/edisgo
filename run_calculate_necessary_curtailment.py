@@ -28,7 +28,7 @@ gc.collect()
 
 global edisgo
 
-num_threads = 1
+num_threads = 2
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -43,12 +43,12 @@ ding0_dir = Path( # TODO: set dir
 sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
-    "NEP_C_2035",
+    # "NEP_C_2035",
     # "Reference_2050",
     # "Szenarette_Kleinwagen_2050",
     # "Mobility_Transition_2050",
     # "Electrification_2050",
-    # "Electrification_2050_sensitivity_low_work",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
 grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
