@@ -924,8 +924,6 @@ def calculate_curtailment(
 
         pypsa_network_orig = pypsa_network.copy()
 
-        # pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
-
         i = 0
 
         converged = False
@@ -968,7 +966,35 @@ def calculate_curtailment(
                 edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
             )
 
-            pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+            j = 0
+
+            converged = False
+
+            while j < max_iterations and not converged:
+                try:
+                    pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+
+                    converged = True
+
+                except:
+                    if i == 0:
+                        print(
+                            "PF Nr. {} didn't converge for chunk {} in grid {} with scenario {} and strategy {}".format(
+                                i+2, chunk, mv_grid_id, scenario, strategy
+                            )
+                        )
+
+                    timeindex = edisgo.timeseries.residual_load.nsmallest(
+                        int(len(edisgo.timeseries.residual_load) / 10)
+                    ).index.tolist()
+
+                    _curtail(
+                        pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex
+                    )
+
+                    _overwrite_edisgo_timeseries(edisgo, pypsa_network)
+
+                    j += 1
 
             i += 1
 
@@ -1077,6 +1103,8 @@ def calculate_curtailment(
         curtailed_load.sum(axis=1).to_csv(
             os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_demand.csv".format(scenario, strategy, chunk))
         )
+
+        print("Chunk Nr. {} is done.".format(chunk))
 
         # edisgo.timeseries.residual_load.to_csv(
         #     os.path.join(grid_results_dir, "{}_{}_{}_residual_load.csv".format(scenario, strategy, chunk))
