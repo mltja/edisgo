@@ -71,13 +71,13 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        # days = get_days(grid_id)
+        days = get_days(grid_id)
 
-        days = pd.date_range(
-            '2011-01-01',
-            periods=365/5, # TODO
-            freq='5d',
-        ).tolist()
+        # days = pd.date_range(
+        #     '2011-01-01',
+        #     periods=365/5, # TODO
+        #     freq='5d',
+        # ).tolist()
 
         if num_threads == 1:
             for day in days:
@@ -103,7 +103,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 16)
+            num_threads = min(num_threads, len(days), 7)
 
             data_tuples = [
                 (directory, day, (days[1] - days[0])/timedelta(minutes=15))
