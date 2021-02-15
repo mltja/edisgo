@@ -184,7 +184,7 @@ def curtailment_lv_voltage(
     time_steps_issues = voltage_issues.index
 
     if len(time_steps_issues) > 0:
-        pypsa_network = edisgo.to_pypsa(timesteps=time_steps_issues)
+        pypsa_network = edisgo.to_pypsa(timesteps=time_steps_issues, aggregate_loads="all", aggregate_generators="all")
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -306,7 +306,9 @@ def curtailment_mvlv_stations_voltage(
         #  following might therefore need to be changed.
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv",
-            timesteps=time_steps_issues)
+            timesteps=time_steps_issues,
+            aggregate_loads="all", aggregate_generators="all",
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -407,7 +409,9 @@ def curtailment_mv_voltage(
 
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
-            mode="mvlv", timesteps=time_steps_issues)
+            mode="mvlv", timesteps=time_steps_issues,
+            aggregate_loads="all", aggregate_generators="all",
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -519,7 +523,7 @@ def curtailment_lv_lines_overloading(
     time_steps_issues = overloading_issues.index
 
     if len(time_steps_issues) > 0:
-        pypsa_network = edisgo.to_pypsa(timesteps=time_steps_issues)
+        pypsa_network = edisgo.to_pypsa(timesteps=time_steps_issues, aggregate_loads="all", aggregate_generators="all")
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -662,7 +666,9 @@ def curtailment_mvlv_stations_overloading(
         # station's secondary side
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv",
-            timesteps=time_steps_issues)
+            timesteps=time_steps_issues,
+            aggregate_loads="all", aggregate_generators="all",
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -766,7 +772,9 @@ def curtailment_mv_lines_overloading(
 
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
-            mode="mvlv", timesteps=time_steps_issues)
+            mode="mvlv", timesteps=time_steps_issues,
+            aggregate_loads="all", aggregate_generators="all",
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -899,7 +907,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join(
             grid_dir,
-            "curtailment_agg",
+            "curtailment_weeks",
         )
 
         os.makedirs(
