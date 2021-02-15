@@ -23,16 +23,16 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 2
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 sub_dir = r"eDisGo_curtailment_results"
@@ -71,14 +71,14 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        offsets = [*range(365)]
+        days = get_days(grid_id)
 
         if num_threads == 1:
-            for day_offset in offsets:
+            for day in days:
                 stepwise_curtailment(
                     directory,
-                    day_offset,
-                    len(offsets),
+                    day,
+                    (days[1] - days[0]) / timedelta(minutes=15),
                 )
 
         else:
@@ -97,9 +97,11 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
+            num_threads = min(num_threads, len(days))
+
             data_tuples = [
-                (directory, day_offset, len(offsets))
-                for day_offset in offsets
+                (directory, day, (days[1] - days[0])/timedelta(minutes=15))
+                for day in days
             ]
 
             with multiprocessing.Pool(num_threads) as pool:
@@ -123,8 +125,8 @@ def run_calculate_curtailment(
 
 def stepwise_curtailment(
         directory,
-        day_offset,
-        chunks,
+        day,
+        len_day,
 ):
     try:
         t1 = perf_counter()
@@ -140,11 +142,9 @@ def stepwise_curtailment(
             import_results=True,
         )
 
-        start = date + timedelta(days=int(day_offset * 365 / chunks))
-
         timeindex = pd.date_range(
-            start,
-            periods=int(365 / chunks * 24 * 4),
+            day,
+            periods=len_day,
             freq="15min",
         )
 
@@ -189,6 +189,31 @@ def stepwise_curtailment(
             "It took {} seconds.".format(round(perf_counter() - t1, 0)),
         )
 
+    except:
+        traceback.print_exc()
+
+
+def get_days(
+        grid_id,
+):
+    try:
+        s = pd.read_csv(
+            os.path.join(
+                data_dir,
+                sub_dir,
+                "extreme_weeks.csv",
+            ),
+            index_col=[0],
+            parse_dates=[1,2,3,4],
+        ).loc[int(grid_id)]
+
+        days = []
+
+        for ts in [s.start_week_low, s.start_week_high]:
+            for i in range(7):
+                days.append(ts + timedelta(days=i))
+
+        return days
     except:
         traceback.print_exc()
 

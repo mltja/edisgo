@@ -895,7 +895,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join(
             grid_dir,
-            "curtailment",
+            "curtailment_weeks",
         )
 
         os.makedirs(
@@ -920,7 +920,7 @@ def calculate_curtailment(
 
         t1 = perf_counter()
 
-        pypsa_network = edisgo.to_pypsa()
+        pypsa_network = edisgo.to_pypsa(aggregate_loads="all", aggregate_generators="all")
 
         pypsa_network_orig = pypsa_network.copy()
 
