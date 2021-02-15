@@ -26,13 +26,13 @@ gc.collect()
 num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 sub_dir = r"eDisGo_curtailment_results"
@@ -71,7 +71,13 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        days = get_days(grid_id)
+        # days = get_days(grid_id)
+
+        days = pd.date_range(
+            '2011-01-01',
+            periods=365,
+            freq='d',
+        ).tolist()
 
         if num_threads == 1:
             for day in days:
@@ -133,8 +139,6 @@ def stepwise_curtailment(
 
         strategy = directory.parts[-1]
 
-        date = datetime.strptime("2011-01-01", "%Y-%m-%d")
-
         edisgo_chunk = import_edisgo_from_files(
             directory=directory,
             import_topology=True,
@@ -163,8 +167,8 @@ def stepwise_curtailment(
         gc.collect()
 
         print(
-            "EDisGo Object for chunk Nr. {} has been loaded.".format(
-                day_offset
+            "EDisGo Object for day {} has been loaded.".format(
+                day,
             ),
             "It took {} seconds.".format(round(perf_counter() - t1, 0)),
         )
@@ -175,7 +179,7 @@ def stepwise_curtailment(
             directory,
             edisgo_chunk,
             strategy,
-            day_offset,
+            day,
         )
 
         del edisgo_chunk
@@ -183,8 +187,8 @@ def stepwise_curtailment(
         gc.collect()
 
         print(
-            "Curtailment for chunk Nr. {} has been calculated.".format(
-                day_offset
+            "Curtailment for day {} has been calculated.".format(
+                day
             ),
             "It took {} seconds.".format(round(perf_counter() - t1, 0)),
         )
