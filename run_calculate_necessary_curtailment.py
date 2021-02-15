@@ -88,22 +88,22 @@ def run_calculate_curtailment(
                 )
 
         else:
-            if grid_id == "176":
-                num_threads = 11
-            elif grid_id == "177":
-                num_threads = 21
-            elif grid_id == "1056":
-                num_threads = 14
-            elif grid_id == "1690":
-                num_threads = 12
-            elif grid_id == "1811":
-                num_threads = 6
-            elif grid_id == "2534":
-                num_threads = 32
-            else:
-                num_threads = 2
-
-            num_threads = min(num_threads, len(days), 7)
+            # if grid_id == "176":
+            #     num_threads = 11
+            # elif grid_id == "177":
+            #     num_threads = 21
+            # elif grid_id == "1056":
+            #     num_threads = 14
+            # elif grid_id == "1690":
+            #     num_threads = 12
+            # elif grid_id == "1811":
+            #     num_threads = 6
+            # elif grid_id == "2534":
+            #     num_threads = 32
+            # else:
+            #     num_threads = 2
+            #
+            # num_threads = min(num_threads, len(days), 7)
 
             data_tuples = [
                 (directory, day, (days[1] - days[0])/timedelta(minutes=15))
