@@ -976,7 +976,7 @@ def integrate_public_charging(
             date,
             periods=len_timeindex * 4,
             freq="15min",
-        )
+        )integrate_public_charging
 
         edisgo.timeseries.timeindex = timeindex
 
