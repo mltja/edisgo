@@ -688,7 +688,7 @@ def mv_grid_topology(
         pypsa_plot.buses.loc[:, "y"] = y2
 
     # plot
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(8.27, 11.69))
     ax = plt.gca()
 
     # plot network district
@@ -805,7 +805,72 @@ def mv_grid_topology(
             label="$\equiv$ 10% share of curtailment",
         )
     else:
-        scatter_handle = None
+        scatter_handle = [
+            plt.scatter(
+                [],
+                [],
+                c="b",
+                s=100,
+                label="Netzknoten",
+            ),
+            plt.scatter(
+                [],
+                [],
+                c="g",
+                s=100,
+                label="Nicht steuerbare Kraftwerke",
+            ),
+            plt.scatter(
+                [],
+                [],
+                c="k",
+                s=100,
+                label="Steuerbare Kraftwerke",
+            ),
+            # plt.scatter(
+            #     [],
+            #     [],
+            #     c="m",
+            #     s=100,
+            #     label="Last",
+            # ),
+            plt.scatter(
+                [],
+                [],
+                c="c",
+                s=100,
+                label="MS-NS-USW",
+            ),
+            plt.scatter(
+                [],
+                [],
+                c="r",
+                s=100,
+                label="HS-MS-USW",
+            ),
+            # plt.scatter(
+            #     [],
+            #     [],
+            #     c="y",
+            #     s=100,
+            #     label="Speicher",
+            # ),
+            plt.scatter(
+                [],
+                [],
+                c="0.75",
+                s=100,
+                label="Trennstelle",
+            ),
+            plt.scatter(
+                [],
+                [],
+                c="orange",
+                s=100,
+                label="Sonstiges",
+            ),
+        ]
+
     if scaling_factor_line_width is not None:
         line_handle = plt.plot(
             [],
@@ -815,28 +880,58 @@ def mv_grid_topology(
             label="= 10 MVA",
         )
     else:
-        line_handle = None
+        line_handle = plt.plot(
+            [],
+            [],
+            c="black",
+            linewidth=2,
+            label="MS-Leitung",
+        )
+
     legend_loc = kwargs.get("legend_loc", "upper left")
     if scatter_handle and line_handle:
-        plt.legend(
-            handles=[scatter_handle, line_handle[0]],
-            labelspacing=1,
-            title="Storage size and line capacity",
-            borderpad=0.5,
-            loc=legend_loc,
-            framealpha=0.5,
-            fontsize="medium",
-        )
+        if len(scatter_handle) > 1:
+            leg = plt.legend(
+                handles=[*scatter_handle, line_handle[0]],
+                labelspacing=1,
+                borderpad=0.5,
+                bbox_to_anchor=(1, 1),
+                loc=legend_loc,
+                framealpha=0.5,
+                fontsize="medium",
+            )
+            leg.get_frame().set_linewidth(0)
+        else:
+            plt.legend(
+                handles=[scatter_handle, line_handle[0]],
+                labelspacing=1,
+                title="Storage size and line capacity",
+                borderpad=0.5,
+                loc=legend_loc,
+                framealpha=0.5,
+                fontsize="medium",
+            )
     elif scatter_handle:
-        plt.legend(
-            handles=[scatter_handle],
-            labelspacing=0,
-            title=None,
-            borderpad=0.3,
-            loc=legend_loc,
-            framealpha=0.5,
-            fontsize="medium",
-        )
+        if len(scatter_handle) > 1:
+            plt.legend(
+                handles=[*scatter_handle],
+                labelspacing=0,
+                title=None,
+                borderpad=0.3,
+                loc=legend_loc,
+                framealpha=0.5,
+                fontsize="medium",
+            )
+        else:
+            plt.legend(
+                handles=[scatter_handle],
+                labelspacing=0,
+                title=None,
+                borderpad=0.3,
+                loc=legend_loc,
+                framealpha=0.5,
+                fontsize="medium",
+            )
     elif line_handle:
         plt.legend(
             handles=[line_handle[0]],
@@ -888,5 +983,9 @@ def mv_grid_topology(
     if filename is None:
         plt.show()
     else:
-        plt.savefig(filename)
+        plt.savefig(
+            filename,
+            bbox_inches='tight',
+            dpi=600,
+        )
         plt.close()

@@ -496,7 +496,7 @@ class EDisGo:
 
         """
 
-        plots.mv_grid_topology(
+        ax = plots.mv_grid_topology(
             self,
             node_color="technology" if technologies is True else None,
             filename=kwargs.get("filename", None),
@@ -506,6 +506,8 @@ class EDisGo:
             ylim=kwargs.get("ylim", None),
             title=kwargs.get("title", ""),
         )
+
+        return ax
 
     def plot_mv_voltages(self, **kwargs):
         """
