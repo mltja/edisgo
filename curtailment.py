@@ -953,12 +953,12 @@ def calculate_curtailment(
                 converged = True
 
             except:
-                if i == 0:
-                    print(
-                        "First PF didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
-                            day, mv_grid_id, scenario, strategy
-                        )
-                    )
+                # if i == 0:
+                #     print(
+                #         "First PF didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
+                #             day, mv_grid_id, scenario, strategy
+                #         )
+                #     )
 
                 timeindex = edisgo.timeseries.residual_load.nsmallest(
                     int(len(edisgo.timeseries.residual_load) / 20)
@@ -972,9 +972,9 @@ def calculate_curtailment(
 
                 i += 1
 
-        print("It took {} seconds for the initial power flow analysis on day {}.".format(
-            round(perf_counter() - t1, 0), day
-        ))
+        # print("It took {} seconds for the initial power flow analysis on day {}.".format(
+        #     round(perf_counter() - t1, 0), day
+        # ))
 
         i = 0
 
@@ -997,12 +997,12 @@ def calculate_curtailment(
                     converged = True
 
                 except:
-                    if i == 0:
-                        print(
-                            "PF Nr. {} didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
-                                i+2, day, mv_grid_id, scenario, strategy
-                            )
-                        )
+                    # if i == 0:
+                    #     print(
+                    #         "PF Nr. {} didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
+                    #             i+2, day, mv_grid_id, scenario, strategy
+                    #         )
+                    #     )
 
                     timeindex = edisgo.timeseries.residual_load.nsmallest(
                         int(len(edisgo.timeseries.residual_load) / 10)
@@ -1025,9 +1025,9 @@ def calculate_curtailment(
         curtailment.loc[
             "convergence_problems", "load"] += curtailed_load.sum().sum()
 
-        print("It took {} seconds to overcome the initial convergence problems.".format(
-            round(perf_counter() - t1, 0)
-        ))
+        # print("It took {} seconds to overcome the initial convergence problems.".format(
+        #     round(perf_counter() - t1, 0)
+        # ))
 
         pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
 
