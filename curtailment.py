@@ -1095,6 +1095,7 @@ def calculate_curtailment(
             print("Not all overloading issues  solved on day {} of Grid {} with strategy {}.".format(
                 day, mv_grid_id, strategy
             ))
+            print(issues)
         else:
             # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
             #     day, mv_grid_id, strategy
