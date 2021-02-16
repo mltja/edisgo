@@ -574,8 +574,10 @@ def mv_grid_topology(
         return bus_sizes, bus_colors
 
     # set font and font size
-    font = {"family": "serif", "size": 15}
-    matplotlib.rc("font", **font)
+    font = {'family': 'Latin Modern Roman',
+            'weight': 'normal',
+            'size': 18}
+    matplotlib.rc('font', **font)
 
     # create pypsa network only containing MV buses and lines
     pypsa_plot = PyPSANetwork()
@@ -809,9 +811,23 @@ def mv_grid_topology(
             plt.scatter(
                 [],
                 [],
-                c="b",
+                c="r",
                 s=100,
-                label="Netzknoten",
+                label="HS-MS-USW",
+            ),
+            plt.scatter(
+                [],
+                [],
+                c="c",
+                s=100,
+                label="MS-NS-USW",
+            ),
+            plt.scatter(
+                [],
+                [],
+                c="k",
+                s=100,
+                label="Steuerbare Kraftwerke",
             ),
             plt.scatter(
                 [],
@@ -823,44 +839,16 @@ def mv_grid_topology(
             plt.scatter(
                 [],
                 [],
-                c="k",
-                s=100,
-                label="Steuerbare Kraftwerke",
-            ),
-            # plt.scatter(
-            #     [],
-            #     [],
-            #     c="m",
-            #     s=100,
-            #     label="Last",
-            # ),
-            plt.scatter(
-                [],
-                [],
-                c="c",
-                s=100,
-                label="MS-NS-USW",
-            ),
-            plt.scatter(
-                [],
-                [],
-                c="r",
-                s=100,
-                label="HS-MS-USW",
-            ),
-            # plt.scatter(
-            #     [],
-            #     [],
-            #     c="y",
-            #     s=100,
-            #     label="Speicher",
-            # ),
-            plt.scatter(
-                [],
-                [],
                 c="0.75",
                 s=100,
                 label="Trennstelle",
+            ),
+            plt.scatter(
+                [],
+                [],
+                c="b",
+                s=100,
+                label="Kabelmuffe",
             ),
             plt.scatter(
                 [],
@@ -869,6 +857,20 @@ def mv_grid_topology(
                 s=100,
                 label="Sonstiges",
             ),
+            # plt.scatter(
+            #     [],
+            #     [],
+            #     c="m",
+            #     s=100,
+            #     label="Last",
+            # ),
+            # plt.scatter(
+            #     [],
+            #     [],
+            #     c="y",
+            #     s=100,
+            #     label="Speicher",
+            # ),
         ]
 
     if scaling_factor_line_width is not None:
@@ -898,7 +900,6 @@ def mv_grid_topology(
                 bbox_to_anchor=(1, 1),
                 loc=legend_loc,
                 framealpha=0.5,
-                fontsize="medium",
             )
             leg.get_frame().set_linewidth(0)
         else:
