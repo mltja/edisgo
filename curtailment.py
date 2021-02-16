@@ -45,7 +45,7 @@ logger.setLevel(logging.ERROR)
 
 # num_threads = 1
 curtailment_step = 0.2 # 0.2 # TODO
-max_iterations = 50
+max_iterations = 100
 
 
 def _overwrite_edisgo_timeseries(edisgo, pypsa_network):
