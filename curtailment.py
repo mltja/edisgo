@@ -44,8 +44,8 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-curtailment_step = 0.25 # 0.2 # TODO
-max_iterations = 100
+curtailment_step = 0.3 # 0.2 # TODO
+max_iterations = 200
 
 
 def _overwrite_edisgo_timeseries(edisgo, pypsa_network):
@@ -1082,6 +1082,7 @@ def calculate_curtailment(
             print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
                 day, mv_grid_id, strategy
             ))
+            print(issues)
         else:
             # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
             #     day, mv_grid_id, strategy
