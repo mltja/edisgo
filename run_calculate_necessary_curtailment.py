@@ -7,7 +7,7 @@ import multiprocessing
 import traceback
 import curtailment as cur
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
@@ -103,7 +103,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 5)
+            num_threads = min(num_threads, len(days), 14)
 
             data_tuples = [
                 (directory, day, (days[1] - days[0])/timedelta(minutes=15))
