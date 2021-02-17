@@ -118,10 +118,11 @@ def calculate_demand_and_generation(
                      days.start_week_high:days.end_week_high - timedelta(minutes=15)
                      ].sum().sum()
 
-        df_demand_load.at[(scenario, strategy, "demand", "low_residual"), grid_id] = generation_low
-        df_demand_load.at[(scenario, strategy, "demand", "high_residual"), grid_id] = generation_high
-        df_demand_load.at[(scenario, strategy, "generation", "low_residual"), grid_id] = demand_low
-        df_demand_load.at[(scenario, strategy, "generation", "high_residual"), grid_id] = demand_high
+        df_demand_load.at[(scenario, strategy, "generation", "low_residual"), grid_id] = generation_low
+        df_demand_load.at[(scenario, strategy, "generation", "high_residual"), grid_id] = generation_high
+
+        df_demand_load.at[(scenario, strategy, "demand", "low_residual"), grid_id] = demand_low
+        df_demand_load.at[(scenario, strategy, "demand", "high_residual"), grid_id] = demand_high
 
         print(
             "Demand and generation for strategy {} in scenario {} in grid {} has been calculated.".format(
