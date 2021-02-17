@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 2
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -55,6 +55,7 @@ data_dirs = [
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
+data_dirs = data_dirs[16:]
 
 def run_calculate_curtailment(
         directory,
@@ -103,7 +104,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 14)
+            num_threads = min(num_threads, len(days), 7)
 
             data_tuples = [
                 (directory, day, (days[1] - days[0])/timedelta(minutes=15))
