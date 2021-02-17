@@ -1061,8 +1061,6 @@ def integrate_public_charging(
 
             df = df.loc[timeindex[0]:timeindex[-1]].divide(1000) # kW -> MW
 
-            print(df.max().max())
-
             if "cp_idx" not in gdf.columns:
                 if len(df.columns.levels[1]) == 1:
                     cp_idx = df.columns.levels[1][0]
@@ -1075,24 +1073,24 @@ def integrate_public_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
             # TODO: choose
-            # _ = [
-            #     EDisGo.integrate_component(
-            #         edisgo,
-            #         comp_type=comp_type,
-            #         geolocation=geolocation,
-            #         use_case=use_case,
-            #         add_ts=True,
-            #         ts_active_power=df.loc[:, (ags, cp_idx)],
-            #         ts_reactive_power=ts_reactive_power,
-            #         p_nom=df.loc[:, (ags, cp_idx)].max(),
-            #     ) for ags, cp_idx, geolocation in list(
-            #         zip(
-            #             gdf.ags.tolist(),
-            #             gdf.cp_idx.tolist(),
-            #             gdf.geometry.tolist(),
-            #         )
-            #     )
-            # ]
+            _ = [
+                EDisGo.integrate_component(
+                    edisgo,
+                    comp_type=comp_type,
+                    geolocation=geolocation,
+                    use_case=use_case,
+                    add_ts=True,
+                    ts_active_power=df.loc[:, (ags, cp_idx)],
+                    ts_reactive_power=ts_reactive_power,
+                    p_nom=df.loc[:, (ags, cp_idx)].max(),
+                ) for ags, cp_idx, geolocation in list(
+                    zip(
+                        gdf.ags.tolist(),
+                        gdf.cp_idx.tolist(),
+                        gdf.geometry.tolist(),
+                    )
+                )
+            ]
 
             # _ = [
             #     EDisGo.integrate_component(
@@ -1188,26 +1186,25 @@ def integrate_private_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
-            # # TODO: choose
-            # _ = [
-            #     EDisGo.integrate_component(
-            #         edisgo,
-            #         comp_type=comp_type,
-            #         geolocation=geolocation,
-            #         use_case=use_case,
-            #         voltage_level=None,
-            #         add_ts=True,
-            #         ts_active_power=df.loc[:, (ags, cp_idx)],
-            #         ts_reactive_power=ts_reactive_power,
-            #         p_nom=df.loc[:, (ags, cp_idx)].max(),
-            #     ) for ags, cp_idx, geolocation in list(
-            #         zip(
-            #             gdf.ags.tolist(),
-            #             gdf.cp_idx.tolist(),
-            #             gdf.geometry.tolist(),
-            #         )
-            #     )
-            # ]
+            # TODO: choose
+            _ = [
+                EDisGo.integrate_component(
+                    edisgo,
+                    comp_type=comp_type,
+                    geolocation=geolocation,
+                    use_case=use_case,
+                    add_ts=True,
+                    ts_active_power=df.loc[:, (ags, cp_idx)],
+                    ts_reactive_power=ts_reactive_power,
+                    p_nom=df.loc[:, (ags, cp_idx)].max(),
+                ) for ags, cp_idx, geolocation in list(
+                    zip(
+                        gdf.ags.tolist(),
+                        gdf.cp_idx.tolist(),
+                        gdf.geometry.tolist(),
+                    )
+                )
+            ]
 
             # _ = [
             #     EDisGo.integrate_component(
@@ -1215,7 +1212,6 @@ def integrate_private_charging(
             #         comp_type=comp_type,
             #         geolocation=geolocation,
             #         use_case=use_case,
-            #         voltage_level=None,
             #         add_ts=True,
             #         ts_active_power=df.loc[:, (ags, cp_idx)],
             #         ts_reactive_power=ts_reactive_power,
