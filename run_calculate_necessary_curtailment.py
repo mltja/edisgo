@@ -43,6 +43,8 @@ scenarios = [
 
 grid_ids = ["177", "1056", "1690", "1811", "176"]#["2534", "177", "1056", "1690", "1811", "176"]
 
+# TODO: Electrification_2050 177 dumb wasn't calculated
+
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
 data_dirs = [
@@ -50,7 +52,7 @@ data_dirs = [
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
-data_dirs = data_dirs[16:]
+data_dirs = data_dirs[17:]
 
 def run_calculate_curtailment(
         directory,
