@@ -4,9 +4,7 @@ import numpy as np
 import pandas as pd
 import logging
 import warnings
-import multiprocessing
 import traceback
-import curtailment as cur
 
 from datetime import timedelta
 from pathlib import Path
