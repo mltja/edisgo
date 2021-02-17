@@ -40,7 +40,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534", "file_count",]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -91,9 +91,20 @@ def join_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        days = get_days(grid_id)
+        low_rl_days, high_rl_days = get_days(grid_id)
 
         files = os.listdir(directory)
+
+        cur_files = [f for f in files if not "_ts_" in f]
+
+        cur_files.sort()
+
+        low_rl_files = [
+            os.path.join(directory, f) for f in cur_files if any([day in f for day in low_rl_days])
+        ]
+        high_rl_files = [
+            os.path.join(directory, f) for f in cur_files if any([day in f for day in high_rl_days])
+        ]
 
         print("breaker")
 
@@ -128,15 +139,17 @@ def get_days(
             parse_dates=[1,2,3,4],
         ).loc[int(grid_id)]
 
-        days = []
+        low_rl_days = []
+        high_rl_days = []
 
-        for ts in [s.start_week_low, s.start_week_high]:
-            for i in range(7):
-                days.append(ts + timedelta(days=i))
+        for i in range(7):
+            low_rl_days.append(s.start_week_low + timedelta(days=i))
+            high_rl_days.append(s.start_week_high + timedelta(days=i))
 
-        days = [day.strftime("%Y-%m-%d") for day in days]
+        low_rl_days = [day.strftime("%Y-%m-%d") for day in low_rl_days]
+        high_rl_days = [day.strftime("%Y-%m-%d") for day in high_rl_days]
 
-        return days
+        return low_rl_days, high_rl_days
     except:
         traceback.print_exc()
 
