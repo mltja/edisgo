@@ -109,6 +109,10 @@ def generate_edisgo_objects(
 
             gc.collect()
 
+            edisgo.aggregate_components(mode="by_load_and_generation")
+
+            gc.collect()
+
             print(
                 "Private charging has been integrated for",
                 "scenario {} in grid {} with strategy {}.".format(
