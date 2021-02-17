@@ -27,13 +27,8 @@ gc.collect()
 num_threads = 1
 
 base_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
-)
-
-ding0_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_curtailment_results"
@@ -96,9 +91,9 @@ def calculate_demand_and_generation(
 
         edisgo = import_edisgo_from_files(
             directory=directory,
-            import_topology=True,
+            import_topology=False,
             import_timeseries=True,
-            import_results=True,
+            import_results=False,
         )
 
         generation_low = edisgo.timeseries.generators_active_power.loc[

@@ -30,11 +30,6 @@ data_dir = Path( # TODO: set dir
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
-)
-
 sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
