@@ -976,7 +976,7 @@ def integrate_public_charging(
             date,
             periods=len_timeindex * 4,
             freq="15min",
-        )integrate_public_charging
+        )
 
         edisgo.timeseries.timeindex = timeindex
 
@@ -1073,6 +1073,25 @@ def integrate_public_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
             # TODO: choose
+            _ = [
+                EDisGo.integrate_component(
+                    edisgo,
+                    comp_type=comp_type,
+                    geolocation=geolocation,
+                    use_case=use_case,
+                    add_ts=True,
+                    ts_active_power=df.loc[:, (ags, cp_idx)],
+                    ts_reactive_power=ts_reactive_power,
+                    p_nom=df.loc[:, (ags, cp_idx)].max(),
+                ) for ags, cp_idx, geolocation in list(
+                    zip(
+                        gdf.ags.tolist(),
+                        gdf.cp_idx.tolist(),
+                        gdf.geometry.tolist(),
+                    )
+                )
+            ]
+
             # _ = [
             #     EDisGo.integrate_component(
             #         edisgo,
@@ -1083,36 +1102,16 @@ def integrate_public_charging(
             #         add_ts=True,
             #         ts_active_power=df.loc[:, (ags, cp_idx)],
             #         ts_reactive_power=ts_reactive_power,
-            #         p_nom=df.loc[:, (ags, cp_idx)].max(),
-            #     ) for ags, cp_idx, geolocation in list(
+            #         p_nom=p_nom,
+            #     ) for ags, cp_idx, geolocation, p_nom in list(
             #         zip(
             #             gdf.ags.tolist(),
             #             gdf.cp_idx.tolist(),
             #             gdf.geometry.tolist(),
+            #             gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
             #         )
             #     )
             # ]
-
-            _ = [
-                EDisGo.integrate_component(
-                    edisgo,
-                    comp_type=comp_type,
-                    geolocation=geolocation,
-                    use_case=use_case,
-                    voltage_level=None,
-                    add_ts=True,
-                    ts_active_power=df.loc[:, (ags, cp_idx)],
-                    ts_reactive_power=ts_reactive_power,
-                    p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
-                    zip(
-                        gdf.ags.tolist(),
-                        gdf.cp_idx.tolist(),
-                        gdf.geometry.tolist(),
-                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
-                    )
-                )
-            ]
 
         return edisgo
 
@@ -1186,26 +1185,6 @@ def integrate_private_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
             # TODO: choose
-            # _ = [
-            #     EDisGo.integrate_component(
-            #         edisgo,
-            #         comp_type=comp_type,
-            #         geolocation=geolocation,
-            #         use_case=use_case,
-            #         voltage_level=None,
-            #         add_ts=True,
-            #         ts_active_power=df.loc[:, (ags, cp_idx)],
-            #         ts_reactive_power=ts_reactive_power,
-            #         p_nom=df.loc[:, (ags, cp_idx)].max(),
-            #     ) for ags, cp_idx, geolocation in list(
-            #         zip(
-            #             gdf.ags.tolist(),
-            #             gdf.cp_idx.tolist(),
-            #             gdf.geometry.tolist(),
-            #         )
-            #     )
-            # ]
-
             _ = [
                 EDisGo.integrate_component(
                     edisgo,
@@ -1216,38 +1195,36 @@ def integrate_private_charging(
                     add_ts=True,
                     ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
-                    p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
+                    p_nom=df.loc[:, (ags, cp_idx)].max(),
+                ) for ags, cp_idx, geolocation in list(
                     zip(
                         gdf.ags.tolist(),
                         gdf.cp_idx.tolist(),
                         gdf.geometry.tolist(),
-                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
                     )
                 )
             ]
 
-        # grid_results_dir = Path(
-        #     os.path.join( # TODO: set dir
-        #         # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_results\generators",
-        #         r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_results/generators",
-        #         grid_dir.parts[-1],
-        #     )
-        # )
-        #
-        # os.makedirs(
-        #     grid_results_dir,
-        #     exist_ok=True,
-        # )
-        #
-        # edisgo.save(
-        #     grid_results_dir,
-        #     save_results=False,
-        #     save_topology=True,
-        #     save_timeseries=False,
-        # )
-        #
-        # print("Grid {} saved.".format(grid_dir.parts[-1]))
+            # _ = [
+            #     EDisGo.integrate_component(
+            #         edisgo,
+            #         comp_type=comp_type,
+            #         geolocation=geolocation,
+            #         use_case=use_case,
+            #         voltage_level=None,
+            #         add_ts=True,
+            #         ts_active_power=df.loc[:, (ags, cp_idx)],
+            #         ts_reactive_power=ts_reactive_power,
+            #         p_nom=p_nom,
+            #     ) for ags, cp_idx, geolocation, p_nom in list(
+            #         zip(
+            #             gdf.ags.tolist(),
+            #             gdf.cp_idx.tolist(),
+            #             gdf.geometry.tolist(),
+            #             gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+            #         )
+            #     )
+            # ]
 
         new_switch_line = edisgo.topology.lines_df.loc[
             (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
@@ -1255,6 +1232,28 @@ def integrate_private_charging(
             ].index.tolist()[0]
 
         edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
+
+        grid_results_dir = Path(
+            os.path.join(  # TODO: set dir
+                # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_plot_data\generators",
+                r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_plot_data/generators",
+                grid_dir.parts[-1],
+            )
+        )
+
+        os.makedirs(
+            grid_results_dir,
+            exist_ok=True,
+        )
+
+        edisgo.save(
+            grid_results_dir,
+            save_results=False,
+            save_topology=True,
+            save_timeseries=False,
+        )
+
+        print("Grid {} saved.".format(grid_dir.parts[-1]))
 
         return edisgo
 
