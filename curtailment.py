@@ -44,8 +44,8 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-curtailment_step = 0.3 # 0.2 # TODO
-max_iterations = 200
+curtailment_step = 1 # 0.2 # TODO
+max_iterations = 500
 
 
 def _overwrite_edisgo_timeseries(edisgo, pypsa_network):
@@ -1082,7 +1082,14 @@ def calculate_curtailment(
             print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
                 day, mv_grid_id, strategy
             ))
-            print(issues)
+            issues.to_csv(
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_{}_voltage_issues.csv".format(
+                        scenario, strategy, day.strftime("%Y-%m-%d")
+                    ),
+                )
+            )
         else:
             # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
             #     day, mv_grid_id, strategy
@@ -1093,10 +1100,17 @@ def calculate_curtailment(
             rel_load > 1+2e-3].dropna(
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
-            print("Not all overloading issues  solved on day {} of Grid {} with strategy {}.".format(
+            print("Not all overloading issues solved on day {} of Grid {} with strategy {}.".format(
                 day, mv_grid_id, strategy
             ))
-            print(issues)
+            issues.to_csv(
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_{}_overloading_issues.csv".format(
+                        scenario, strategy, day.strftime("%Y-%m-%d")
+                    ),
+                )
+            )
         else:
             # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
             #     day, mv_grid_id, strategy
