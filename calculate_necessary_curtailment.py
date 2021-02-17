@@ -1098,7 +1098,6 @@ def integrate_public_charging(
                     comp_type=comp_type,
                     geolocation=geolocation,
                     use_case=use_case,
-                    voltage_level=None,
                     add_ts=True,
                     ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
