@@ -981,7 +981,7 @@ class EDisGo:
                 voltage_level = 5
             elif 0.1 < p_nom <= 0.3:
                 voltage_level = 6
-            elif 0 < p_nom <= 0.1:
+            elif 0 <= p_nom <= 0.1:
                 voltage_level = 7
             else:
                 raise ValueError("Unsupported voltage level. Nominal Power = {} MW.".format(p_nom))
