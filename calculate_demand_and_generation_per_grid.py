@@ -40,7 +40,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -166,7 +166,6 @@ if __name__ == "__main__":
         os.path.join(
             base_dir,
             "eDisGo_curtailment_analysis",
-            "2534",
         )
     )
 
