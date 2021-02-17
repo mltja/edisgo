@@ -161,6 +161,8 @@ if __name__ == "__main__":
             d,
         )
 
+        gc.collect()
+
     results_dir = Path(
         os.path.join(
             base_dir,
