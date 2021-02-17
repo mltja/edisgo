@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 6
+num_threads = 12
 
 rng = default_rng(seed=5)
 
@@ -37,18 +37,18 @@ ding0_dir = Path( # TODO: set dir
 
 scenarios = [
     "Electrification_2050_simbev_run",
-    # "Electrification_2050_sensitivity_low_work_simbev_run",
-    # "Mobility_Transition_2050_simbev_run",
-    # "Szenarette_Kleinwagen_2050_simbev_run",
-    # "Reference_2050_simbev_run",
-    # "NEP_C_2035_simbev_run",
+    "Electrification_2050_sensitivity_low_work_simbev_run",
+    "Mobility_Transition_2050_simbev_run",
+    "Szenarette_Kleinwagen_2050_simbev_run",
+    "Reference_2050_simbev_run",
+    "NEP_C_2035_simbev_run",
 ]
 
 sub_dir = r"eDisGo_charging_time_series"
 
 grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"]
+strategies = ["dumb", "grouped", "reduced", "residual"]
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
@@ -117,33 +117,33 @@ def generate_edisgo_objects(
                 "It took {} seconds.".format(round(perf_counter() - t1, 0)),
             )
 
-            # t1 = perf_counter()
-            #
-            # export_dir = Path(
-            #     os.path.join(
-            #         data_dir,
-            #         "eDisGo_curtailment_results",
-            #         scenario,
-            #         grid_id,
-            #         strategy,
-            #     )
-            # )
-            #
-            # os.makedirs(
-            #     export_dir,
-            #     exist_ok=True,
-            # )
-            #
-            # edisgo.save(
-            #     directory=export_dir,
-            # )
-            #
-            # print(
-            #     "Scenario {} in grid {} with strategy {} has been saved.".format(
-            #         scenario, grid_id, strategy
-            #     ),
-            #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            # )
+            t1 = perf_counter()
+
+            export_dir = Path(
+                os.path.join(
+                    data_dir,
+                    "eDisGo_curtailment_results_v2",
+                    scenario,
+                    grid_id,
+                    strategy,
+                )
+            )
+
+            os.makedirs(
+                export_dir,
+                exist_ok=True,
+            )
+
+            edisgo.save(
+                directory=export_dir,
+            )
+
+            print(
+                "Scenario {} in grid {} with strategy {} has been saved.".format(
+                    scenario, grid_id, strategy
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            )
 
             del edisgo
 
