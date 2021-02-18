@@ -126,7 +126,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_curtailment_results_v2",
+                    "eDisGo_curtailment_results",
                     scenario,
                     grid_id,
                     strategy,

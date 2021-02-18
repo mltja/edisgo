@@ -29,7 +29,7 @@ base_dir = Path( # TODO: set dir
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_curtailment_results"
+sub_dir = r"eDisGo_curtailment_results_v2"
 
 scenarios = [
     "NEP_C_2035",
@@ -89,9 +89,16 @@ def calculate_demand_and_generation(
 
         edisgo = import_edisgo_from_files(
             directory=directory,
-            import_topology=False,
+            import_topology=True,
             import_timeseries=True,
-            import_results=False,
+            import_results=True,
+        )
+
+        edisgo.timeseries.residual_load.to_csv(
+            os.path.join(
+                directory,
+                "residual_load.csv"
+            )
         )
 
         generation_low = edisgo.timeseries.generators_active_power.loc[
