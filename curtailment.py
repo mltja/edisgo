@@ -186,7 +186,6 @@ def curtailment_lv_voltage(
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
             timesteps=time_steps_issues,
-            # aggregate_loads="all", aggregate_generators="all",
         )
 
         # save original pypsa network to determine curtailed energy
@@ -310,7 +309,6 @@ def curtailment_mvlv_stations_voltage(
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv",
             timesteps=time_steps_issues,
-            # aggregate_loads="all", aggregate_generators="all",
         )
 
         # save original pypsa network to determine curtailed energy
@@ -413,7 +411,6 @@ def curtailment_mv_voltage(
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv", timesteps=time_steps_issues,
-            # aggregate_loads="all", aggregate_generators="all",
         )
 
         # save original pypsa network to determine curtailed energy
@@ -528,7 +525,6 @@ def curtailment_lv_lines_overloading(
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
             timesteps=time_steps_issues,
-            aggregate_loads="all", aggregate_generators="all",
         )
 
         # save original pypsa network to determine curtailed energy
@@ -673,7 +669,6 @@ def curtailment_mvlv_stations_overloading(
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv",
             timesteps=time_steps_issues,
-            # aggregate_loads="all", aggregate_generators="all",
         )
 
         # save original pypsa network to determine curtailed energy
@@ -779,7 +774,6 @@ def curtailment_mv_lines_overloading(
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv", timesteps=time_steps_issues,
-            # aggregate_loads="all", aggregate_generators="all",
         )
 
         # save original pypsa network to determine curtailed energy
@@ -938,7 +932,7 @@ def calculate_curtailment(
 
         t1 = perf_counter()
 
-        pypsa_network = edisgo.to_pypsa(aggregate_loads="all", aggregate_generators="all")
+        pypsa_network = edisgo.to_pypsa()
 
         pypsa_network_orig = pypsa_network.copy()
 
@@ -953,12 +947,12 @@ def calculate_curtailment(
                 converged = True
 
             except:
-                # if i == 0:
-                #     print(
-                #         "First PF didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
-                #             day, mv_grid_id, scenario, strategy
-                #         )
-                #     )
+                if i == 0:
+                    print(
+                        "First PF didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
+                            day, mv_grid_id, scenario, strategy
+                        )
+                    )
 
                 if edisgo.timeseries.residual_load.max() > abs(edisgo.timeseries.residual_load.min()):
                     timeindex = edisgo.timeseries.residual_load.nlargest(
@@ -979,9 +973,9 @@ def calculate_curtailment(
 
                 i += 1
 
-        # print("It took {} seconds for the initial power flow analysis on day {}.".format(
-        #     round(perf_counter() - t1, 0), day
-        # ))
+        print("It took {} seconds for the initial power flow analysis on day {}.".format(
+            round(perf_counter() - t1, 0), day
+        ))
 
         i = 0
 
@@ -1004,12 +998,12 @@ def calculate_curtailment(
                     converged = True
 
                 except:
-                    # if i == 0:
-                    #     print(
-                    #         "PF Nr. {} didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
-                    #             i+2, day, mv_grid_id, scenario, strategy
-                    #         )
-                    #     )
+                    if i == 0:
+                        print(
+                            "PF Nr. {} didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
+                                i+2, day, mv_grid_id, scenario, strategy
+                            )
+                        )
 
                     timeindex = edisgo.timeseries.residual_load.nsmallest(
                         int(len(edisgo.timeseries.residual_load) / 10)
@@ -1032,9 +1026,9 @@ def calculate_curtailment(
         curtailment.loc[
             "convergence_problems", "load"] += curtailed_load.sum().sum()
 
-        # print("It took {} seconds to overcome the initial convergence problems.".format(
-        #     round(perf_counter() - t1, 0)
-        # ))
+        print("It took {} seconds to overcome the initial convergence problems.".format(
+            round(perf_counter() - t1, 0)
+        ))
 
         pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
 
