@@ -13,6 +13,9 @@ from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
 
 
+# reset the task affinity
+os.system("taskset -p 0xff %d" % os.getpid())
+
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
 logger.setLevel(logging.ERROR)
@@ -23,11 +26,11 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 2
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_curtailment_results"
@@ -56,8 +59,6 @@ def run_calculate_curtailment(
         num_threads,
 ):
     try:
-        t0 = perf_counter()
-
         strategy = directory.parts[-1]
 
         grid_id = directory.parts[-2]
@@ -108,7 +109,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 7) # TODO
+            num_threads = min(num_threads, len(days), 14) # TODO
 
             data_tuples = [
                 (directory, day, ts_count)
@@ -120,13 +121,6 @@ def run_calculate_curtailment(
                     stepwise_curtailment,
                     data_tuples,
                 )
-
-        print(
-            "Curtailment for strategy {} in scenario {} in grid {} has been calculated.".format(
-                strategy, scenario, grid_id
-            ),
-            "It took {} seconds".format(round(perf_counter()-t0, 0))
-        )
 
         gc.collect()
 
@@ -238,11 +232,26 @@ def get_days(
 
 
 if __name__ == "__main__":
-    for d in data_dirs[1:]:
+    for d in data_dirs[2:]:
+        t0 = perf_counter()
+
         run_calculate_curtailment(
             d,
             num_threads,
         )
 
-        break # TODO
+        gc.collect()
+
+        strategy = d.parts[-1]
+
+        grid_id = d.parts[-2]
+
+        scenario = d.parts[-3]
+
+        print(
+            "Curtailment for strategy {} in scenario {} in grid {} has been calculated.".format(
+                strategy, scenario, grid_id
+            ),
+            "It took {} seconds".format(round(perf_counter()-t0, 0))
+        )
 
