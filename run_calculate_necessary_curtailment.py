@@ -66,7 +66,10 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        days = get_days(grid_id)
+        days = get_days(
+            grid_id,
+            mode="days",
+        )
 
         # days = pd.date_range(
         #     '2011-01-01',
