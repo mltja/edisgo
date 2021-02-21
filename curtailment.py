@@ -1005,9 +1005,16 @@ def calculate_curtailment(
                             )
                         )
 
-                    timeindex = edisgo.timeseries.residual_load.nsmallest(
-                        int(len(edisgo.timeseries.residual_load) / 10)
-                    ).index.tolist()
+                    if edisgo.timeseries.residual_load.max() > abs(edisgo.timeseries.residual_load.min()):
+                        timeindex = edisgo.timeseries.residual_load.nlargest(
+                            int(len(edisgo.timeseries.residual_load) / 20),
+                            keep="all",
+                        ).index.tolist()
+                    else:
+                        timeindex = edisgo.timeseries.residual_load.nsmallest(
+                            int(len(edisgo.timeseries.residual_load) / 20),
+                            keep="all",
+                        ).index.tolist()
 
                     _curtail(
                         pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex
