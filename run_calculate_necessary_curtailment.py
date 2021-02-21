@@ -12,9 +12,21 @@ from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
 
+from scipy.sparse import issparse, csr_matrix, csc_matrix, hstack as shstack, vstack as svstack, dok_matrix
+
+from numpy import r_, ones
+from scipy.sparse.linalg import spsolve
+from numpy.linalg import norm
+
+import numpy as np
+import networkx as nx
+
+from operator import itemgetter
+import time
+
 
 # reset the task affinity
-# os.system("taskset -p 0xff %d" % os.getpid())
+os.system("taskset -p 0xff %d" % os.getpid())
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
