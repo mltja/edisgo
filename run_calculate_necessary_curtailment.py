@@ -238,7 +238,7 @@ def get_days(
 
 
 if __name__ == "__main__":
-    for d in data_dirs:
+    for d in data_dirs[1:]:
         run_calculate_curtailment(
             d,
             num_threads,
