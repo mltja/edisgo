@@ -11,6 +11,7 @@ from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
+from copy import deepcopy
 
 
 # suppress infos from pypsa
@@ -22,6 +23,8 @@ logger.setLevel(logging.ERROR)
 warnings.filterwarnings("ignore")
 
 gc.collect()
+
+global edisgo
 
 num_threads = 2
 
@@ -58,6 +61,8 @@ def run_calculate_curtailment(
     try:
         t0 = perf_counter()
 
+        global edisgo
+
         strategy = directory.parts[-1]
 
         grid_id = directory.parts[-2]
@@ -65,6 +70,18 @@ def run_calculate_curtailment(
         scenario = directory.parts[-3]
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
+
+        edisgo = import_edisgo_from_files(
+            directory=directory,
+            import_topology=True,
+            import_timeseries=True,
+            import_results=True,
+        )
+
+        # FIXME:
+        edisgo.topology.generators_df["type"] = ["solar"] * len(
+            edisgo.topology.generators_df
+        )
 
         mode = "days"
 
@@ -108,7 +125,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 3) # TODO
+            num_threads = min(num_threads, len(days), 2) # TODO
 
             data_tuples = [
                 (directory, day, ts_count)
@@ -144,22 +161,12 @@ def stepwise_curtailment(
 
         strategy = directory.parts[-1]
 
-        edisgo_chunk = import_edisgo_from_files(
-            directory=directory,
-            import_topology=True,
-            import_timeseries=True,
-            import_results=True,
-        )
+        edisgo_chunk = deepcopy(edisgo)
 
         timeindex = pd.date_range(
             day,
             periods=len_day,
             freq="15min",
-        )
-
-        # FIXME:
-        edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
-            edisgo_chunk.topology.generators_df
         )
 
         edisgo_chunk.timeseries.timeindex = timeindex
