@@ -899,8 +899,6 @@ def calculate_curtailment(
         day,
 ):
     try:
-        os.system("taskset -p 0xff %d" % os.getpid())
-
         mv_grid_id = int(grid_dir.parts[-2])
         scenario = grid_dir.parts[-3]
 
