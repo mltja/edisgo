@@ -1,17 +1,17 @@
 import gc
 import os.path
+import pandas as pd
 import logging
 import warnings
 import multiprocessing
 import traceback
-import calculate_necessary_curtailment as cc
 import curtailment as cur
 
-from datetime import datetime, timedelta
-from numpy.random import default_rng
-from copy import deepcopy
+from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
+from edisgo.edisgo import import_edisgo_from_files
+
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -23,148 +23,209 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 3
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
-)
+sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
-    "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    "Mobility_Transition_2050_simbev_run",
-    "Szenarette_Kleinwagen_2050_simbev_run",
-    "Reference_2050_simbev_run",
-    "NEP_C_2035_simbev_run",
+    "NEP_C_2035",
+    "Reference_2050",
+    "Szenarette_Kleinwagen_2050",
+    "Mobility_Transition_2050",
+    "Electrification_2050",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
-sub_dir = r"eDisGo_charging_time_series"
-
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534", "177", "1056", "1690", "1811", "176"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
-grid_dirs = [
-    Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
-    for scenario in scenarios for grid_id in grid_ids
+data_dirs = [
+    Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
+    for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
-rng = default_rng(
-    seed=5,
-)
-
-rng.shuffle(grid_dirs) # mix memory intense scenarios with not so intense scenarios
 
 def run_calculate_curtailment(
-        grid_dir,
+        directory,
+        num_threads,
 ):
     try:
         t0 = perf_counter()
 
-        files = os.listdir(grid_dir)
+        strategy = directory.parts[-1]
 
-        files.sort()
+        grid_id = directory.parts[-2]
 
-        grid_id = grid_dir.parts[-1]
+        scenario = directory.parts[-3]
 
-        scenario = grid_dir.parts[-3][:-11]
+        print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        print("Scenario {} in grid {} is being processed.".format(scenario, grid_id))
+        days = get_days(grid_id)
 
-        start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
+        # days = pd.date_range(
+        #     '2011-01-01',
+        #     periods=365/5, # TODO
+        #     freq='5d',
+        # ).tolist()
 
-        offsets = [*range(365)]
-
-        for day_offset in offsets:
-            date = start_date + timedelta(days=int(day_offset*365/len(offsets)))
-
-            t1 = perf_counter()
-
-            edisgo = cc.integrate_public_charging(
-                ding0_dir,
-                grid_dir,
-                grid_id,
-                files,
-                date=date,
-                chunks=len(offsets),
-                generator_scenario="ego100",
-            )
-
-            gc.collect()
-
-            # print(
-            #     "Public charging has been integrated for chunk Nr. {} in scenario {} in grid {}.".format(
-            #         day_offset, scenario, grid_id
-            #     ),
-            #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            # )
-
-            for strategy in strategies:
-                t1 = perf_counter()
-
-                edisgo_strategy = deepcopy(edisgo)
-
-                edisgo_strategy = cc.integrate_private_charging(
-                    edisgo_strategy,
-                    grid_dir,
-                    files,
-                    strategy,
+        if num_threads == 1:
+            for day in days:
+                stepwise_curtailment(
+                    directory,
+                    day,
+                    (days[1] - days[0]) / timedelta(minutes=15),
                 )
 
-                gc.collect()
+        else:
+            if grid_id == "176":
+                num_threads = 11
+            elif grid_id == "177":
+                num_threads = 21
+            elif grid_id == "1056":
+                num_threads = 14
+            elif grid_id == "1690":
+                num_threads = 12
+            elif grid_id == "1811":
+                num_threads = 6
+            elif grid_id == "2534":
+                num_threads = 32
+            else:
+                num_threads = 2
 
-                # print(
-                #     "Private charging has been integrated for chunk Nr.",
-                #     "{} in scenario {} in grid {} with strategy {}.".format(
-                #         day_offset, scenario, grid_id, strategy
-                #     ),
-                #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-                # )
+            num_threads = min(num_threads, len(days), 7)
 
-                cur.calculate_curtailment(
-                    grid_dir,
-                    edisgo_strategy,
-                    strategy,
-                    day_offset,
+            data_tuples = [
+                (directory, day, (days[1] - days[0])/timedelta(minutes=15))
+                for day in days
+            ]
+
+            with multiprocessing.Pool(num_threads) as pool:
+                pool.starmap(
+                    stepwise_curtailment,
+                    data_tuples,
                 )
 
-                del edisgo_strategy
+        print(
+            "Curtailment for strategy {} in scenario {} in grid {} has been calculated.".format(
+                strategy, scenario, grid_id
+            ),
+            "It took {} seconds".format(round(perf_counter()-t0, 0))
+        )
 
-                gc.collect()
-
-                # print("Curtailment for strategy {} and chunk Nr. {} in scenario {} in grid {} has been calculated.".format(
-                #     strategy, day_offset, scenario, grid_id
-                # ))
-
-            del edisgo
-
-            gc.collect()
-
-            print("Curtailment for Chunk Nr. {} / {} in scenario {} in grid {} has been calculated.".format(
-                day_offset, len(offsets), scenario, grid_id
-            ))
-
-        print("It took {} seconds for scenario {} in grid {}.".format(
-            round(perf_counter()-t0, 1), scenario, grid_id
-        ))
+        gc.collect()
 
     except:
         traceback.print_exc()
 
 
+def stepwise_curtailment(
+        directory,
+        day,
+        len_day,
+):
+    try:
+        t1 = perf_counter()
+
+        strategy = directory.parts[-1]
+
+        edisgo_chunk = import_edisgo_from_files(
+            directory=directory,
+            import_topology=True,
+            import_timeseries=True,
+            import_results=True,
+        )
+
+        timeindex = pd.date_range(
+            day,
+            periods=len_day,
+            freq="15min",
+        )
+
+        # FIXME:
+        edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
+            edisgo_chunk.topology.generators_df
+        )
+
+        edisgo_chunk.timeseries.timeindex = timeindex
+
+        edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
+            (edisgo_chunk.timeseries.storage_units_active_power.index >= timeindex[0]) &
+            (edisgo_chunk.timeseries.storage_units_active_power.index <= timeindex[-1])
+        ]
+
+        edisgo_chunk.timeseries.storage_units_reactive_power = edisgo_chunk.timeseries.storage_units_reactive_power.loc[
+            (edisgo_chunk.timeseries.storage_units_reactive_power.index >= timeindex[0]) &
+            (edisgo_chunk.timeseries.storage_units_reactive_power.index <= timeindex[-1])
+        ]
+
+        gc.collect()
+
+        print(
+            "EDisGo Object for day {} has been loaded.".format(
+                day,
+            ),
+            "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+        )
+
+        t1 = perf_counter()
+
+        cur.calculate_curtailment(
+            directory,
+            edisgo_chunk,
+            strategy,
+            day,
+        )
+
+        del edisgo_chunk
+
+        gc.collect()
+
+        print(
+            "Curtailment for day {} has been calculated.".format(
+                day
+            ),
+            "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+        )
+
+    except:
+        traceback.print_exc()
+
+
+def get_days(
+        grid_id,
+):
+    try:
+        s = pd.read_csv(
+            os.path.join(
+                data_dir,
+                sub_dir,
+                "extreme_weeks.csv",
+            ),
+            index_col=[0],
+            parse_dates=[1,2,3,4],
+        ).loc[int(grid_id)]
+
+        days = []
+
+        for ts in [s.start_week_low, s.start_week_high]:
+            for i in range(7):
+                days.append(ts + timedelta(days=i))
+
+        return days
+    except:
+        traceback.print_exc()
+
+
 if __name__ == "__main__":
-    if num_threads == 1:
-        for grid_dir in [grid_dirs[0]]:
-            run_calculate_curtailment(grid_dir)
-    else:
-        with multiprocessing.Pool(num_threads) as pool:
-            pool.map(
-                run_calculate_curtailment,
-                grid_dirs,
-            )
+    for d in data_dirs:
+        run_calculate_curtailment(
+            d,
+            num_threads,
+        )
+
