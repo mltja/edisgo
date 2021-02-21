@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 2
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -49,6 +49,7 @@ data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
+
 
 def run_calculate_curtailment(
         directory,
@@ -144,6 +145,11 @@ def stepwise_curtailment(
             day,
             periods=len_day,
             freq="15min",
+        )
+
+        # FIXME:
+        edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
+            edisgo_chunk.topology.generators_df
         )
 
         edisgo_chunk.timeseries.timeindex = timeindex
