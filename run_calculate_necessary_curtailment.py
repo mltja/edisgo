@@ -13,9 +13,6 @@ from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
 
 
-# reset the task affinity
-os.system("taskset -p 0xffffffffffffff %d" % os.getpid())
-
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
 logger.setLevel(logging.ERROR)
@@ -115,9 +112,6 @@ def run_calculate_curtailment(
                 (directory, day, ts_count)
                 for day in days
             ]
-
-            pool_size = multiprocessing.cpu_count()
-            os.system('taskset -cp 0-%d %s' % (pool_size, os.getpid()))
 
             with multiprocessing.Pool(num_threads) as pool:
                 pool.starmap(
