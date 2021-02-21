@@ -976,7 +976,7 @@ def integrate_public_charging(
             date,
             periods=len_timeindex * 4,
             freq="15min",
-        )integrate_public_charging
+        )
 
         edisgo.timeseries.timeindex = timeindex
 
@@ -1079,7 +1079,6 @@ def integrate_public_charging(
             #         comp_type=comp_type,
             #         geolocation=geolocation,
             #         use_case=use_case,
-            #         voltage_level=None,
             #         add_ts=True,
             #         ts_active_power=df.loc[:, (ags, cp_idx)],
             #         ts_reactive_power=ts_reactive_power,
@@ -1099,7 +1098,6 @@ def integrate_public_charging(
                     comp_type=comp_type,
                     geolocation=geolocation,
                     use_case=use_case,
-                    voltage_level=None,
                     add_ts=True,
                     ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
@@ -1192,7 +1190,6 @@ def integrate_private_charging(
             #         comp_type=comp_type,
             #         geolocation=geolocation,
             #         use_case=use_case,
-            #         voltage_level=None,
             #         add_ts=True,
             #         ts_active_power=df.loc[:, (ags, cp_idx)],
             #         ts_reactive_power=ts_reactive_power,
@@ -1212,7 +1209,6 @@ def integrate_private_charging(
                     comp_type=comp_type,
                     geolocation=geolocation,
                     use_case=use_case,
-                    voltage_level=None,
                     add_ts=True,
                     ts_active_power=df.loc[:, (ags, cp_idx)],
                     ts_reactive_power=ts_reactive_power,
@@ -1227,10 +1223,17 @@ def integrate_private_charging(
                 )
             ]
 
+        new_switch_line = edisgo.topology.lines_df.loc[
+            (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
+            (edisgo.topology.lines_df["bus1"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"])
+            ].index.tolist()[0]
+
+        edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
+
         # grid_results_dir = Path(
-        #     os.path.join( # TODO: set dir
-        #         # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_results\generators",
-        #         r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_results/generators",
+        #     os.path.join(  # TODO: set dir
+        #         # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_plot_data\generators",
+        #         r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_plot_data/generators",
         #         grid_dir.parts[-1],
         #     )
         # )
@@ -1248,13 +1251,6 @@ def integrate_private_charging(
         # )
         #
         # print("Grid {} saved.".format(grid_dir.parts[-1]))
-
-        new_switch_line = edisgo.topology.lines_df.loc[
-            (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
-            (edisgo.topology.lines_df["bus1"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"])
-            ].index.tolist()[0]
-
-        edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
 
         return edisgo
 
