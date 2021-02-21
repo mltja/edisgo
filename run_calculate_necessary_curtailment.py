@@ -26,7 +26,7 @@ import time
 
 
 # reset the task affinity
-os.system("taskset -p 0xff %d" % os.getpid())
+os.system("taskset -p 0xffffffffffffff %d" % os.getpid())
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
