@@ -1,5 +1,5 @@
 import gc
-import os.path
+import os
 import pandas as pd
 import logging
 import warnings
