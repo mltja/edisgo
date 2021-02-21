@@ -108,7 +108,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 2) # TODO
+            num_threads = min(num_threads, len(days), 3) # TODO
 
             data_tuples = [
                 (directory, day, ts_count)
