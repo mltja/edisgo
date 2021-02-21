@@ -44,8 +44,8 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-curtailment_step = 0.2 # 0.2 # TODO
-max_iterations = 50
+curtailment_step = 0.1 # 0.2 # TODO
+max_iterations = 500
 
 
 def _overwrite_edisgo_timeseries(edisgo, pypsa_network):
@@ -184,7 +184,9 @@ def curtailment_lv_voltage(
     time_steps_issues = voltage_issues.index
 
     if len(time_steps_issues) > 0:
-        pypsa_network = edisgo.to_pypsa(timesteps=time_steps_issues)
+        pypsa_network = edisgo.to_pypsa(
+            timesteps=time_steps_issues,
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -239,8 +241,8 @@ def curtailment_lv_voltage(
                             ~pf_results["converged"]["0"]].tolist())
                 )
 
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                pypsa_network_orig, pypsa_network)
+            # curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+            #     pypsa_network_orig, pypsa_network)
             # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
             #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
@@ -306,7 +308,8 @@ def curtailment_mvlv_stations_voltage(
         #  following might therefore need to be changed.
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv",
-            timesteps=time_steps_issues)
+            timesteps=time_steps_issues,
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -350,8 +353,8 @@ def curtailment_mvlv_stations_voltage(
                     time_steps_issues[~pf_results["converged"]["0"]].tolist())
                 )
 
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                pypsa_network_orig, pypsa_network)
+            # curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+            #     pypsa_network_orig, pypsa_network)
             # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
             #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
@@ -407,7 +410,8 @@ def curtailment_mv_voltage(
 
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
-            mode="mvlv", timesteps=time_steps_issues)
+            mode="mvlv", timesteps=time_steps_issues,
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -462,8 +466,8 @@ def curtailment_mv_voltage(
                             ~pf_results["converged"]["0"]].tolist())
                 )
 
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                pypsa_network_orig, pypsa_network)
+            # curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+            #     pypsa_network_orig, pypsa_network)
             # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
             #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
@@ -519,7 +523,9 @@ def curtailment_lv_lines_overloading(
     time_steps_issues = overloading_issues.index
 
     if len(time_steps_issues) > 0:
-        pypsa_network = edisgo.to_pypsa(timesteps=time_steps_issues)
+        pypsa_network = edisgo.to_pypsa(
+            timesteps=time_steps_issues,
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -596,8 +602,8 @@ def curtailment_lv_lines_overloading(
                             ~pf_results["converged"]["0"]].tolist())
                 )
 
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                pypsa_network_orig, pypsa_network)
+            # curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+            #     pypsa_network_orig, pypsa_network)
             # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
             #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
@@ -662,7 +668,8 @@ def curtailment_mvlv_stations_overloading(
         # station's secondary side
         pypsa_network = edisgo.to_pypsa(
             mode="mvlv",
-            timesteps=time_steps_issues)
+            timesteps=time_steps_issues,
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -708,8 +715,8 @@ def curtailment_mvlv_stations_overloading(
                     time_steps_issues[~pf_results["converged"]["0"]].tolist())
                 )
 
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                pypsa_network_orig, pypsa_network)
+            # curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+            #     pypsa_network_orig, pypsa_network)
             # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
             #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
@@ -766,7 +773,8 @@ def curtailment_mv_lines_overloading(
 
     if len(time_steps_issues) > 0:
         pypsa_network = edisgo.to_pypsa(
-            mode="mvlv", timesteps=time_steps_issues)
+            mode="mvlv", timesteps=time_steps_issues,
+        )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -842,8 +850,8 @@ def curtailment_mv_lines_overloading(
                             ~pf_results["converged"]["0"]].tolist())
                 )
 
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                pypsa_network_orig, pypsa_network)
+            # curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+            #     pypsa_network_orig, pypsa_network)
             # elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
             #     curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
@@ -899,7 +907,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join(
             grid_dir,
-            "curtailment_agg",
+            "curtailment_weeks",
         )
 
         os.makedirs(
@@ -924,7 +932,7 @@ def calculate_curtailment(
 
         t1 = perf_counter()
 
-        pypsa_network = edisgo.to_pypsa(aggregate_loads="all", aggregate_generators="all")
+        pypsa_network = edisgo.to_pypsa()
 
         pypsa_network_orig = pypsa_network.copy()
 
@@ -946,9 +954,16 @@ def calculate_curtailment(
                         )
                     )
 
-                timeindex = edisgo.timeseries.residual_load.nsmallest(
-                    int(len(edisgo.timeseries.residual_load) / 20)
-                ).index.tolist()
+                if edisgo.timeseries.residual_load.max() > abs(edisgo.timeseries.residual_load.min()):
+                    timeindex = edisgo.timeseries.residual_load.nlargest(
+                        int(len(edisgo.timeseries.residual_load) / 20),
+                        keep="all",
+                    ).index.tolist()
+                else:
+                    timeindex = edisgo.timeseries.residual_load.nsmallest(
+                        int(len(edisgo.timeseries.residual_load) / 20),
+                        keep="all",
+                    ).index.tolist()
 
                 _curtail(
                     pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex
@@ -1068,6 +1083,14 @@ def calculate_curtailment(
             print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
                 day, mv_grid_id, strategy
             ))
+            issues.to_csv(
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_{}_voltage_issues.csv".format(
+                        scenario, strategy, day.strftime("%Y-%m-%d")
+                    ),
+                )
+            )
         else:
             # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
             #     day, mv_grid_id, strategy
@@ -1078,9 +1101,17 @@ def calculate_curtailment(
             rel_load > 1+2e-3].dropna(
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
-            print("Not all overloading issues  solved on day {} of Grid {} with strategy {}.".format(
+            print("Not all overloading issues solved on day {} of Grid {} with strategy {}.".format(
                 day, mv_grid_id, strategy
             ))
+            issues.to_csv(
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_{}_overloading_issues.csv".format(
+                        scenario, strategy, day.strftime("%Y-%m-%d")
+                    ),
+                )
+            )
         else:
             # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
             #     day, mv_grid_id, strategy

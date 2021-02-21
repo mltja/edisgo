@@ -7,7 +7,7 @@ import multiprocessing
 import traceback
 import curtailment as cur
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
@@ -28,11 +28,6 @@ num_threads = 1
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
-)
-
-ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 sub_dir = r"eDisGo_curtailment_results"
@@ -71,13 +66,13 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        # days = get_days(grid_id)
+        days = get_days(grid_id)
 
-        days = pd.date_range(
-            '2011-01-01',
-            periods=365,
-            freq='d',
-        ).tolist()
+        # days = pd.date_range(
+        #     '2011-01-01',
+        #     periods=365/5, # TODO
+        #     freq='5d',
+        # ).tolist()
 
         if num_threads == 1:
             for day in days:
@@ -103,7 +98,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days))
+            num_threads = min(num_threads, len(days), 7)
 
             data_tuples = [
                 (directory, day, (days[1] - days[0])/timedelta(minutes=15))
@@ -150,6 +145,11 @@ def stepwise_curtailment(
             day,
             periods=len_day,
             freq="15min",
+        )
+
+        # FIXME:
+        edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
+            edisgo_chunk.topology.generators_df
         )
 
         edisgo_chunk.timeseries.timeindex = timeindex

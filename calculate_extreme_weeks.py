@@ -4,15 +4,11 @@ import numpy as np
 import pandas as pd
 import logging
 import warnings
-import multiprocessing
 import traceback
-import curtailment as cur
 
 from edisgo import EDisGo
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
-from time import perf_counter
-from edisgo.edisgo import import_edisgo_from_files
 
 
 # suppress infos from pypsa
@@ -28,16 +24,16 @@ gc.collect()
 num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
 
 grid_dirs = [
     Path(os.path.join(ding0_dir, grid_id)) for grid_id in grid_ids
