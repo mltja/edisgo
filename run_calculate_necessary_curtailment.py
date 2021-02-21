@@ -12,18 +12,6 @@ from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
 
-from scipy.sparse import issparse, csr_matrix, csc_matrix, hstack as shstack, vstack as svstack, dok_matrix
-
-from numpy import r_, ones
-from scipy.sparse.linalg import spsolve
-from numpy.linalg import norm
-
-import numpy as np
-import networkx as nx
-
-from operator import itemgetter
-import time
-
 
 # reset the task affinity
 os.system("taskset -p 0xffffffffffffff %d" % os.getpid())
@@ -129,8 +117,7 @@ def run_calculate_curtailment(
             ]
 
             pool_size = multiprocessing.cpu_count()
-            print("pool_size:", pool_size)
-            os.system('taskset -cp 0-%d %s' % (num_threads, os.getpid()))
+            os.system('taskset -cp 0-%d %s' % (pool_size, os.getpid()))
 
             with multiprocessing.Pool(num_threads) as pool:
                 pool.starmap(
