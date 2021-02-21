@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 1
+num_threads = 2
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -199,6 +199,7 @@ def stepwise_curtailment(
 
 def get_days(
         grid_id,
+        mode="days",
 ):
     try:
         s = pd.read_csv(
@@ -211,11 +212,15 @@ def get_days(
             parse_dates=[1,2,3,4],
         ).loc[int(grid_id)]
 
-        days = []
+        if mode == "days":
+            days = []
 
-        for ts in [s.start_week_low, s.start_week_high]:
-            for i in range(7):
-                days.append(ts + timedelta(days=i))
+            for ts in [s.start_week_low, s.start_week_high]:
+                for i in range(7):
+                    days.append(ts + timedelta(days=i))
+
+        elif mode == "weeks":
+            days = [s.start_week_low, s.start_week_high]
 
         return days
     except:
