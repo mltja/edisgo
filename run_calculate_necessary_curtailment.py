@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 2
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -68,7 +68,7 @@ def run_calculate_curtailment(
 
         days = get_days(
             grid_id,
-            mode="days",
+            mode="weeks", # TODO
         )
 
         # days = pd.date_range(
@@ -82,7 +82,7 @@ def run_calculate_curtailment(
                 stepwise_curtailment(
                     directory,
                     day,
-                    (days[1] - days[0]) / timedelta(minutes=15),
+                    7*96, #(days[1] - days[0]) / timedelta(minutes=15), # TODO
                 )
 
         else:
@@ -101,7 +101,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 7)
+            num_threads = min(num_threads, len(days), 2) # TODO
 
             data_tuples = [
                 (directory, day, (days[1] - days[0])/timedelta(minutes=15))
