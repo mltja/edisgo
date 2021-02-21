@@ -5,14 +5,11 @@ import logging
 import warnings
 import multiprocessing
 import traceback
-import calculate_necessary_curtailment as cc
 import curtailment as cur
 
-from datetime import datetime, timedelta
-from copy import deepcopy
+from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
-from edisgo import EDisGo
 from edisgo.edisgo import import_edisgo_from_files
 
 
@@ -26,18 +23,11 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-global edisgo
-
-num_threads = 2
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
-)
-
-ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 sub_dir = r"eDisGo_curtailment_results"
@@ -51,13 +41,13 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534", "177", "1056", "1690", "1811", "176"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
-    for scenario in scenarios for grid_id in grid_ids for strategy in strategies
+    for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
 
@@ -66,8 +56,6 @@ def run_calculate_curtailment(
         num_threads,
 ):
     try:
-        global edisgo
-
         t0 = perf_counter()
 
         strategy = directory.parts[-1]
@@ -78,43 +66,31 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
+        days = get_days(grid_id)
 
-        edisgo = import_edisgo_from_files(
-            directory=directory,
-            import_topology=True,
-            import_timeseries=True,
-            import_results=True,
-        )
-
-        print(
-            "EDisGo Object for scenario {} with strategy {} in grid {} has been loaded.".format(
-                scenario, strategy, grid_id
-            ),
-            "It took {} seconds.".format(round(perf_counter() - t0, 0)),
-        )
-
-        offsets = [*range(73)]
+        # days = pd.date_range(
+        #     '2011-01-01',
+        #     periods=365/5, # TODO
+        #     freq='5d',
+        # ).tolist()
 
         if num_threads == 1:
-            for day_offset in offsets:
+            for day in days:
                 stepwise_curtailment(
                     directory,
-                    day_offset,
-                    start_date,
-                    len(offsets),
-                    strategy,
+                    day,
+                    (days[1] - days[0]) / timedelta(minutes=15),
                 )
 
         else:
             if grid_id == "176":
-                num_threads = 6
+                num_threads = 11
             elif grid_id == "177":
-                num_threads = 12
+                num_threads = 21
             elif grid_id == "1056":
-                num_threads = 7
+                num_threads = 14
             elif grid_id == "1690":
-                num_threads = 7
+                num_threads = 12
             elif grid_id == "1811":
                 num_threads = 6
             elif grid_id == "2534":
@@ -122,9 +98,11 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
+            num_threads = min(num_threads, len(days), 7)
+
             data_tuples = [
-                (directory, day_offset, start_date, len(offsets), strategy)
-                for day_offset in offsets
+                (directory, day, (days[1] - days[0])/timedelta(minutes=15))
+                for day in days
             ]
 
             with multiprocessing.Pool(num_threads) as pool:
@@ -148,21 +126,31 @@ def run_calculate_curtailment(
 
 def stepwise_curtailment(
         directory,
-        day_offset,
-        date,
-        chunks,
-        strategy,
+        day,
+        len_day,
 ):
     try:
-        start = date + timedelta(days=int(day_offset * 365 / chunks))
+        t1 = perf_counter()
+
+        strategy = directory.parts[-1]
+
+        edisgo_chunk = import_edisgo_from_files(
+            directory=directory,
+            import_topology=True,
+            import_timeseries=True,
+            import_results=True,
+        )
 
         timeindex = pd.date_range(
-            start,
-            periods=int(365 / chunks * 24 * 4),
+            day,
+            periods=len_day,
             freq="15min",
         )
 
-        edisgo_chunk = deepcopy(edisgo)
+        # FIXME:
+        edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
+            edisgo_chunk.topology.generators_df
+        )
 
         edisgo_chunk.timeseries.timeindex = timeindex
 
@@ -178,17 +166,58 @@ def stepwise_curtailment(
 
         gc.collect()
 
+        print(
+            "EDisGo Object for day {} has been loaded.".format(
+                day,
+            ),
+            "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+        )
+
+        t1 = perf_counter()
+
         cur.calculate_curtailment(
             directory,
             edisgo_chunk,
             strategy,
-            day_offset,
+            day,
         )
 
         del edisgo_chunk
 
         gc.collect()
 
+        print(
+            "Curtailment for day {} has been calculated.".format(
+                day
+            ),
+            "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+        )
+
+    except:
+        traceback.print_exc()
+
+
+def get_days(
+        grid_id,
+):
+    try:
+        s = pd.read_csv(
+            os.path.join(
+                data_dir,
+                sub_dir,
+                "extreme_weeks.csv",
+            ),
+            index_col=[0],
+            parse_dates=[1,2,3,4],
+        ).loc[int(grid_id)]
+
+        days = []
+
+        for ts in [s.start_week_low, s.start_week_high]:
+            for i in range(7):
+                days.append(ts + timedelta(days=i))
+
+        return days
     except:
         traceback.print_exc()
 
