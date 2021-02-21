@@ -136,6 +136,8 @@ def stepwise_curtailment(
     try:
         t1 = perf_counter()
 
+        os.system("taskset -p 0xff %d" % os.getpid())
+
         strategy = directory.parts[-1]
 
         edisgo_chunk = import_edisgo_from_files(
