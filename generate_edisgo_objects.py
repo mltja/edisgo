@@ -21,18 +21,18 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 12
+num_threads = 1
 
 rng = default_rng(seed=5)
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [
@@ -46,7 +46,7 @@ scenarios = [
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -106,6 +106,10 @@ def generate_edisgo_objects(
                 files,
                 strategy,
             )
+
+            gc.collect()
+
+            edisgo.aggregate_components(mode="by_load_and_generation")
 
             gc.collect()
 
