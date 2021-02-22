@@ -5,13 +5,6 @@ import logging
 import warnings
 import multiprocessing
 import traceback
-import curtailment as cur
-
-from datetime import timedelta
-from pathlib import Path
-from time import perf_counter
-from edisgo.edisgo import import_edisgo_from_files
-
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -21,9 +14,17 @@ logger.setLevel(logging.ERROR)
 # disable for development
 warnings.filterwarnings("ignore")
 
+import curtailment as cur
+
+from datetime import timedelta
+from pathlib import Path
+from time import perf_counter
+from edisgo.edisgo import import_edisgo_from_files
+
+
 gc.collect()
 
-num_threads = 1
+num_threads = 2
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
