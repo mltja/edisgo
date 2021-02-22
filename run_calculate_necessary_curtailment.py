@@ -26,7 +26,7 @@ gc.collect()
 
 os.sched_setaffinity(0,range(1000))
 
-num_threads = 1
+num_threads = 2
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
