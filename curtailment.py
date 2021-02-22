@@ -44,8 +44,8 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-curtailment_step = 0.1 # 0.2 # TODO
-max_iterations = 500
+# curtailment_step = 0.1 # 0.2 # TODO
+max_iterations = 1000
 
 
 def _overwrite_edisgo_timeseries(edisgo, pypsa_network):
@@ -116,7 +116,7 @@ def _save_results_when_curtailment_failed(edisgo_obj, results_dir, mode):
     )
 
 
-def _curtail(pypsa_network, gens, loads, time_steps):
+def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1):
 
     # get time series for loads and generators
     gens_ts = pypsa_network.generators_t.p_set.loc[
@@ -966,7 +966,8 @@ def calculate_curtailment(
                     ).index.tolist()
 
                 _curtail(
-                    pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex
+                    pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
+                    curtailment_step=0.025,
                 )
 
                 _overwrite_edisgo_timeseries(edisgo, pypsa_network)
@@ -985,6 +986,7 @@ def calculate_curtailment(
             _curtail(
                 pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
                 edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
+                curtailment_step=0.025,
             )
 
             j = 0
@@ -998,7 +1000,7 @@ def calculate_curtailment(
                     converged = True
 
                 except:
-                    if i == 0:
+                    if i == 0 and j == 0:
                         print(
                             "PF Nr. {} didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
                                 i+2, day, mv_grid_id, scenario, strategy
@@ -1017,7 +1019,8 @@ def calculate_curtailment(
                         ).index.tolist()
 
                     _curtail(
-                        pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex
+                        pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
+                        curtailment_step=0.025,
                     )
 
                     _overwrite_edisgo_timeseries(edisgo, pypsa_network)
