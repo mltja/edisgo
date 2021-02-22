@@ -24,6 +24,8 @@ from edisgo.edisgo import import_edisgo_from_files
 
 gc.collect()
 
+os.sched_setaffinity(0,range(1000))
+
 num_threads = 2
 
 data_dir = Path( # TODO: set dir
