@@ -33,14 +33,14 @@ sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
     "NEP_C_2035",
-    "Reference_2050",
-    "Szenarette_Kleinwagen_2050",
-    "Mobility_Transition_2050",
-    "Electrification_2050",
-    "Electrification_2050_sensitivity_low_work",
+    # "Reference_2050",
+    # "Szenarette_Kleinwagen_2050",
+    # "Mobility_Transition_2050",
+    # "Electrification_2050",
+    # "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -106,13 +106,18 @@ def join_curtailment(
         cur_files.sort()
 
         low_rl_files = [
-            os.path.join(directory, f) for f in cur_files if any([day in f for day in low_rl_days])
+            Path(os.path.join(directory, f)) for f in cur_files
+            if any([day in f for day in low_rl_days])
+            if not "issue" in f
         ]
         high_rl_files = [
-            os.path.join(directory, f) for f in cur_files if any([day in f for day in high_rl_days])
+            Path(os.path.join(directory, f))
+            for f in cur_files if any([day in f for day in high_rl_days])
+            if not "issue" in f
         ]
 
         for f in low_rl_files:
+            print(f.parts[-1])
             df = pd.read_csv(f, index_col=[0])
 
             df_curtailment.at[
@@ -135,6 +140,7 @@ def join_curtailment(
             ] += df.at["mv_problems", "feed-in"]
 
         for f in high_rl_files:
+            print(f.parts[-1])
             df = pd.read_csv(f, index_col=[0])
 
             df_curtailment.at[
