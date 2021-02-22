@@ -12,6 +12,13 @@ from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
 
+os.system("taskset -p %s" %os.getpid())
+
+import scipy
+import numpy as np
+
+os.system("taskset -p %s" %os.getpid())
+
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
