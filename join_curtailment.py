@@ -9,7 +9,6 @@ import traceback
 from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
-from edisgo.edisgo import import_edisgo_from_files
 
 
 # suppress infos from pypsa
@@ -33,14 +32,14 @@ sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
     "NEP_C_2035",
-    # "Reference_2050",
-    # "Szenarette_Kleinwagen_2050",
-    # "Mobility_Transition_2050",
-    # "Electrification_2050",
-    # "Electrification_2050_sensitivity_low_work",
+    "Reference_2050",
+    "Szenarette_Kleinwagen_2050",
+    "Mobility_Transition_2050",
+    "Electrification_2050",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -51,28 +50,31 @@ data_dirs = [
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
+cols = [
+    "curtailment_demand_convergence",
+    "curtailment_demand_lv",
+    "curtailment_demand_mv",
+    "curtailment_generation_convergence",
+    "curtailment_generation_lv",
+    "curtailment_generation_mv",
+    "file_count",
+]
+
+weeks = [
+    "low_residual",
+    "high_residual",
+]
+
 idx = pd.MultiIndex.from_product(
     [
+        grid_ids,
         scenarios,
+        weeks,
         strategies,
-        [
-            "curtailment_demand_convergence",
-            "curtailment_demand_lv",
-            "curtailment_demand_mv",
-            "curtailment_generation_convergence",
-            "curtailment_generation_lv",
-            "curtailment_generation_mv",
-        ],
-        [
-            "low_residual",
-            "high_residual",
-        ],
     ]
 )
 
-cols = grid_ids.copy()
-
-cols.append("file_count")
+global df_curtailment
 
 df_curtailment = pd.DataFrame(
     data=0,
@@ -80,12 +82,21 @@ df_curtailment = pd.DataFrame(
     index=idx,
 )
 
+df_curtailment.index.names = [
+    "grid_id",
+    "scenario",
+    "week",
+    "strategy",
+]
+
 
 def join_curtailment(
         directory,
 ):
     try:
         t0 = perf_counter()
+
+        global df_curtailment
 
         strategy = directory.parts[-2]
 
@@ -99,7 +110,7 @@ def join_curtailment(
 
         files = os.listdir(directory)
 
-        df_curtailment.loc[(scenario, strategy), "file_count"] = len(files)
+        df_curtailment.loc[pd.IndexSlice[grid_id, scenario, :, strategy], "file_count"] = len(files)
 
         cur_files = [f for f in files if not "_ts_" in f]
 
@@ -110,6 +121,7 @@ def join_curtailment(
             if any([day in f for day in low_rl_days])
             if not "issue" in f
         ]
+
         high_rl_files = [
             Path(os.path.join(directory, f))
             for f in cur_files if any([day in f for day in high_rl_days])
@@ -121,22 +133,22 @@ def join_curtailment(
             df = pd.read_csv(f, index_col=[0])
 
             df_curtailment.at[
-                (scenario, strategy, "curtailment_demand_convergence", "low_residual"), grid_id
+                (grid_id, scenario, "low_residual", strategy), "curtailment_demand_convergence"
             ] += df.at["convergence_problems", "load"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_demand_lv", "low_residual"), grid_id
+                (grid_id, scenario, "low_residual", strategy), "curtailment_demand_lv"
             ] += df.at["lv_problems", "load"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_demand_mv", "low_residual"), grid_id
+                (grid_id, scenario, "low_residual", strategy), "curtailment_demand_mv"
             ] += df.at["mv_problems", "load"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_generation_convergence", "low_residual"), grid_id
+                (grid_id, scenario, "low_residual", strategy), "curtailment_generation_convergence"
             ] += df.at["convergence_problems", "feed-in"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_generation_lv", "low_residual"), grid_id
+                (grid_id, scenario, "low_residual", strategy), "curtailment_generation_lv"
             ] += df.at["lv_problems", "feed-in"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_generation_mv", "low_residual"), grid_id
+                (grid_id, scenario, "low_residual", strategy), "curtailment_generation_mv"
             ] += df.at["mv_problems", "feed-in"]
 
         for f in high_rl_files:
@@ -144,22 +156,22 @@ def join_curtailment(
             df = pd.read_csv(f, index_col=[0])
 
             df_curtailment.at[
-                (scenario, strategy, "curtailment_demand_convergence", "high_residual"), grid_id
+                (grid_id, scenario, "high_residual", strategy), "curtailment_demand_convergence"
             ] += df.at["convergence_problems", "load"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_demand_lv", "high_residual"), grid_id
+                (grid_id, scenario, "high_residual", strategy), "curtailment_demand_lv"
             ] += df.at["lv_problems", "load"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_demand_mv", "high_residual"), grid_id
+                (grid_id, scenario, "high_residual", strategy), "curtailment_demand_mv"
             ] += df.at["mv_problems", "load"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_generation_convergence", "high_residual"), grid_id
+                (grid_id, scenario, "high_residual", strategy), "curtailment_generation_convergence"
             ] += df.at["convergence_problems", "feed-in"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_generation_lv", "high_residual"), grid_id
+                (grid_id, scenario, "high_residual", strategy), "curtailment_generation_lv"
             ] += df.at["lv_problems", "feed-in"]
             df_curtailment.at[
-                (scenario, strategy, "curtailment_generation_mv", "high_residual"), grid_id
+                (grid_id, scenario, "high_residual", strategy), "curtailment_generation_mv"
             ] += df.at["mv_problems", "feed-in"]
 
         print(
