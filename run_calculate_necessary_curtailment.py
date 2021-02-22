@@ -12,13 +12,6 @@ from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
 
-os.system("taskset -p %s" %os.getpid())
-
-import scipy
-import numpy as np
-
-os.system("taskset -p %s" %os.getpid())
-
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -236,7 +229,7 @@ def get_days(
 
 
 if __name__ == "__main__":
-    for d in data_dirs[2:]:
+    for d in data_dirs:
         t0 = perf_counter()
 
         run_calculate_curtailment(
