@@ -39,7 +39,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534", "177"]#["176", "177", "1056", "1690", "1811", "2534"]
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -49,6 +49,8 @@ data_dirs = [
     Path(os.path.join(base_dir, sub_dir, scenario, grid_id, strategy, sub_sub_dir))
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
+
+data_dirs = data_dirs[:40]
 
 cols = [
     "curtailment_demand_convergence",
@@ -129,7 +131,6 @@ def join_curtailment(
         ]
 
         for f in low_rl_files:
-            print(f.parts[-1])
             df = pd.read_csv(f, index_col=[0])
 
             df_curtailment.at[
@@ -152,7 +153,6 @@ def join_curtailment(
             ] += df.at["mv_problems", "feed-in"]
 
         for f in high_rl_files:
-            print(f.parts[-1])
             df = pd.read_csv(f, index_col=[0])
 
             df_curtailment.at[
