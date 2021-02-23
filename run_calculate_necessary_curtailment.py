@@ -26,7 +26,7 @@ gc.collect()
 
 os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 2 # TODO
+num_threads = 14 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -44,7 +44,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["177", "1056", "1690", "1811", "176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["2534"]#["177", "1056", "1690", "1811", "176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -53,7 +53,9 @@ data_dirs = [
     for scenario in scenarios for grid_id in grid_ids for strategy in strategies
 ]
 
-data_dirs = data_dirs[4:]
+data_dirs = data_dirs[:1]
+
+print("breaker")
 
 
 def run_calculate_curtailment(
@@ -111,7 +113,7 @@ def run_calculate_curtailment(
             else:
                 num_threads = 2
 
-            num_threads = min(num_threads, len(days), 7) # TODO
+            num_threads = min(num_threads, len(days), 14) # TODO
 
             data_tuples = [
                 (directory, day, ts_count)
@@ -150,7 +152,7 @@ def stepwise_curtailment(
         timeindex = pd.date_range(
             day,
             periods=len_day,
-            freq="15min",
+            freq="1H",
         )
 
         # FIXME:
@@ -161,13 +163,19 @@ def stepwise_curtailment(
         edisgo_chunk.timeseries.timeindex = timeindex
 
         edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
-            (edisgo_chunk.timeseries.storage_units_active_power.index >= timeindex[0]) &
-            (edisgo_chunk.timeseries.storage_units_active_power.index <= timeindex[-1])
+            edisgo_chunk.timeseries.storage_units_active_power.index.isin(timeindex)
         ]
 
         edisgo_chunk.timeseries.storage_units_reactive_power = edisgo_chunk.timeseries.storage_units_reactive_power.loc[
-            (edisgo_chunk.timeseries.storage_units_reactive_power.index >= timeindex[0]) &
-            (edisgo_chunk.timeseries.storage_units_reactive_power.index <= timeindex[-1])
+            edisgo_chunk.timeseries.storage_units_reactive_power.index.isin(timeindex)
+        ]
+
+        edisgo_chunk.timeseries.charging_points_active_power = edisgo_chunk.timeseries.charging_points_active_power.loc[
+            edisgo_chunk.timeseries.charging_points_active_power.index.isin(timeindex)
+        ]
+
+        edisgo_chunk.timeseries.charging_points_reactive_power = edisgo_chunk.timeseries.charging_points_reactive_power.loc[
+            edisgo_chunk.timeseries.charging_points_reactive_power.index.isin(timeindex)
         ]
 
         edisgo_chunk.timeseries.loads_active_power = edisgo_chunk.timeseries.loads_active_power.round(5).loc[
