@@ -44,16 +44,16 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534", "177", "1056", "1690", "1811", "176"]
+grid_ids = ["2534", "177"]#, "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
-    for scenario in scenarios for grid_id in grid_ids for strategy in strategies
+    for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
-# data_dirs = data_dirs[40:] # TODO
+data_dirs = data_dirs[40:] # TODO
 
 
 def run_calculate_curtailment(

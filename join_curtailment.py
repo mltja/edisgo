@@ -32,25 +32,25 @@ sub_dir = r"eDisGo_curtailment_results"
 
 scenarios = [
     "NEP_C_2035",
-    "Reference_2050",
-    "Szenarette_Kleinwagen_2050",
-    "Mobility_Transition_2050",
-    "Electrification_2050",
-    "Electrification_2050_sensitivity_low_work",
+    # "Reference_2050",
+    # "Szenarette_Kleinwagen_2050",
+    # "Mobility_Transition_2050",
+    # "Electrification_2050",
+    # "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534", "177"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["2534"]#, "177", "1056", "1690", "1811", "176"]#["176", "177", "1056", "1690", "1811", "2534"]
 
-strategies = ["dumb", "grouped", "reduced", "residual"]
+strategies = ["dumb"]#, "grouped", "reduced", "residual"]
 
-sub_sub_dir = r"curtailment_weeks"
+sub_sub_dir = r"curtailment_weeks_v2"
 
 data_dirs = [
     Path(os.path.join(base_dir, sub_dir, scenario, grid_id, strategy, sub_sub_dir))
-    for grid_id in grid_ids for scenario in scenarios for strategy in strategies
+    for scenario in scenarios for grid_id in grid_ids for strategy in strategies
 ]
 
-data_dirs = data_dirs[:40]
+# data_dirs = data_dirs[:40] # TODO
 
 cols = [
     "curtailment_demand_convergence",
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     df_curtailment.to_csv(
         os.path.join(
             results_dir,
-            "curtailment.csv",
+            "curtailment_v2.csv",
         )
     )
 

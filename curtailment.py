@@ -989,6 +989,8 @@ def calculate_curtailment(
                 curtailment_step=0.025,
             )
 
+            print(i)
+
             j = 0
 
             converged = False
