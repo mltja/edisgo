@@ -50,10 +50,10 @@ strategies = ["dumb", "grouped", "reduced", "residual"]
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
-    for grid_id in grid_ids for scenario in scenarios for strategy in strategies
+    for scenario in scenarios for grid_id in grid_ids for strategy in strategies
 ]
 
-data_dirs = data_dirs[40:] # TODO
+# data_dirs = data_dirs[40:] # TODO
 
 
 def run_calculate_curtailment(
