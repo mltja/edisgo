@@ -53,7 +53,7 @@ data_dirs = [
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
-# data_dirs = data_dirs[24:] # TODO
+data_dirs = data_dirs[40:] # TODO
 
 
 def run_calculate_curtailment(
