@@ -905,7 +905,7 @@ def calculate_curtailment(
         elia_logger = logging.getLogger('elia_project: {}'.format(mv_grid_id))
         elia_logger.setLevel(logging.DEBUG)
 
-        grid_results_dir = os.path.join(
+        grid_results_dir = os.path.join( # TODO
             grid_dir,
             "curtailment_weeks_v2",
         )
