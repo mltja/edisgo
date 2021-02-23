@@ -55,8 +55,6 @@ data_dirs = [
 
 data_dirs = data_dirs[:1]
 
-print("breaker")
-
 
 def run_calculate_curtailment(
         directory,
@@ -152,7 +150,7 @@ def stepwise_curtailment(
         timeindex = pd.date_range(
             day,
             periods=len_day,
-            freq="1H",
+            freq="15min",
         )
 
         # FIXME:
