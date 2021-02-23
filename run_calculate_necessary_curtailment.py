@@ -44,7 +44,7 @@ scenarios = [
     "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["2534"]#["177", "1056", "1690", "1811", "176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["177", "1056", "1690", "1811", "176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"]
 
@@ -53,7 +53,7 @@ data_dirs = [
     for scenario in scenarios for grid_id in grid_ids for strategy in strategies
 ]
 
-data_dirs = data_dirs[:1]
+data_dirs = data_dirs[4:]
 
 
 def run_calculate_curtailment(
@@ -97,15 +97,15 @@ def run_calculate_curtailment(
 
         else:
             if grid_id == "176":
-                num_threads = 11
+                num_threads = 711
             elif grid_id == "177":
                 num_threads = 21
             elif grid_id == "1056":
-                num_threads = 14
+                num_threads = 7#14
             elif grid_id == "1690":
-                num_threads = 12
+                num_threads = 7#12
             elif grid_id == "1811":
-                num_threads = 6
+                num_threads = 5#6
             elif grid_id == "2534":
                 num_threads = 32
             else:
