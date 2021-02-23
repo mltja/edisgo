@@ -907,7 +907,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join(
             grid_dir,
-            "curtailment_weeks",
+            "curtailment_weeks_v2",
         )
 
         os.makedirs(
