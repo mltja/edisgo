@@ -930,6 +930,8 @@ def integrate_public_charging(
             timeindex=timeindex,
         )
 
+        print("EDisGo Load MWh:", edisgo.timeseries.loads_active_power.sum().sum())
+
         timeseries_data_path = os.path.join(
             grid_dir.parent.parent.parent,
             r"hp.csv",
@@ -972,6 +974,8 @@ def integrate_public_charging(
             edisgo.timeseries._loads_active_power[col].max() for col in edisgo.topology.loads_df.index.tolist()
         ]
 
+        print("EDisGo Load with WP MWh:", edisgo.timeseries.loads_active_power.sum().sum())
+
         timeindex = pd.date_range(
             date,
             periods=len_timeindex * 4,
@@ -1011,6 +1015,8 @@ def integrate_public_charging(
                 name=edisgo.timeseries.load.index.tolist()[-1] + timedelta(hours=1)
             )
         ).resample("15min").ffill().iloc[:-1]
+
+        print("EDisGo after Resampling Load MWh:", edisgo.timeseries.loads_active_power.sum().sum() / 4)
 
         comp_type = "ChargingPoint"
 
@@ -1060,6 +1066,8 @@ def integrate_public_charging(
             df.index = temp_timeindex
 
             df = df.loc[timeindex[0]:timeindex[-1]].divide(1000) # kW -> MW
+
+            print("{} demand MWh:".format(use_case), df.sum().sum() / 4)
 
             if "cp_idx" not in gdf.columns:
                 if len(df.columns.levels[1]) == 1:
@@ -1111,6 +1119,8 @@ def integrate_public_charging(
                     )
                 )
             ]
+
+            print("EDisGo Integration CP Load MWh:", edisgo.timeseries.charging_points_active_power.sum().sum() / 4)
 
         return edisgo
 
@@ -1173,6 +1183,8 @@ def integrate_private_charging(
 
             df = df.loc[timeindex[0]:timeindex[-1]].divide(1000)  # kW -> MW
 
+            print("{} demand MWh:".format(use_case), df.sum().sum() / 4)
+
             if not "cp_idx" in gdf.columns:
                 if len(df.columns.level[1]) == 1:
                     cp_idx = df.columns.level[1][0]
@@ -1222,6 +1234,8 @@ def integrate_private_charging(
                     )
                 )
             ]
+
+            print("EDisGo Integration CP Load MWh:", edisgo.timeseries.charging_points_active_power.sum().sum() / 4)
 
         new_switch_line = edisgo.topology.lines_df.loc[
             (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
