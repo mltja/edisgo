@@ -200,8 +200,8 @@ def stepwise_curtailment(
             edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
         ]
 
-        for col in edisgo_chunk.timeseries._charging_points_active_power.columns:
-            edisgo_chunk.timeseries._charging_points_active_power[col].values[:] = 0
+        # for col in edisgo_chunk.timeseries._charging_points_active_power.columns:
+        #     edisgo_chunk.timeseries._charging_points_active_power[col].values[:] = 0
 
         gc.collect()
 
