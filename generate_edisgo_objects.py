@@ -107,59 +107,47 @@ def generate_edisgo_objects(
                 strategy,
             )
 
-            print("EDisGo Load before Aggregation MWh:", edisgo.timeseries.loads_active_power.sum().sum())
-            print(
-                "EDisGo CP Load before Aggregation MWh:",
-                edisgo.timeseries.charging_points_active_power.sum().sum() / 4
-            )
+            # gc.collect()
+            #
+            # edisgo.aggregate_components(mode="by_load_and_generation")
 
             gc.collect()
 
-            edisgo.aggregate_components(mode="by_load_and_generation")
-
-            gc.collect()
-
-            print("EDisGo Load after Aggregation MWh:", edisgo.timeseries.loads_active_power.sum().sum())
             print(
-                "EDisGo CP Load after Aggregation MWh:",
-                edisgo.timeseries.charging_points_active_power.sum().sum() / 4
+                "Private charging has been integrated for",
+                "scenario {} in grid {} with strategy {}.".format(
+                    scenario, grid_id, strategy
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
             )
 
-            # print(
-            #     "Private charging has been integrated for",
-            #     "scenario {} in grid {} with strategy {}.".format(
-            #         scenario, grid_id, strategy
-            #     ),
-            #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            # )
-            #
-            # t1 = perf_counter()
-            #
-            # export_dir = Path(
-            #     os.path.join(
-            #         data_dir,
-            #         "eDisGo_curtailment_results",
-            #         scenario,
-            #         grid_id,
-            #         strategy,
-            #     )
-            # )
-            #
-            # os.makedirs(
-            #     export_dir,
-            #     exist_ok=True,
-            # )
-            #
-            # edisgo.save(
-            #     directory=export_dir,
-            # )
-            #
-            # print(
-            #     "Scenario {} in grid {} with strategy {} has been saved.".format(
-            #         scenario, grid_id, strategy
-            #     ),
-            #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            # )
+            t1 = perf_counter()
+
+            export_dir = Path(
+                os.path.join(
+                    data_dir,
+                    "eDisGo_curtailment_results_test",
+                    scenario,
+                    grid_id,
+                    strategy,
+                )
+            )
+
+            os.makedirs(
+                export_dir,
+                exist_ok=True,
+            )
+
+            edisgo.save(
+                directory=export_dir,
+            )
+
+            print(
+                "Scenario {} in grid {} with strategy {} has been saved.".format(
+                    scenario, grid_id, strategy
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            )
 
             del edisgo
 
