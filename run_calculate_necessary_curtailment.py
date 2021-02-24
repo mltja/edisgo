@@ -34,20 +34,20 @@ data_dir = Path( # TODO: set dir
     # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_curtailment_results"
+sub_dir = r"eDisGo_curtailment_results_test" # TODO
 
-scenarios = [
+scenarios = [ # TODO
     "NEP_C_2035",
-    "Reference_2050",
-    "Szenarette_Kleinwagen_2050",
-    "Mobility_Transition_2050",
-    "Electrification_2050",
-    "Electrification_2050_sensitivity_low_work",
+    # "Reference_2050",
+    # "Szenarette_Kleinwagen_2050",
+    # "Mobility_Transition_2050",
+    # "Electrification_2050",
+    # "Electrification_2050_sensitivity_low_work",
 ]
 
 grid_ids = ["2534"]#, "177", "1056", "1690", "1811", "176"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual"]
+strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
@@ -135,59 +135,6 @@ def stepwise_curtailment(
         len_day,
 ):
     try:
-        len_timeindex = 8760
-
-        timeindex = pd.date_range(
-            "2011-01-01",
-            periods=len_timeindex,
-            freq='H',
-        )
-
-        p_bio = 9983  # MW
-        e_bio = 50009  # GWh
-
-        vls_bio = e_bio / (p_bio / 1000)
-
-        share = vls_bio / 8760
-
-        timeseries_generation_dispatchable = pd.DataFrame(
-            {
-                "biomass": [share] * len_timeindex,
-                "coal": [1] * len_timeindex,
-                "other": [1] * len_timeindex,
-            },
-            index=timeindex,
-        )
-
-        ding0_dir = Path(  # TODO: set dir
-            r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-            # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
-        )
-
-        edisgo_orig = EDisGo(
-            ding0_grid=os.path.join(
-                ding0_dir, "2534"
-            ),
-            generator_scenario="ego100",
-            timeseries_load="demandlib",
-            timeseries_generation_fluctuating="oedb",
-            timeseries_generation_dispatchable=timeseries_generation_dispatchable,
-            timeindex=timeindex,
-        )
-
-        print("Orig loaded")
-
-        edisgo_elia = import_edisgo_from_files(
-            directory=Path(
-                r"\\192.168.10.221\Daten_flexibel_01\Elia_Rechnungen\2020-10-19_19-57_elia_scenario_dumb_charging\2534"
-            ),
-            import_topology=True,
-            import_timeseries=True,
-            import_results=True,
-        )
-
-        print("Elia loaded")
-
         t1 = perf_counter()
 
         strategy = directory.parts[-1]
@@ -252,6 +199,9 @@ def stepwise_curtailment(
         edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
             edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
         ]
+
+        for col in edisgo_chunk.timeseries._charging_points_active_power.columns:
+            edisgo_chunk.timeseries._charging_points_active_power[col].values[:] = 0
 
         gc.collect()
 
