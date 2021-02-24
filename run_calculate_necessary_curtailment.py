@@ -25,13 +25,13 @@ from edisgo import EDisGo
 
 gc.collect()
 
-# os.sched_setaffinity(0,range(1000)) # TODO
+os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 1 # TODO
+num_threads = 2 # TODO
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_curtailment_results_test" # TODO
@@ -154,10 +154,10 @@ def stepwise_curtailment(
             freq="15min",
         )
 
-        # FIXME:
-        edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
-            edisgo_chunk.topology.generators_df
-        )
+        # TODO:
+        # edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
+        #     edisgo_chunk.topology.generators_df
+        # )
 
         edisgo_chunk.timeseries.timeindex = timeindex
 
