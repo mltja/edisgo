@@ -729,7 +729,8 @@ class EDisGo:
 
         ax = plots.mv_grid_topology(
             self,
-            node_color="technology" if technologies is True else None,
+            node_color=kwargs.get("node_color", "technology" if technologies is True else None),
+            # node_color="technology" if technologies is True else None,
             filename=kwargs.get("filename", None),
             grid_district_geom=kwargs.get("grid_district_geom", True),
             background_map=kwargs.get("background_map", True),

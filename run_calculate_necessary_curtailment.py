@@ -20,18 +20,17 @@ from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
-from edisgo import EDisGo
 
 
 gc.collect()
 
-os.sched_setaffinity(0,range(1000)) # TODO
+# os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 2 # TODO
+num_threads = 1 # TODO
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_curtailment_results_test" # TODO
@@ -146,59 +145,58 @@ def stepwise_curtailment(
             import_results=True,
         )
 
-        print("breaker")
-
-        timeindex = pd.date_range(
-            day,
-            periods=len_day,
-            freq="15min",
-        )
-
-        # TODO:
-        # edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
-        #     edisgo_chunk.topology.generators_df
+        # timeindex = pd.date_range(
+        #     day,
+        #     periods=len_day,
+        #     freq="15min",
         # )
 
-        edisgo_chunk.timeseries.timeindex = timeindex
+        # FIXME:
+        if "type" not in edisgo_chunk.topology.generators_df.columns.tolist():
+            edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
+                edisgo_chunk.topology.generators_df
+            )
 
-        edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
-            edisgo_chunk.timeseries.storage_units_active_power.index.isin(timeindex)
-        ]
-
-        edisgo_chunk.timeseries.storage_units_reactive_power = edisgo_chunk.timeseries.storage_units_reactive_power.loc[
-            edisgo_chunk.timeseries.storage_units_reactive_power.index.isin(timeindex)
-        ]
-
-        edisgo_chunk.timeseries.charging_points_active_power = edisgo_chunk.timeseries.charging_points_active_power.loc[
-            edisgo_chunk.timeseries.charging_points_active_power.index.isin(timeindex)
-        ]
-
-        edisgo_chunk.timeseries.charging_points_reactive_power = edisgo_chunk.timeseries.charging_points_reactive_power.loc[
-            edisgo_chunk.timeseries.charging_points_reactive_power.index.isin(timeindex)
-        ]
-
-        edisgo_chunk.timeseries.loads_active_power = edisgo_chunk.timeseries.loads_active_power.round(5).loc[
-                                                     :, (edisgo_chunk.timeseries.loads_active_power != 0).any(axis=0)
-                                                     ]
-
-        load_new_connectors = edisgo_chunk.timeseries.loads_active_power.columns.tolist()
-
-        edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
-            edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
-        ]
-
-        drop_cols = [
-            col for col in edisgo_chunk.timeseries._loads_reactive_power.columns if not col in load_new_connectors
-        ]
-
-        edisgo_chunk.timeseries._loads_reactive_power.drop(
-            columns=drop_cols,
-            inplace=True,
-        )
-
-        edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
-            edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
-        ]
+        # edisgo_chunk.timeseries.timeindex = timeindex
+        #
+        # edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
+        #     edisgo_chunk.timeseries.storage_units_active_power.index.isin(timeindex)
+        # ]
+        #
+        # edisgo_chunk.timeseries.storage_units_reactive_power = edisgo_chunk.timeseries.storage_units_reactive_power.loc[
+        #     edisgo_chunk.timeseries.storage_units_reactive_power.index.isin(timeindex)
+        # ]
+        #
+        # edisgo_chunk.timeseries.charging_points_active_power = edisgo_chunk.timeseries.charging_points_active_power.loc[
+        #     edisgo_chunk.timeseries.charging_points_active_power.index.isin(timeindex)
+        # ]
+        #
+        # edisgo_chunk.timeseries.charging_points_reactive_power = edisgo_chunk.timeseries.charging_points_reactive_power.loc[
+        #     edisgo_chunk.timeseries.charging_points_reactive_power.index.isin(timeindex)
+        # ]
+        #
+        # edisgo_chunk.timeseries.loads_active_power = edisgo_chunk.timeseries.loads_active_power.round(5).loc[
+        #                                              :, (edisgo_chunk.timeseries.loads_active_power != 0).any(axis=0)
+        #                                              ]
+        #
+        # load_new_connectors = edisgo_chunk.timeseries.loads_active_power.columns.tolist()
+        #
+        # edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
+        #     edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
+        # ]
+        #
+        # drop_cols = [
+        #     col for col in edisgo_chunk.timeseries._loads_reactive_power.columns if not col in load_new_connectors
+        # ]
+        #
+        # edisgo_chunk.timeseries._loads_reactive_power.drop(
+        #     columns=drop_cols,
+        #     inplace=True,
+        # )
+        #
+        # edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
+        #     edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
+        # ]
 
         # for col in edisgo_chunk.timeseries._charging_points_active_power.columns:
         #     edisgo_chunk.timeseries._charging_points_active_power[col].values[:] = 0
