@@ -28,7 +28,7 @@ base_dir = Path( # TODO: set dir
     # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_curtailment_results"
+sub_dir = r"eDisGo_curtailment_results_test"
 
 scenarios = [
     "NEP_C_2035",
@@ -43,7 +43,7 @@ grid_ids = ["2534"]#, "177", "1056", "1690", "1811", "176"]#["176", "177", "1056
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"]
 
-sub_sub_dir = r"curtailment_weeks_v2"
+sub_sub_dir = r"curtailment_weeks_test_2"
 
 data_dirs = [
     Path(os.path.join(base_dir, sub_dir, scenario, grid_id, strategy, sub_sub_dir))
@@ -225,7 +225,7 @@ if __name__ == "__main__":
     results_dir = Path(
         os.path.join(
             base_dir,
-            "eDisGo_curtailment_analysis",
+            "eDisGo_curtailment_analysis_test",
             "2534"
         )
     )
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     df_curtailment.to_csv(
         os.path.join(
             results_dir,
-            "curtailment_v2.csv",
+            "curtailment_test_1.csv",
         )
     )
 
