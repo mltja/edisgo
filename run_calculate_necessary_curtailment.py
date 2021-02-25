@@ -157,46 +157,46 @@ def stepwise_curtailment(
                 edisgo_chunk.topology.generators_df
             )
 
-        # edisgo_chunk.timeseries.timeindex = timeindex
-        #
-        # edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
-        #     edisgo_chunk.timeseries.storage_units_active_power.index.isin(timeindex)
-        # ]
-        #
-        # edisgo_chunk.timeseries.storage_units_reactive_power = edisgo_chunk.timeseries.storage_units_reactive_power.loc[
-        #     edisgo_chunk.timeseries.storage_units_reactive_power.index.isin(timeindex)
-        # ]
-        #
-        # edisgo_chunk.timeseries.charging_points_active_power = edisgo_chunk.timeseries.charging_points_active_power.loc[
-        #     edisgo_chunk.timeseries.charging_points_active_power.index.isin(timeindex)
-        # ]
-        #
-        # edisgo_chunk.timeseries.charging_points_reactive_power = edisgo_chunk.timeseries.charging_points_reactive_power.loc[
-        #     edisgo_chunk.timeseries.charging_points_reactive_power.index.isin(timeindex)
-        # ]
-        #
-        # edisgo_chunk.timeseries.loads_active_power = edisgo_chunk.timeseries.loads_active_power.round(5).loc[
-        #                                              :, (edisgo_chunk.timeseries.loads_active_power != 0).any(axis=0)
-        #                                              ]
-        #
-        # load_new_connectors = edisgo_chunk.timeseries.loads_active_power.columns.tolist()
-        #
-        # edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
-        #     edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
-        # ]
-        #
-        # drop_cols = [
-        #     col for col in edisgo_chunk.timeseries._loads_reactive_power.columns if not col in load_new_connectors
-        # ]
-        #
-        # edisgo_chunk.timeseries._loads_reactive_power.drop(
-        #     columns=drop_cols,
-        #     inplace=True,
-        # )
-        #
-        # edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
-        #     edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
-        # ]
+        edisgo_chunk.timeseries.timeindex = timeindex
+
+        edisgo_chunk.timeseries.storage_units_active_power = edisgo_chunk.timeseries.storage_units_active_power.loc[
+            edisgo_chunk.timeseries.storage_units_active_power.index.isin(timeindex)
+        ]
+
+        edisgo_chunk.timeseries.storage_units_reactive_power = edisgo_chunk.timeseries.storage_units_reactive_power.loc[
+            edisgo_chunk.timeseries.storage_units_reactive_power.index.isin(timeindex)
+        ]
+
+        edisgo_chunk.timeseries.charging_points_active_power = edisgo_chunk.timeseries.charging_points_active_power.loc[
+            edisgo_chunk.timeseries.charging_points_active_power.index.isin(timeindex)
+        ]
+
+        edisgo_chunk.timeseries.charging_points_reactive_power = edisgo_chunk.timeseries.charging_points_reactive_power.loc[
+            edisgo_chunk.timeseries.charging_points_reactive_power.index.isin(timeindex)
+        ]
+
+        edisgo_chunk.timeseries.loads_active_power = edisgo_chunk.timeseries.loads_active_power.round(5).loc[
+                                                     :, (edisgo_chunk.timeseries.loads_active_power != 0).any(axis=0)
+                                                     ]
+
+        load_new_connectors = edisgo_chunk.timeseries.loads_active_power.columns.tolist()
+
+        edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
+            edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
+        ]
+
+        drop_cols = [
+            col for col in edisgo_chunk.timeseries._loads_reactive_power.columns if not col in load_new_connectors
+        ]
+
+        edisgo_chunk.timeseries._loads_reactive_power.drop(
+            columns=drop_cols,
+            inplace=True,
+        )
+
+        edisgo_chunk.topology.loads_df = edisgo_chunk.topology.loads_df.loc[
+            edisgo_chunk.topology.loads_df.index.isin(load_new_connectors)
+        ]
 
         # for col in edisgo_chunk.timeseries._charging_points_active_power.columns:
         #     edisgo_chunk.timeseries._charging_points_active_power[col].values[:] = 0
