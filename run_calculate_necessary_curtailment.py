@@ -145,11 +145,11 @@ def stepwise_curtailment(
             import_results=True,
         )
 
-        # timeindex = pd.date_range(
-        #     day,
-        #     periods=len_day,
-        #     freq="15min",
-        # )
+        timeindex = pd.date_range(
+            day,
+            periods=len_day,
+            freq="15min",
+        )
 
         # FIXME:
         if "type" not in edisgo_chunk.topology.generators_df.columns.tolist():
