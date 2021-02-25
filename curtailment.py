@@ -892,6 +892,49 @@ def curtailment_mv_lines_overloading(
     return curtailment
 
 
+def curtail_lv_grids_convergence(
+        edisgo
+):
+    try:
+
+        for key in edisgo.topology._grids:
+
+            pypsa_lv = edisgo.to_pypsa(
+                mode="lv",
+                lv_grid_name=key,
+            )
+
+            pypsa_lv_orig = pypsa_lv.copy()
+
+            i = 0
+
+            while i < max_iterations and not converged:
+                try:
+                    pf_results = pypsa_lv.pf(edisgo.timeseries.timeindex)
+
+                    converged = True
+
+                except:
+                    timeindex = edisgo.timeseries.residual_load.nsmallest(
+                        int(len(edisgo.timeseries.residual_load) / 20),
+                        keep="all",
+                    ).index.tolist()
+
+                    _curtail(
+                        pypsa_lv, pypsa_lv.generators.index, pypsa_lv.loads.index, timeindex,
+                        curtailment_step=0.1,
+                    )
+
+                    _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
+
+                    i += 1
+
+            break
+
+    except:
+        traceback.print_exc()
+
+
 def calculate_curtailment(
         grid_dir,
         edisgo,
@@ -931,6 +974,8 @@ def calculate_curtailment(
             index=["lv_problems", "mv_problems", "convergence_problems"])
 
         t1 = perf_counter()
+
+        edisgo = curtail_lv_grids_convergence(edisgo)
 
         pypsa_network = edisgo.to_pypsa()
 

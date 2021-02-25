@@ -33,7 +33,7 @@ data_dir = Path( # TODO: set dir
     # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_curtailment_results_test" # TODO
+sub_dir = r"eDisGo_curtailment_results" # TODO
 
 scenarios = [ # TODO
     "NEP_C_2035",
@@ -67,23 +67,17 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        mode = "days"
+        mode = "days" # TODO
 
         days = get_days(
             grid_id,
-            mode=mode, # TODO
+            mode=mode,
         )
 
         if mode == "days":
             ts_count = 96
         elif mode == "weeks":
             ts_count = 7*96
-
-        # days = pd.date_range(
-        #     '2011-01-01',
-        #     periods=365/5, # TODO
-        #     freq='5d',
-        # ).tolist()
 
         if num_threads == 1:
             for day in days:

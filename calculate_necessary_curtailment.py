@@ -886,6 +886,144 @@ def calculate_curtailment(
         traceback.print_exc()
 
 
+def reinforce_transformers_and_lines(
+        edisgo,
+        by=0,
+):
+    try:
+        # lines
+        edisgo.topology.lines_df.s_nom *= (1+by)
+        edisgo.topology.lines_df.r /= (1 + by)
+        edisgo.topology.lines_df.x /= (1 + by)
+
+        # transformers mv-lv
+        df_t_lv = edisgo.topology.transformers_df.copy()
+        df_eq = edisgo.topology.equipment_data["lv_transformers"].copy()
+
+        for bus in df_t_lv.bus0.unique():
+            df_t_bus = df_t_lv.copy().loc[
+                df_t_lv.bus0 == bus
+            ]
+
+            s_nom_bus = df_t_bus.s_nom.sum()
+
+            count_t = len(df_t_bus)
+
+            bus0 = df_t_bus.bus0.iat[0]
+            bus1 = df_t_bus.bus1.iat[0]
+
+            name = df_t_bus.index.tolist()[0].rsplit("_", 1)[0] + "_"
+
+            df_eq_bus = df_eq.copy().loc[
+                df_eq.S_nom >= by * s_nom_bus
+            ]
+
+            if not df_eq_bus.empty:
+                index = name + str(count_t + 1)
+                x_pu = df_eq_bus.x_pu.iat[0]
+                r_pu = df_eq_bus.r_pu.iat[0]
+                s_nom = df_eq_bus.S_nom.iat[0]
+
+                df_t_lv.loc[index] = [
+                    bus0,
+                    bus1,
+                    x_pu,
+                    r_pu,
+                    s_nom,
+                    "",
+                ]
+
+            else:
+                p = 1
+                while p < by * s_nom_bus:
+                    p += 1
+
+                names = [
+                    name + str(count_t + i) for i in range(1, p+1)
+                ]
+
+                x_pu = df_eq.x_pu.iat[-1]
+                r_pu = df_eq.r_pu.iat[-1]
+                s_nom = df_eq.S_nom.iat[-1]
+
+                for index in names:
+                    df_t_lv.loc[index] = [
+                        bus0,
+                        bus1,
+                        x_pu,
+                        r_pu,
+                        s_nom,
+                        "",
+                    ]
+
+        df_t_lv = df_t_lv.sort_index()
+
+        # transformers hv-mv
+        df_t_mv = edisgo.topology.transformers_hvmv_df.copy()
+        df_eq = edisgo.topology.equipment_data["mv_transformers"].copy()
+
+        s_nom = df_t_mv.s_nom.sum()
+
+        count_t = len(df_t_mv)
+
+        bus0 = df_t_mv.bus0.iat[0]
+        bus1 = df_t_mv.bus1.iat[0]
+
+        name = df_t_mv.index.tolist()[0].rsplit("_", 1)[0] + "_"
+
+        df_eq_ok = df_eq.copy().loc[
+            df_eq.S_nom >= by * s_nom
+        ]
+
+        if not df_eq_ok.empty:
+            index = name + str(count_t + 1)
+            s_nom = df_eq_ok.S_nom.iat[0]
+
+            df_t_mv.loc[index] = [
+                bus0,
+                bus1,
+                s_nom,
+                np.nan,
+                np.nan,
+                "",
+                "",
+            ]
+
+        else:
+            p = 63
+            j = 1
+            while p < by * s_nom:
+                p += 63
+                j += 1
+
+            names = [
+                name + str(count_t + i) for i in range(1, j + 1)
+            ]
+
+            s_nom = df_eq.S_nom.iat[-1]
+
+            for index in names:
+                df_t_mv.loc[index] = [
+                    bus0,
+                    bus1,
+                    s_nom,
+                    np.nan,
+                    np.nan,
+                    "",
+                    "",
+                ]
+
+        df_t_mv = df_t_mv.sort_index()
+
+        edisgo.topology.transformers_df = df_t_lv.copy()
+        edisgo.topology.transformers_hvmv_df = df_t_mv.copy()
+
+        return edisgo
+
+    except:
+        traceback.print_exc()
+
+
 def integrate_public_charging(
         ding0_dir,
         grid_dir,
@@ -928,6 +1066,11 @@ def integrate_public_charging(
             timeseries_generation_fluctuating="oedb",
             timeseries_generation_dispatchable=timeseries_generation_dispatchable,
             timeindex=timeindex,
+        )
+
+        edisgo = reinforce_transformers_and_lines(
+            edisgo,
+            by=0.4,
         )
 
         timeseries_data_path = os.path.join(
