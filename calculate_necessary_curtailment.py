@@ -997,7 +997,7 @@ def reinforce_transformers_and_lines(
                 j += 1
 
             names = [
-                name + str(count_t + i) for i in range(1, j + 1)
+                name + str(count_t + i) for i in range(1, j)
             ]
 
             s_nom = df_eq.S_nom.iat[-1]
