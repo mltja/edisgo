@@ -467,7 +467,7 @@ def get_charging_points(
             else:
                 cp_dfs[3] = cp_dfs[1].copy()
 
-        sum_weight_target = cp_dfs[3].weight.sum()# / 0.7 * 0.3
+        sum_weight_target = cp_dfs[3].weight.sum() / 0.7 * 0.3
         sum_weight = df_append.weight.sum()
         df_append.weight = df_append.weight.multiply(sum_weight_target / sum_weight)
 
