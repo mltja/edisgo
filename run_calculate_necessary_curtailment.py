@@ -95,7 +95,7 @@ def run_calculate_curtailment(
 
         else:
             if grid_id == "176":
-                num_threads = 711
+                num_threads = 7#11
             elif grid_id == "177":
                 num_threads = 21
             elif grid_id == "1056":
