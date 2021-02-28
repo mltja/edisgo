@@ -1271,8 +1271,12 @@ def calculate_curtailment(
             except:
                 if i == 0:
                     elia_logger.debug(
-                        "First PF didn't converge for day {} with strategy {}".format(
-                            day, strategy
+                        "First PF didn't converge for day {} with strategy {} in grid {} and scenario {}".format(
+                            day, strategy, mv_grid_id, scenario
+                        ),
+                        file=open(
+                            "convergence_failed.txt",
+                            "a",
                         )
                     )
 
