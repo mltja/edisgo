@@ -80,49 +80,6 @@ def generate_edisgo_objects(
         for strategy in strategies:
             t1 = perf_counter()
 
-            edisgo = cc.integrate_public_charging(
-                ding0_dir,
-                grid_dir,
-                grid_id,
-                files,
-                date=start_date,
-                generator_scenario="ego100",
-            )
-
-            gc.collect()
-
-            print(
-                "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
-                    strategy, scenario, grid_id
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
-
-            t1 = perf_counter()
-
-            edisgo = cc.integrate_private_charging(
-                edisgo,
-                grid_dir,
-                files,
-                strategy,
-            )
-
-            gc.collect()
-
-            edisgo.aggregate_components()
-
-            gc.collect()
-
-            print(
-                "Private charging has been integrated for",
-                "scenario {} in grid {} with strategy {}.".format(
-                    scenario, grid_id, strategy
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
-
-            t1 = perf_counter()
-
             export_dir = Path(
                 os.path.join(
                     data_dir,
@@ -138,20 +95,70 @@ def generate_edisgo_objects(
                 exist_ok=True,
             )
 
-            edisgo.save(
-                directory=export_dir,
-            )
+            check_dirs = os.listdir(export_dir)
 
-            print(
-                "Scenario {} in grid {} with strategy {} has been saved.".format(
-                    scenario, grid_id, strategy
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
+            print("breaker")
 
-            del edisgo
+            if len(check_dirs) >= 3:
+                pass
+            else:
+                edisgo = cc.integrate_public_charging(
+                    ding0_dir,
+                    grid_dir,
+                    grid_id,
+                    files,
+                    date=start_date,
+                    generator_scenario="ego100",
+                )
 
-            gc.collect()
+                gc.collect()
+
+                print(
+                    "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
+                        strategy, scenario, grid_id
+                    ),
+                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                )
+
+                t1 = perf_counter()
+
+                edisgo = cc.integrate_private_charging(
+                    edisgo,
+                    grid_dir,
+                    files,
+                    strategy,
+                )
+
+                gc.collect()
+
+                edisgo.aggregate_components()
+
+                gc.collect()
+
+                print(
+                    "Private charging has been integrated for",
+                    "scenario {} in grid {} with strategy {}.".format(
+                        scenario, grid_id, strategy
+                    ),
+                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                )
+
+                t1 = perf_counter()
+
+                edisgo.save(
+                    directory=export_dir,
+                )
+
+                print(
+                    "Scenario {} in grid {} with strategy {} has been saved.".format(
+                        scenario, grid_id, strategy
+                    ),
+                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                )
+
+                del edisgo
+
+                gc.collect()
 
         print(
             "Scenario {} in grid {} has been saved.".format(
