@@ -181,7 +181,7 @@ def curtailment_lv_voltage(
         pypsa_network=None, lv_grid=False):
 
     elia_logger = logging.getLogger(
-        'elia_project: {}'.format(edisgo.topology.id))
+        'MA: {} {}'.format(scenario, edisgo.topology.id))
 
     # get voltage issues in LV
     lv_buses = edisgo.topology.buses_df.lv_feeder.dropna().index
@@ -308,7 +308,7 @@ def curtailment_mvlv_stations_voltage(
         edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day):
 
     elia_logger = logging.getLogger(
-        'elia_project: {}'.format(edisgo.topology.id))
+        'MA: {} {}'.format(scenario, edisgo.topology.id))
 
     # get stations with voltage issues
     mvlv_stations = edisgo.topology.transformers_df.bus1.values
@@ -418,7 +418,7 @@ def curtailment_mv_voltage(
         edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day):
 
     elia_logger = logging.getLogger(
-        'elia_project: {}'.format(edisgo.topology.id))
+        'MA: {} {}'.format(scenario, edisgo.topology.id))
 
     # get voltage issues in MV
     mv_buses = edisgo.topology.mv_grid.buses_df.index
@@ -533,7 +533,7 @@ def curtailment_lv_lines_overloading(
         pypsa_network=None, lv_grid=False):
 
     elia_logger = logging.getLogger(
-        'elia_project: {}'.format(edisgo.topology.id))
+        'MA: {} {}'.format(scenario, edisgo.topology.id))
 
     # get overloading issues in LV
     lv_lines = edisgo.topology.lines_df.lv_feeder.dropna().index
@@ -679,7 +679,7 @@ def curtailment_mvlv_stations_overloading(
         edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mv_grid_id):
 
     elia_logger = logging.getLogger(
-        'elia_project: {}'.format(edisgo.topology.id))
+        'MA: {} {}'.format(scenario, edisgo.topology.id))
 
     # get overloading issues at MV/LV stations
     mvlv_stations = [_ for _ in rel_load.columns if "mvlv_station" in _]
@@ -793,7 +793,7 @@ def curtailment_mv_lines_overloading(
         edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day):
 
     elia_logger = logging.getLogger(
-        'elia_project: {}'.format(edisgo.topology.id))
+        'MA: {} {}'.format(scenario, edisgo.topology.id))
 
     mv_lines = edisgo.topology.mv_grid.lines_df.index
     rel_load_mv = rel_load.loc[:, mv_lines]
@@ -924,10 +924,10 @@ def curtailment_mv_lines_overloading(
 
 
 def curtailment_hvmv_station_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario):
 
     elia_logger = logging.getLogger(
-        'elia_project: {}'.format(edisgo.topology.id))
+        'MA: {} {}'.format(scenario, edisgo.topology.id))
 
     hvmv_station = "hvmv_station_{}".format(edisgo.topology.mv_grid)
     rel_load_hvmv_station = rel_load.loc[:, hvmv_station]
@@ -1208,12 +1208,13 @@ def calculate_curtailment(
         mv_grid_id = int(grid_dir.parts[-2])
         scenario = grid_dir.parts[-3]
 
-        elia_logger = logging.getLogger('elia_project: {}'.format(mv_grid_id))
+        elia_logger = logging.getLogger(
+            'MA: {} {}'.format(scenario, edisgo.topology.id))
         elia_logger.setLevel(logging.DEBUG)
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "test",
+            "curtailment_weeks",
         )
 
         os.makedirs(
@@ -1269,9 +1270,9 @@ def calculate_curtailment(
 
             except:
                 if i == 0:
-                    print(
-                        "First PF didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
-                            day, mv_grid_id, scenario, strategy
+                    elia_logger.debug(
+                        "First PF didn't converge for day {} with strategy {}".format(
+                            day, strategy
                         )
                     )
 
@@ -1290,6 +1291,11 @@ def calculate_curtailment(
                     pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
                     curtailment_step=0.025,
                 )
+
+                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                    pypsa_network_orig, pypsa_network)
+                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
                 _overwrite_edisgo_timeseries(edisgo, pypsa_network)
 
@@ -1333,9 +1339,9 @@ def calculate_curtailment(
 
                 except:
                     if i == 0 and j == 0:
-                        print(
-                            "PF Nr. {} didn't converge for day {} in grid {} with scenario {} and strategy {}".format(
-                                i+2, day, mv_grid_id, scenario, strategy
+                        elia_logger.debug(
+                            "PF Nr. {} didn't converge for day {} with strategy {}".format(
+                                i+2, day, strategy
                             )
                         )
 
@@ -1419,12 +1425,12 @@ def calculate_curtailment(
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment_hvmv_station_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir)
+            edisgo, curtailment, rel_load, grid_results_dir, scenario)
 
         # check if everything was solved
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
         issues = voltage_dev[
-            abs(voltage_dev) > 2e-2].dropna(
+            abs(voltage_dev) > 2e-1].dropna(
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
             print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
@@ -1445,7 +1451,7 @@ def calculate_curtailment(
             pass
         rel_load = results_helper_functions.relative_load(edisgo)
         issues = rel_load[
-            rel_load > 1+2e-3].dropna(
+            rel_load > 1+2e-1].dropna(
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
             print("Not all overloading issues solved on day {} of Grid {} with strategy {}.".format(
