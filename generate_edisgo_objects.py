@@ -97,8 +97,6 @@ def generate_edisgo_objects(
 
             check_dirs = os.listdir(export_dir)
 
-            print("breaker")
-
             if len(check_dirs) >= 3:
                 pass
             else:

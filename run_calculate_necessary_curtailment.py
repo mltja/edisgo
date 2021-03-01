@@ -113,6 +113,10 @@ def stepwise_curtailment(
             import_results=True,
         )
 
+        edisgo_chunk.timeseries.residual_load.to_csv(
+            os.path.join(directory, "residual_load.csv")
+        )
+
         # FIXME:
         if "type" not in edisgo_chunk.topology.generators_df.columns.tolist():
             edisgo_chunk.topology.generators_df["type"] = ["solar"] * len(
