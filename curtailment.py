@@ -1222,6 +1222,11 @@ def calculate_curtailment(
             exist_ok=True,
         )
 
+        edisgo.timeseries.residual_load.to_csv(
+            os.path.join(grid_results_dir, "{}_{}_{}_residual_load_before_curtailment.csv".format(
+                scenario, strategy, day.strftime("%Y-%m-%d")))
+        )
+
         # save original time series before curtailment
         feedin_ts = edisgo.timeseries.generators_active_power.copy()
         load_ts = edisgo.timeseries.loads_active_power.copy()
@@ -1503,10 +1508,10 @@ def calculate_curtailment(
                 scenario, strategy, day.strftime("%Y-%m-%d")))
         )
 
-        # edisgo.timeseries.residual_load.to_csv(
-        #     os.path.join(grid_results_dir, "{}_{}_{}_residual_load.csv".format(
-        #         scenario, strategy, day.strftime("%Y-%m-%d")))
-        # )
+        edisgo.timeseries.residual_load.to_csv(
+            os.path.join(grid_results_dir, "{}_{}_{}_residual_load_after_curtailment.csv".format(
+                scenario, strategy, day.strftime("%Y-%m-%d")))
+        )
 
     except Exception as e:
         mv_grid_id = int(grid_dir.parts[-2])

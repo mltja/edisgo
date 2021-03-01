@@ -987,6 +987,6 @@ def mv_grid_topology(
         plt.savefig(
             filename,
             bbox_inches='tight',
-            dpi=600,
+            dpi=300,
         )
         plt.close()
