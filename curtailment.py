@@ -1222,135 +1222,71 @@ def calculate_curtailment(
             exist_ok=True,
         )
 
-        edisgo.timeseries.residual_load.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_residual_load_before_curtailment.csv".format(
-                scenario, strategy, day.strftime("%Y-%m-%d")))
-        )
+        check_files = os.listdir(grid_results_dir)
 
-        # save original time series before curtailment
-        feedin_ts = edisgo.timeseries.generators_active_power.copy()
-        load_ts = edisgo.timeseries.loads_active_power.copy()
-        charging_ts = edisgo.timeseries.charging_points_active_power.copy()
-
-        # assign feeders and path length to station
-        assign_feeder(edisgo, mode="mv_feeder")
-        assign_feeder(edisgo, mode="lv_feeder")
-        get_path_length_to_station(edisgo)
-
-        curtailment = pd.DataFrame(
-            data=0,
-            columns=["feed-in", "load"],
-            index=[
-                "lv_problems",
-                "mv_problems",
-                "lv_convergence_problems",
-                "mv_convergence_problems",
-            ]
-        )
-
-        edisgo, curtailment = curtail_lv_grids(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
-
-        t1 = perf_counter()
-
-        pypsa_network = edisgo.to_pypsa()
-
-        pypsa_network_orig = pypsa_network.copy()
-
-        i = 0
-
-        converged = False
-
-        while i < max_iterations and not converged:
-            try:
-                pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
-
-                converged = True
-
-            except:
-                if i == 0:
-                    elia_logger.debug(
-                        "First PF didn't converge for day {} with strategy {} in grid {} and scenario {}".format(
-                            day, strategy, mv_grid_id, scenario
-                        ),
-                        file=open(
-                            "convergence_failed.txt",
-                            "a",
-                        )
-                    )
-
-                if edisgo.timeseries.residual_load.max() > abs(edisgo.timeseries.residual_load.min()):
-                    timeindex = edisgo.timeseries.residual_load.nlargest(
-                        int(len(edisgo.timeseries.residual_load) / 10),
-                        keep="all",
-                    ).index.tolist()
-                else:
-                    timeindex = edisgo.timeseries.residual_load.nsmallest(
-                        int(len(edisgo.timeseries.residual_load) / 10),
-                        keep="all",
-                    ).index.tolist()
-
-                _curtail(
-                    pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
-                    curtailment_step=0.05,
-                )
-
-                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                    pypsa_network_orig, pypsa_network)
-                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
-
-                _overwrite_edisgo_timeseries(edisgo, pypsa_network)
-
-                i += 1
-
-        print("It took {} seconds for the initial power flow analysis on day {}.".format(
-            round(perf_counter() - t1, 0), day
-        ))
-
-        i = 0
-
-        t1 = perf_counter()
-
-        while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
-            elia_logger.debug(
-                "Number of time steps with convergence issues: {}".format(
-                    len(edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist())
-                )
+        if len(check_files) >= 14:
+            pass
+        else:
+            edisgo.timeseries.residual_load.to_csv(
+                os.path.join(grid_results_dir, "{}_{}_{}_residual_load_before_curtailment.csv".format(
+                    scenario, strategy, day.strftime("%Y-%m-%d")))
             )
 
-            _curtail(
-                pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
-                edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
-                curtailment_step=0.05,
+            # save original time series before curtailment
+            feedin_ts = edisgo.timeseries.generators_active_power.copy()
+            load_ts = edisgo.timeseries.loads_active_power.copy()
+            charging_ts = edisgo.timeseries.charging_points_active_power.copy()
+
+            # assign feeders and path length to station
+            assign_feeder(edisgo, mode="mv_feeder")
+            assign_feeder(edisgo, mode="lv_feeder")
+            get_path_length_to_station(edisgo)
+
+            curtailment = pd.DataFrame(
+                data=0,
+                columns=["feed-in", "load"],
+                index=[
+                    "lv_problems",
+                    "mv_problems",
+                    "lv_convergence_problems",
+                    "mv_convergence_problems",
+                ]
             )
 
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                pypsa_network_orig, pypsa_network)
-            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            edisgo, curtailment = curtail_lv_grids(
+                edisgo,
+                grid_results_dir,
+                day,
+                scenario,
+                strategy,
+                curtailment,
+            )
 
-            j = 0
+            t1 = perf_counter()
+
+            pypsa_network = edisgo.to_pypsa()
+
+            pypsa_network_orig = pypsa_network.copy()
+
+            i = 0
 
             converged = False
 
-            while j < max_iterations and not converged:
+            while i < max_iterations and not converged:
                 try:
                     pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
 
                     converged = True
 
                 except:
-                    if i == 0 and j == 0:
+                    if i == 0:
                         elia_logger.debug(
-                            "PF Nr. {} didn't converge for day {} with strategy {}".format(
-                                i+2, day, strategy
+                            "First PF didn't converge for day {} with strategy {} in grid {} and scenario {}".format(
+                                day, strategy, mv_grid_id, scenario
+                            ),
+                            file=open(
+                                "convergence_failed.txt",
+                                "a",
                             )
                         )
 
@@ -1370,148 +1306,217 @@ def calculate_curtailment(
                         curtailment_step=0.05,
                     )
 
+                    curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                        pypsa_network_orig, pypsa_network)
+                    elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                        curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+
                     _overwrite_edisgo_timeseries(edisgo, pypsa_network)
 
-                    j += 1
+                    i += 1
 
-            i += 1
-
-        curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_network_orig, pypsa_network)
-
-        curtailment.loc[
-            "mv_convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
-        curtailment.loc[
-            "mv_convergence_problems", "load"] += curtailed_load.sum().sum()
-
-        print("It took {} seconds to overcome the initial convergence problems.".format(
-            round(perf_counter() - t1, 0)
-        ))
-
-        pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
-
-        _overwrite_edisgo_timeseries(edisgo, pypsa_network)
-
-        # curtailment due to voltage issues
-
-        # import voltage deviation
-        # path = os.path.join(reload_dir, 'voltage_deviation.csv')
-        # voltage_dev = pd.read_csv(path, index_col=0, parse_dates=True)
-        voltage_dev = results_helper_functions.voltage_diff(edisgo)
-
-        curtailment = curtailment_lv_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day)
-
-        # ToDo Only recalculate voltage deviation if curtailment was conducted
-        #  (will be done when voltage deviation is attribute in results object)
-        voltage_dev = results_helper_functions.voltage_diff(edisgo)
-
-        curtailment = curtailment_mvlv_stations_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day)
-
-        voltage_dev = results_helper_functions.voltage_diff(edisgo)
-
-        curtailment = curtailment_mv_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day)
-
-        # curtailment due to overloading issues
-
-        # recalculate relative line loading
-        rel_load = results_helper_functions.relative_load(edisgo)
-
-        curtailment = curtailment_lv_lines_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day)
-
-        rel_load = results_helper_functions.relative_load(edisgo)
-
-        curtailment = curtailment_mvlv_stations_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mv_grid_id)
-
-        rel_load = results_helper_functions.relative_load(edisgo)
-
-        curtailment = curtailment_mv_lines_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day)
-
-        rel_load = results_helper_functions.relative_load(edisgo)
-
-        curtailment_hvmv_station_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario)
-
-        # check if everything was solved
-        voltage_dev = results_helper_functions.voltage_diff(edisgo)
-        issues = voltage_dev[
-            abs(voltage_dev) > 2e-1].dropna(
-            how="all").dropna(axis=1, how="all")
-        if not issues.empty:
-            print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
-                day, mv_grid_id, strategy
+            print("It took {} seconds for the initial power flow analysis on day {}.".format(
+                round(perf_counter() - t1, 0), day
             ))
-            issues.to_csv(
-                os.path.join(
-                    grid_results_dir,
-                    "{}_{}_{}_voltage_issues.csv".format(
-                        scenario, strategy, day.strftime("%Y-%m-%d")
-                    ),
+
+            i = 0
+
+            t1 = perf_counter()
+
+            while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
+                elia_logger.debug(
+                    "Number of time steps with convergence issues: {}".format(
+                        len(edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist())
+                    )
                 )
-            )
-        else:
-            # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
-            #     day, mv_grid_id, strategy
-            # ))
-            pass
-        rel_load = results_helper_functions.relative_load(edisgo)
-        issues = rel_load[
-            rel_load > 1+2e-1].dropna(
-            how="all").dropna(axis=1, how="all")
-        if not issues.empty:
-            print("Not all overloading issues solved on day {} of Grid {} with strategy {}.".format(
-                day, mv_grid_id, strategy
+
+                _curtail(
+                    pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index,
+                    edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
+                    curtailment_step=0.05,
+                )
+
+                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                    pypsa_network_orig, pypsa_network)
+                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+
+                j = 0
+
+                converged = False
+
+                while j < max_iterations and not converged:
+                    try:
+                        pf_results = pypsa_network.pf(edisgo.timeseries.timeindex)
+
+                        converged = True
+
+                    except:
+                        if i == 0 and j == 0:
+                            elia_logger.debug(
+                                "PF Nr. {} didn't converge for day {} with strategy {}".format(
+                                    i+2, day, strategy
+                                )
+                            )
+
+                        if edisgo.timeseries.residual_load.max() > abs(edisgo.timeseries.residual_load.min()):
+                            timeindex = edisgo.timeseries.residual_load.nlargest(
+                                int(len(edisgo.timeseries.residual_load) / 10),
+                                keep="all",
+                            ).index.tolist()
+                        else:
+                            timeindex = edisgo.timeseries.residual_load.nsmallest(
+                                int(len(edisgo.timeseries.residual_load) / 10),
+                                keep="all",
+                            ).index.tolist()
+
+                        _curtail(
+                            pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
+                            curtailment_step=0.05,
+                        )
+
+                        _overwrite_edisgo_timeseries(edisgo, pypsa_network)
+
+                        j += 1
+
+                i += 1
+
+            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_network_orig, pypsa_network)
+
+            curtailment.loc[
+                "mv_convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
+            curtailment.loc[
+                "mv_convergence_problems", "load"] += curtailed_load.sum().sum()
+
+            print("It took {} seconds to overcome the initial convergence problems.".format(
+                round(perf_counter() - t1, 0)
             ))
-            issues.to_csv(
-                os.path.join(
-                    grid_results_dir,
-                    "{}_{}_{}_overloading_issues.csv".format(
-                        scenario, strategy, day.strftime("%Y-%m-%d")
-                    ),
+
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+
+            _overwrite_edisgo_timeseries(edisgo, pypsa_network)
+
+            # curtailment due to voltage issues
+
+            # import voltage deviation
+            # path = os.path.join(reload_dir, 'voltage_deviation.csv')
+            # voltage_dev = pd.read_csv(path, index_col=0, parse_dates=True)
+            voltage_dev = results_helper_functions.voltage_diff(edisgo)
+
+            curtailment = curtailment_lv_voltage(
+                edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day)
+
+            # ToDo Only recalculate voltage deviation if curtailment was conducted
+            #  (will be done when voltage deviation is attribute in results object)
+            voltage_dev = results_helper_functions.voltage_diff(edisgo)
+
+            curtailment = curtailment_mvlv_stations_voltage(
+                edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day)
+
+            voltage_dev = results_helper_functions.voltage_diff(edisgo)
+
+            curtailment = curtailment_mv_voltage(
+                edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day)
+
+            # curtailment due to overloading issues
+
+            # recalculate relative line loading
+            rel_load = results_helper_functions.relative_load(edisgo)
+
+            curtailment = curtailment_lv_lines_overloading(
+                edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day)
+
+            rel_load = results_helper_functions.relative_load(edisgo)
+
+            curtailment = curtailment_mvlv_stations_overloading(
+                edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mv_grid_id)
+
+            rel_load = results_helper_functions.relative_load(edisgo)
+
+            curtailment = curtailment_mv_lines_overloading(
+                edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day)
+
+            rel_load = results_helper_functions.relative_load(edisgo)
+
+            curtailment_hvmv_station_overloading(
+                edisgo, curtailment, rel_load, grid_results_dir, scenario)
+
+            # check if everything was solved
+            voltage_dev = results_helper_functions.voltage_diff(edisgo)
+            issues = voltage_dev[
+                abs(voltage_dev) > 2e-2].dropna( # TODO
+                how="all").dropna(axis=1, how="all")
+            if not issues.empty:
+                print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
+                    day, mv_grid_id, strategy
+                ))
+                issues.to_csv(
+                    os.path.join(
+                        grid_results_dir,
+                        "{}_{}_{}_voltage_issues.csv".format(
+                            scenario, strategy, day.strftime("%Y-%m-%d")
+                        ),
+                    )
                 )
+            else:
+                # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
+                #     day, mv_grid_id, strategy
+                # ))
+                pass
+            rel_load = results_helper_functions.relative_load(edisgo)
+            issues = rel_load[
+                rel_load > 1+2e-2].dropna( # TODO
+                how="all").dropna(axis=1, how="all")
+            if not issues.empty:
+                print("Not all overloading issues solved on day {} of Grid {} with strategy {}.".format(
+                    day, mv_grid_id, strategy
+                ))
+                issues.to_csv(
+                    os.path.join(
+                        grid_results_dir,
+                        "{}_{}_{}_overloading_issues.csv".format(
+                            scenario, strategy, day.strftime("%Y-%m-%d")
+                        ),
+                    )
+                )
+            else:
+                # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
+                #     day, mv_grid_id, strategy
+                # ))
+                pass
+
+            # save curtailment sums
+            curtailment.to_csv(
+                os.path.join(grid_results_dir, "{}_{}_{}_curtailment.csv".format(
+                    scenario, strategy, day.strftime("%Y-%m-%d"))))
+
+            # save time series
+            curtailed_feedin = feedin_ts - edisgo.timeseries.generators_active_power
+            curtailed_load = pd.concat(
+                [(load_ts - edisgo.timeseries.loads_active_power),
+                 (charging_ts - edisgo.timeseries.charging_points_active_power)],
+                axis=1)
+            curtailed_feedin.to_csv(
+                os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_per_gen.csv".format(
+                    scenario, strategy, day.strftime("%Y-%m-%d")))
             )
-        else:
-            # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
-            #     day, mv_grid_id, strategy
-            # ))
-            pass
+            curtailed_load.to_csv(
+                os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_per_load.csv".format(
+                    scenario, strategy, day.strftime("%Y-%m-%d")))
+            )
+            curtailed_feedin.sum(axis=1).to_csv(
+                os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_feedin.csv".format(
+                    scenario, strategy, day.strftime("%Y-%m-%d")))
+            )
+            curtailed_load.sum(axis=1).to_csv(
+                os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_demand.csv".format(
+                    scenario, strategy, day.strftime("%Y-%m-%d")))
+            )
 
-        # save curtailment sums
-        curtailment.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_curtailment.csv".format(
-                scenario, strategy, day.strftime("%Y-%m-%d"))))
-
-        # save time series
-        curtailed_feedin = feedin_ts - edisgo.timeseries.generators_active_power
-        curtailed_load = pd.concat(
-            [(load_ts - edisgo.timeseries.loads_active_power),
-             (charging_ts - edisgo.timeseries.charging_points_active_power)],
-            axis=1)
-        curtailed_feedin.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_per_gen.csv".format(
-                scenario, strategy, day.strftime("%Y-%m-%d")))
-        )
-        curtailed_load.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_per_load.csv".format(
-                scenario, strategy, day.strftime("%Y-%m-%d")))
-        )
-        curtailed_feedin.sum(axis=1).to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_feedin.csv".format(
-                scenario, strategy, day.strftime("%Y-%m-%d")))
-        )
-        curtailed_load.sum(axis=1).to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_curtailment_ts_demand.csv".format(
-                scenario, strategy, day.strftime("%Y-%m-%d")))
-        )
-
-        edisgo.timeseries.residual_load.to_csv(
-            os.path.join(grid_results_dir, "{}_{}_{}_residual_load_after_curtailment.csv".format(
-                scenario, strategy, day.strftime("%Y-%m-%d")))
-        )
+            edisgo.timeseries.residual_load.to_csv(
+                os.path.join(grid_results_dir, "{}_{}_{}_residual_load_after_curtailment.csv".format(
+                    scenario, strategy, day.strftime("%Y-%m-%d")))
+            )
 
     except Exception as e:
         mv_grid_id = int(grid_dir.parts[-2])
