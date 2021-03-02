@@ -185,10 +185,10 @@ def curtailment_lv_voltage(
 
     # get voltage issues in LV
     lv_buses = edisgo.topology.buses_df.lv_feeder.dropna().index
-    lv_buses = [
-        lv_bus for lv_bus in lv_buses if lv_bus in voltage_dev.columns.tolist()
-    ]
-    voltage_dev_lv = voltage_dev.loc[:, lv_buses]
+    if not voltage_dev.empty:
+        voltage_dev_lv = voltage_dev.loc[:, lv_buses]
+    else:
+        voltage_dev_lv = voltage_dev.copy()
     voltage_issues = voltage_dev_lv[
         voltage_dev_lv != 0].dropna(how="all").dropna(
             axis=1, how="all")
@@ -540,10 +540,10 @@ def curtailment_lv_lines_overloading(
 
     # get overloading issues in LV
     lv_lines = edisgo.topology.lines_df.lv_feeder.dropna().index
-    lv_lines = [
-        lv_line for lv_line in lv_lines if lv_line in rel_load.columns.tolist()
-    ]
-    rel_load_lv = rel_load.loc[:, lv_lines]
+    if not rel_load.empty:
+        rel_load_lv = rel_load.loc[:, lv_lines]
+    else:
+        rel_load_lv = rel_load.copy()
     overloading_issues = rel_load_lv[rel_load_lv > 1].dropna(
         how="all").dropna(axis=1, how="all")
     lines_issues = overloading_issues.columns
@@ -1026,7 +1026,7 @@ def curtail_lv_grids(
             lv_grid for lv_grid in lv_grids if "LVGrid" in lv_grid
         ]
 
-        for lv_grid in ["LVGrid_500493"]:#lv_grids: TODO
+        for lv_grid in lv_grids:
 
             t1 = perf_counter()
 
