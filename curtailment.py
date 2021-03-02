@@ -1298,7 +1298,7 @@ def calculate_curtailment(
 
                 _curtail(
                     pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
-                    curtailment_step=0.025,
+                    curtailment_step=0.05,
                 )
 
                 curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
@@ -1356,18 +1356,18 @@ def calculate_curtailment(
 
                     if edisgo.timeseries.residual_load.max() > abs(edisgo.timeseries.residual_load.min()):
                         timeindex = edisgo.timeseries.residual_load.nlargest(
-                            int(len(edisgo.timeseries.residual_load) / 20),
+                            int(len(edisgo.timeseries.residual_load) / 10),
                             keep="all",
                         ).index.tolist()
                     else:
                         timeindex = edisgo.timeseries.residual_load.nsmallest(
-                            int(len(edisgo.timeseries.residual_load) / 20),
+                            int(len(edisgo.timeseries.residual_load) / 10),
                             keep="all",
                         ).index.tolist()
 
                     _curtail(
                         pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
-                        curtailment_step=0.025,
+                        curtailment_step=0.05,
                     )
 
                     _overwrite_edisgo_timeseries(edisgo, pypsa_network)
