@@ -1225,7 +1225,9 @@ def calculate_curtailment(
         check_files = os.listdir(grid_results_dir)
 
         if len(check_files) >= 14:
-            pass
+            print("{} in scenario {} and strategy {} is allready done".format(
+                str(mv_grid_id), scenario, strategy
+            ))
         else:
             edisgo.timeseries.residual_load.to_csv(
                 os.path.join(grid_results_dir, "{}_{}_{}_residual_load_before_curtailment.csv".format(
