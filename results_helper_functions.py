@@ -45,29 +45,30 @@ def relative_load(edisgo_obj):
 
     # MV-LV stations
     # check if power flow was conducted for stations
-    if not edisgo_obj.results.s_res.loc[
-       :, edisgo_obj.results.s_res.columns.str.contains("Transformer")].empty:
+    if not edisgo_obj.results.s_res.empty:
+        if not edisgo_obj.results.s_res.loc[
+           :, edisgo_obj.results.s_res.columns.str.contains("Transformer")].empty:
 
-        load_factor = edisgo_obj.timeseries.timesteps_load_feedin_case.apply(
-            lambda _: edisgo_obj.config["grid_expansion_load_factors"][
-                "{}_{}_transformer".format("lv", _)
-            ]
-        )
-        for grid in edisgo_obj.topology.mv_grid.lv_grids:
-            transformers_df = grid.transformers_df
+            load_factor = edisgo_obj.timeseries.timesteps_load_feedin_case.apply(
+                lambda _: edisgo_obj.config["grid_expansion_load_factors"][
+                    "{}_{}_transformer".format("lv", _)
+                ]
+            )
+            for grid in edisgo_obj.topology.mv_grid.lv_grids:
+                transformers_df = grid.transformers_df
 
-            # check if grid was included in power flow
-            if transformers_df.index[0] in edisgo_obj.results.s_res.columns:
-                # get apparent power over station from power flow analysis
-                s_station_pfa = edisgo_obj.results.s_res.loc[
-                    :, transformers_df.index
-                ].sum(axis=1)
+                # check if grid was included in power flow
+                if transformers_df.index[0] in edisgo_obj.results.s_res.columns:
+                    # get apparent power over station from power flow analysis
+                    s_station_pfa = edisgo_obj.results.s_res.loc[
+                        :, transformers_df.index
+                    ].sum(axis=1)
 
-                # get maximum allowed apparent power of station in each time
-                # step
-                s_station_allowed = sum(transformers_df.s_nom) * load_factor
-                rel_load["mvlv_station_{}".format(grid)] = \
-                    s_station_pfa / s_station_allowed
+                    # get maximum allowed apparent power of station in each time
+                    # step
+                    s_station_allowed = sum(transformers_df.s_nom) * load_factor
+                    rel_load["mvlv_station_{}".format(grid)] = \
+                        s_station_pfa / s_station_allowed
 
     # HV-MV station
     # check if power flow was conducted for MV
@@ -230,15 +231,16 @@ def voltage_diff(edisgo_obj):
 
     # MV-LV stations
     # check if power flow was conducted for stations
-    if not edisgo_obj.results.s_res.loc[
-           :,
-           edisgo_obj.results.s_res.columns.str.contains("Transformer")].empty:
+    if not edisgo_obj.results.s_res.empty:
+        if not edisgo_obj.results.s_res.loc[
+               :,
+               edisgo_obj.results.s_res.columns.str.contains("Transformer")].empty:
 
-        voltage_difference_stations = voltage_diff_stations(edisgo_obj)
-        voltage_difference = pd.concat(
-            [voltage_difference, voltage_difference_stations],
-            sort=False, axis=1
-        )
+            voltage_difference_stations = voltage_diff_stations(edisgo_obj)
+            voltage_difference = pd.concat(
+                [voltage_difference, voltage_difference_stations],
+                sort=False, axis=1
+            )
 
     # LV buses
     # check if power flow was as well conducted for LV
