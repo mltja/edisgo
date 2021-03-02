@@ -24,7 +24,7 @@ from edisgo.edisgo import import_edisgo_from_files
 
 gc.collect()
 
-os.sched_setaffinity(0,range(1000)) # TODO
+# os.sched_setaffinity(0,range(1000)) # TODO
 
 num_threads = 1 # TODO
 
@@ -46,7 +46,7 @@ scenarios = [ # TODO
 
 grid_ids = ["1690"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
+strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))

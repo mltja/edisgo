@@ -44,7 +44,7 @@ logger.setLevel(logging.ERROR)
 #                #2079, 2095, 2534, 3008, 3280] # 566, 3267
 
 # num_threads = 1
-# curtailment_step = 0.1 # 0.2 # TODO
+# curtailment_step = 0.1 # 0.2
 max_iterations = 1000
 
 
@@ -124,7 +124,7 @@ def _save_results_when_curtailment_failed(edisgo_obj, results_dir, mode):
     )
 
 
-def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1):
+def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1): # TODO
 
     # get time series for loads and generators
     gens_ts = pypsa_network.generators_t.p_set.loc[
@@ -185,6 +185,9 @@ def curtailment_lv_voltage(
 
     # get voltage issues in LV
     lv_buses = edisgo.topology.buses_df.lv_feeder.dropna().index
+    lv_buses = [
+        lv_bus for lv_bus in lv_buses if lv_bus in voltage_dev.columns.tolist()
+    ]
     voltage_dev_lv = voltage_dev.loc[:, lv_buses]
     voltage_issues = voltage_dev_lv[
         voltage_dev_lv != 0].dropna(how="all").dropna(
@@ -537,6 +540,9 @@ def curtailment_lv_lines_overloading(
 
     # get overloading issues in LV
     lv_lines = edisgo.topology.lines_df.lv_feeder.dropna().index
+    lv_lines = [
+        lv_line for lv_line in lv_lines if lv_line in rel_load.columns.tolist()
+    ]
     rel_load_lv = rel_load.loc[:, lv_lines]
     overloading_issues = rel_load_lv[rel_load_lv > 1].dropna(
         how="all").dropna(axis=1, how="all")
@@ -1020,7 +1026,7 @@ def curtail_lv_grids(
             lv_grid for lv_grid in lv_grids if "LVGrid" in lv_grid
         ]
 
-        for lv_grid in lv_grids:
+        for lv_grid in ["LVGrid_500493"]:#lv_grids: TODO
 
             t1 = perf_counter()
 
