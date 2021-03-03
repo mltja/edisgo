@@ -181,7 +181,7 @@ def curtailment_lv_voltage(
         pypsa_network=None, lv_grid=False):
 
     elia_logger = logging.getLogger(
-        'MA: {} {}'.format(scenario, edisgo.topology.id))
+        'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
 
     # get voltage issues in LV
     lv_buses = edisgo.topology.buses_df.lv_feeder.dropna().index
@@ -311,7 +311,7 @@ def curtailment_mvlv_stations_voltage(
         edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day):
 
     elia_logger = logging.getLogger(
-        'MA: {} {}'.format(scenario, edisgo.topology.id))
+        'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
 
     # get stations with voltage issues
     mvlv_stations = edisgo.topology.transformers_df.bus1.values
@@ -421,7 +421,7 @@ def curtailment_mv_voltage(
         edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day):
 
     elia_logger = logging.getLogger(
-        'MA: {} {}'.format(scenario, edisgo.topology.id))
+        'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
 
     # get voltage issues in MV
     mv_buses = edisgo.topology.mv_grid.buses_df.index
@@ -536,7 +536,7 @@ def curtailment_lv_lines_overloading(
         pypsa_network=None, lv_grid=False):
 
     elia_logger = logging.getLogger(
-        'MA: {} {}'.format(scenario, edisgo.topology.id))
+        'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
 
     # get overloading issues in LV
     lv_lines = edisgo.topology.lines_df.lv_feeder.dropna().index
@@ -685,7 +685,7 @@ def curtailment_mvlv_stations_overloading(
         edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mv_grid_id):
 
     elia_logger = logging.getLogger(
-        'MA: {} {}'.format(scenario, edisgo.topology.id))
+        'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
 
     # get overloading issues at MV/LV stations
     mvlv_stations = [_ for _ in rel_load.columns if "mvlv_station" in _]
@@ -799,7 +799,7 @@ def curtailment_mv_lines_overloading(
         edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day):
 
     elia_logger = logging.getLogger(
-        'MA: {} {}'.format(scenario, edisgo.topology.id))
+        'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
 
     mv_lines = edisgo.topology.mv_grid.lines_df.index
     rel_load_mv = rel_load.loc[:, mv_lines]
@@ -933,7 +933,7 @@ def curtailment_hvmv_station_overloading(
         edisgo, curtailment, rel_load, grid_results_dir, scenario):
 
     elia_logger = logging.getLogger(
-        'MA: {} {}'.format(scenario, edisgo.topology.id))
+        'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
 
     hvmv_station = "hvmv_station_{}".format(edisgo.topology.mv_grid)
     rel_load_hvmv_station = rel_load.loc[:, hvmv_station]
@@ -1215,7 +1215,7 @@ def calculate_curtailment(
         scenario = grid_dir.parts[-3]
 
         elia_logger = logging.getLogger(
-            'MA: {} {}'.format(scenario, edisgo.topology.id))
+            'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
         elia_logger.setLevel(logging.DEBUG)
 
         grid_results_dir = os.path.join( # TODO

@@ -983,6 +983,7 @@ def mv_grid_topology(
 
     if filename is None:
         plt.show()
+        return ax
     else:
         plt.savefig(
             filename,
