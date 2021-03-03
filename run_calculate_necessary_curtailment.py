@@ -46,7 +46,7 @@ scenarios = [ # TODO
 
 grid_ids = ["176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
+strategies = ["residual"]#, "grouped", "reduced", "residual"] # TODO
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
