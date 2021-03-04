@@ -1147,53 +1147,6 @@ def curtail_lv_grids(
                 pypsa_network=pypsa_lv, lv_grid=True,
             )
 
-            # check if everything was solved
-            voltage_dev = results_helper_functions.voltage_diff(edisgo)
-            issues = voltage_dev[
-                abs(voltage_dev) > 2e-2].dropna(
-                how="all").dropna(axis=1, how="all")
-
-            if not issues.empty:
-                print("Not all voltage issues solved on day {} in {} with strategy {}.".format(
-                    day, lv_grid, strategy
-                ))
-                issues.to_csv(
-                    os.path.join(
-                        grid_results_dir,
-                        "{}_{}_{}_{}_voltage_issues.csv".format(
-                            scenario, strategy, day.strftime("%Y-%m-%d"), lv_grid
-                        ),
-                    )
-                )
-            else:
-                # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
-                #     day, mv_grid_id, strategy
-                # ))
-                pass
-
-            rel_load = results_helper_functions.relative_load(edisgo)
-            issues = rel_load[
-                rel_load > 1+2e-2].dropna(
-                how="all").dropna(axis=1, how="all")
-
-            if not issues.empty:
-                print("Not all overloading issues solved on day {} in {} with strategy {}.".format(
-                    day, lv_grid, strategy
-                ))
-                issues.to_csv(
-                    os.path.join(
-                        grid_results_dir,
-                        "{}_{}_{}_{}_overloading_issues.csv".format(
-                            scenario, strategy, day.strftime("%Y-%m-%d"), lv_grid
-                        ),
-                    )
-                )
-            else:
-                # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
-                #     day, mv_grid_id, strategy
-                # ))
-                pass
-
         return edisgo, curtailment
 
     except:
@@ -1531,6 +1484,15 @@ def calculate_curtailment(
             ]
         )
 
+        print(
+            "Load orig:",
+            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
+        )
+        print(
+            "Gen. orig:",
+            edisgo.timeseries.generators_active_power.sum().sum()
+        )
+
         edisgo, curtailment = curtail_lv_grids(
             edisgo,
             grid_results_dir,
@@ -1538,6 +1500,15 @@ def calculate_curtailment(
             scenario,
             strategy,
             curtailment,
+        )
+
+        print(
+            "Load after LV:",
+            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
+        )
+        print(
+            "Gen. after LV:",
+            edisgo.timeseries.generators_active_power.sum().sum()
         )
 
         edisgo, curtailment = curtail_mv_grid(
@@ -1549,6 +1520,15 @@ def calculate_curtailment(
             curtailment,
         )
 
+        print(
+            "Load after MV:",
+            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
+        )
+        print(
+            "Gen. after MV:",
+            edisgo.timeseries.generators_active_power.sum().sum()
+        )
+
         edisgo, curtailment = curtail_mvlv_grid(
             edisgo,
             grid_results_dir,
@@ -1557,6 +1537,15 @@ def calculate_curtailment(
             strategy,
             curtailment,
             mv_grid_id,
+        )
+
+        print(
+            "Load after MV:",
+            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
+        )
+        print(
+            "Gen. after MV:",
+            edisgo.timeseries.generators_active_power.sum().sum()
         )
 
         t1 = perf_counter()
