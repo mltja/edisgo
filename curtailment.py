@@ -930,7 +930,7 @@ def curtailment_mv_lines_overloading(
 
 
 def curtailment_hvmv_station_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir, scenario):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day):
 
     elia_logger = logging.getLogger(
         'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
@@ -1447,7 +1447,7 @@ def calculate_curtailment(
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment_hvmv_station_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario)
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day)
 
         # check if everything was solved
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
