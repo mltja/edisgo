@@ -90,6 +90,8 @@ def run_calculate_curtailment(
                 ts_count,
             )
 
+            break # TODO
+
         gc.collect()
 
     except:
@@ -260,6 +262,7 @@ if __name__ == "__main__":
                 ),
                 "It took {} seconds".format(round(perf_counter()-t0, 0))
             )
+
     else:
         with multiprocessing.Pool(num_threads) as pool:
             pool.map(
