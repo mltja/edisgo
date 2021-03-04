@@ -651,7 +651,7 @@ def mv_grid_topology(
     else:
         if kwargs.get("bus_colors", None):
             bus_colors = pd.Series(kwargs.get("bus_colors")).loc[
-                pypsa_plot.buses]
+                pypsa_plot.buses.index]
         else:
             logging.warning(
                 "Choice for `node_color` is not valid. Default bus colors are "
@@ -660,7 +660,7 @@ def mv_grid_topology(
             bus_colors = "r"
         if kwargs.get("bus_sizes", None):
             bus_sizes = pd.Series(kwargs.get("bus_sizes")).loc[
-                pypsa_plot.buses]
+                pypsa_plot.buses.index]
         else:
             logging.warning(
                 "Choice for `node_color` is not valid. Default bus sizes are "
