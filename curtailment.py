@@ -1324,53 +1324,6 @@ def curtail_mv_grid(
         curtailment = curtailment_mv_lines_overloading(
             edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mode="mv")
 
-        # check if everything was solved
-        voltage_dev = results_helper_functions.voltage_diff(edisgo)
-        issues = voltage_dev[
-            abs(voltage_dev) > 2e-2].dropna(
-            how="all").dropna(axis=1, how="all")
-
-        if not issues.empty:
-            print("Not all voltage issues solved on day {} in MV Grid with strategy {}.".format(
-                day, strategy
-            ))
-            issues.to_csv(
-                os.path.join(
-                    grid_results_dir,
-                    "{}_{}_{}_MVGrid_voltage_issues.csv".format(
-                        scenario, strategy, day.strftime("%Y-%m-%d")
-                    ),
-                )
-            )
-        else:
-            # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
-            #     day, mv_grid_id, strategy
-            # ))
-            pass
-
-        rel_load = results_helper_functions.relative_load(edisgo)
-        issues = rel_load[
-            rel_load > 1+2e-2].dropna(
-            how="all").dropna(axis=1, how="all")
-
-        if not issues.empty:
-            print("Not all overloading issues solved on day {} in MV Grid with strategy {}.".format(
-                day, strategy
-            ))
-            issues.to_csv(
-                os.path.join(
-                    grid_results_dir,
-                    "{}_{}_{}_MVGrid_overloading_issues.csv".format(
-                        scenario, strategy, day.strftime("%Y-%m-%d")
-                    ),
-                )
-            )
-        else:
-            # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
-            #     day, mv_grid_id, strategy
-            # ))
-            pass
-
         return edisgo, curtailment
 
     except:
@@ -1511,53 +1464,6 @@ def curtail_mvlv_grid(
 
         curtailment = curtailment_mv_lines_overloading(
             edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day)
-
-        # check if everything was solved
-        voltage_dev = results_helper_functions.voltage_diff(edisgo)
-        issues = voltage_dev[
-            abs(voltage_dev) > 2e-2].dropna(
-            how="all").dropna(axis=1, how="all")
-
-        if not issues.empty:
-            print("Not all voltage issues solved on day {} in MVLV Grid with strategy {}.".format(
-                day, strategy
-            ))
-            issues.to_csv(
-                os.path.join(
-                    grid_results_dir,
-                    "{}_{}_{}_MVGrid_voltage_issues.csv".format(
-                        scenario, strategy, day.strftime("%Y-%m-%d")
-                    ),
-                )
-            )
-        else:
-            # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
-            #     day, mv_grid_id, strategy
-            # ))
-            pass
-
-        rel_load = results_helper_functions.relative_load(edisgo)
-        issues = rel_load[
-            rel_load > 1+2e-2].dropna(
-            how="all").dropna(axis=1, how="all")
-
-        if not issues.empty:
-            print("Not all overloading issues solved on day {} in MV Grid with strategy {}.".format(
-                day, strategy
-            ))
-            issues.to_csv(
-                os.path.join(
-                    grid_results_dir,
-                    "{}_{}_{}_MVGrid_overloading_issues.csv".format(
-                        scenario, strategy, day.strftime("%Y-%m-%d")
-                    ),
-                )
-            )
-        else:
-            # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
-            #     day, mv_grid_id, strategy
-            # ))
-            pass
 
         return edisgo, curtailment
 
