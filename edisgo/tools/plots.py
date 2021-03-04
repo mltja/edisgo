@@ -644,10 +644,10 @@ def mv_grid_topology(
             pypsa_plot.buses.index, edisgo_obj
         )
         bus_cmap = None
-    elif node_color is None:
-        bus_sizes = 0
-        bus_colors = "r"
-        bus_cmap = None
+    # elif node_color is None:
+    #     bus_sizes = 0
+    #     bus_colors = "r"
+    #     bus_cmap = None
     else:
         if kwargs.get("bus_colors", None):
             bus_colors = pd.Series(kwargs.get("bus_colors")).loc[
