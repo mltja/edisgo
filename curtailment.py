@@ -296,7 +296,6 @@ def curtailment_lv_voltage(
             "lv_problems", "feed-in"] += curtailed_feedin.sum().sum()
         curtailment.loc["lv_problems", "load"] += curtailed_load.sum().sum()
 
-
     else:
         elia_logger.debug("No LV voltage issues to solve.")
         pass
@@ -418,7 +417,7 @@ def curtailment_mvlv_stations_voltage(
 
 
 def curtailment_mv_voltage(
-        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day):
+        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, pypsa_network=None):
 
     elia_logger = logging.getLogger(
         'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
@@ -432,9 +431,10 @@ def curtailment_mv_voltage(
     time_steps_issues = voltage_issues.index
 
     if len(time_steps_issues) > 0:
-        pypsa_network = edisgo.to_pypsa(
-            mode="mvlv", timesteps=time_steps_issues,
-        )
+        if pypsa_network is None:
+            pypsa_network = edisgo.to_pypsa(
+                mode="mvlv", timesteps=time_steps_issues,
+            )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -796,7 +796,7 @@ def curtailment_mvlv_stations_overloading(
 
 
 def curtailment_mv_lines_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, pypsa_network=None):
 
     elia_logger = logging.getLogger(
         'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
@@ -809,9 +809,10 @@ def curtailment_mv_lines_overloading(
     time_steps_issues = overloading_issues.index
 
     if len(time_steps_issues) > 0:
-        pypsa_network = edisgo.to_pypsa(
-            mode="mvlv", timesteps=time_steps_issues,
-        )
+        if pypsa_network is None:
+            pypsa_network = edisgo.to_pypsa(
+                mode="mvlv", timesteps=time_steps_issues,
+            )
 
         # save original pypsa network to determine curtailed energy
         pypsa_network_orig = pypsa_network.copy()
@@ -1151,7 +1152,7 @@ def curtail_lv_grids(
             # check if everything was solved
             voltage_dev = results_helper_functions.voltage_diff(edisgo)
             issues = voltage_dev[
-                abs(voltage_dev) > 2e-3].dropna(
+                abs(voltage_dev) > 2e-2].dropna(
                 how="all").dropna(axis=1, how="all")
 
             if not issues.empty:
@@ -1201,6 +1202,183 @@ def curtail_lv_grids(
         traceback.print_exc()
 
 
+def curtail_mv_grid(
+        edisgo,
+        grid_results_dir,
+        day,
+        scenario,
+        strategy,
+        curtailment,
+):
+    try:
+        t1 = perf_counter()
+
+        pypsa_mv = edisgo.to_pypsa(
+            mode="mv",
+        )
+
+        pypsa_lv_orig = pypsa_mv.copy()
+
+        i = 0
+
+        converged = False
+
+        while i < max_iterations and not converged:
+            try:
+                pf_results = pypsa_mv.pf(edisgo.timeseries.timeindex)
+
+                converged = True
+
+            except:
+                if i == 0:
+                    print(
+                        "First PF didn't converge for day {} in MV Grid.".format(
+                            day,
+                        )
+                    )
+
+                timeindex = edisgo.timeseries.residual_load.nsmallest(
+                    int(len(edisgo.timeseries.residual_load) / 20),
+                    keep="all",
+                ).index.tolist()
+
+                _curtail(
+                    pypsa_mv, pypsa_mv.generators.index, pypsa_mv.loads.index, timeindex,
+                    curtailment_step=0.2,
+                )
+
+                _overwrite_edisgo_timeseries(edisgo, pypsa_mv)
+
+                i += 1
+
+        print("It took {} seconds for the initial power flow analysis on day {} in MV Grid.".format(
+            round(perf_counter() - t1, 0), day,
+        ))
+
+        i = 0
+
+        t1 = perf_counter()
+
+        while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
+            _curtail(
+                pypsa_mv, pypsa_mv.generators.index, pypsa_mv.loads.index,
+                edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
+            )
+
+            j = 0
+
+            converged = False
+
+            while j < max_iterations and not converged:
+                try:
+                    pf_results = pypsa_mv.pf(edisgo.timeseries.timeindex)
+
+                    converged = True
+
+                except:
+                    if i == 0 and j == 0:
+                        print(
+                            "PF Nr. {} didn't converge for day {} in MV Grid.".format(
+                                i + 2, day,
+                            )
+                        )
+
+                    _curtail(
+                        pypsa_mv, pypsa_mv.generators.index, pypsa_mv.loads.index,
+                        edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
+                    )
+
+                    _overwrite_edisgo_timeseries(edisgo, pypsa_mv)
+
+                    j += 1
+
+            i += 1
+
+        curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_lv_orig, pypsa_mv)
+
+        curtailment.loc[
+            "mv_convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
+        curtailment.loc[
+            "mv_convergence_problems", "load"] += curtailed_load.sum().sum()
+
+        print("It took {} seconds to overcome the initial convergence problems in MV Grid.".format(
+            round(perf_counter() - t1, 0)
+        ))
+
+        pypsa_io.process_pfa_results(edisgo, pypsa_mv, edisgo.timeseries.timeindex)
+
+        _overwrite_edisgo_timeseries(edisgo, pypsa_mv)
+
+        voltage_dev = results_helper_functions.voltage_diff(edisgo)
+
+        curtailment = curtailment_mv_voltage(
+            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, pypsa_network=pypsa_mv)
+
+        # ToDo Only recalculate voltage deviation if curtailment was conducted
+        #  (will be done when voltage deviation is attribute in results object)
+        _ = results_helper_functions.voltage_diff(edisgo)
+
+        # curtailment due to overloading issues
+
+        # recalculate relative line loading
+        rel_load = results_helper_functions.relative_load(edisgo)
+
+        curtailment = curtailment_mv_lines_overloading(
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, pypsa_network=pypsa_mv)
+
+        # check if everything was solved
+        voltage_dev = results_helper_functions.voltage_diff(edisgo)
+        issues = voltage_dev[
+            abs(voltage_dev) > 2e-2].dropna(
+            how="all").dropna(axis=1, how="all")
+
+        if not issues.empty:
+            print("Not all voltage issues solved on day {} in MV Grid with strategy {}.".format(
+                day, strategy
+            ))
+            issues.to_csv(
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_{}_MVGrid_voltage_issues.csv".format(
+                        scenario, strategy, day.strftime("%Y-%m-%d")
+                    ),
+                )
+            )
+        else:
+            # print("Success. All voltage issues solved on day {} of Grid {} with strategy {}.".format(
+            #     day, mv_grid_id, strategy
+            # ))
+            pass
+
+        rel_load = results_helper_functions.relative_load(edisgo)
+        issues = rel_load[
+            rel_load > 1 + 2e-2].dropna(
+            how="all").dropna(axis=1, how="all")
+
+        if not issues.empty:
+            print("Not all overloading issues solved on day {} in MV Grid with strategy {}.".format(
+                day, strategy
+            ))
+            issues.to_csv(
+                os.path.join(
+                    grid_results_dir,
+                    "{}_{}_{}_MVGrid_overloading_issues.csv".format(
+                        scenario, strategy, day.strftime("%Y-%m-%d")
+                    ),
+                )
+            )
+        else:
+            # print("Success. All overloading issues solved on day {} of Grid {} with strategy {}.".format(
+            #     day, mv_grid_id, strategy
+            # ))
+            pass
+
+        return edisgo, curtailment
+
+    except:
+        traceback.print_exc()
+
+
 def calculate_curtailment(
         grid_dir,
         edisgo,
@@ -1220,7 +1398,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "curtailment_days",
+            "test",
         )
 
         os.makedirs(
@@ -1262,6 +1440,15 @@ def calculate_curtailment(
         )
 
         edisgo, curtailment = curtail_lv_grids(
+            edisgo,
+            grid_results_dir,
+            day,
+            scenario,
+            strategy,
+            curtailment,
+        )
+
+        edisgo, curtailment = curtail_mv_grid(
             edisgo,
             grid_results_dir,
             day,
@@ -1380,7 +1567,7 @@ def calculate_curtailment(
 
                     _curtail(
                         pypsa_network, pypsa_network.generators.index, pypsa_network.loads.index, timeindex,
-                        curtailment_step=0.05,
+                        # curtailment_step=0.05,
                     )
 
                     _overwrite_edisgo_timeseries(edisgo, pypsa_network)
