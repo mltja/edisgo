@@ -1384,6 +1384,7 @@ def curtail_mvlv_grid(
         scenario,
         strategy,
         curtailment,
+        mv_grid_id,
 ):
     try:
         t1 = perf_counter()
@@ -1649,6 +1650,7 @@ def calculate_curtailment(
             scenario,
             strategy,
             curtailment,
+            mv_grid_id,
         )
 
         t1 = perf_counter()
