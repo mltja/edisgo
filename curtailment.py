@@ -1161,7 +1161,7 @@ def curtail_lv_grids(
 
             _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
 
-            bar = 0.8
+            bar = 0.8 # TODO
 
             voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
@@ -1602,30 +1602,20 @@ def calculate_curtailment(
             ]
         )
 
-        # t0 = perf_counter()
-        #
-        # edisgo, curtailment = curtail_lv_grids(
-        #     edisgo,
-        #     grid_results_dir,
-        #     day,
-        #     scenario,
-        #     strategy,
-        #     curtailment,
-        # )
-        #
-        # print(
-        #     "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
-        # )
+        t0 = perf_counter()
 
-        print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
+        edisgo, curtailment = curtail_lv_grids(
+            edisgo,
+            grid_results_dir,
+            day,
+            scenario,
+            strategy,
+            curtailment,
+        )
 
-        for col in edisgo.timeseries._charging_points_active_power.columns:
-            edisgo.timeseries._charging_points_active_power[col].values[:] = 0
-        for col in edisgo.timeseries.charging_points_active_power.columns:
-            edisgo.timeseries.charging_points_active_power[col].values[:] = 0
-
-        print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
-        print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
+        print(
+            "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
+        )
 
         t0 = perf_counter()
 
