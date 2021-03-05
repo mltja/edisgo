@@ -542,7 +542,7 @@ def curtailment_mv_voltage(
 
 def curtailment_lv_lines_overloading(
         edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day,
-        pypsa_network=None, lv_grid=False):
+        pypsa_network=None, lv_grid=False, bar=0.98):
 
     elia_logger = logging.getLogger(
         'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
@@ -553,7 +553,7 @@ def curtailment_lv_lines_overloading(
         rel_load_lv = rel_load.loc[:, lv_lines]
     else:
         rel_load_lv = rel_load.copy()
-    overloading_issues = rel_load_lv[rel_load_lv > 0.9].dropna(
+    overloading_issues = rel_load_lv[rel_load_lv > bar].dropna(
         how="all").dropna(axis=1, how="all")
     lines_issues = overloading_issues.columns
     time_steps_issues = overloading_issues.index
@@ -618,7 +618,7 @@ def curtailment_lv_lines_overloading(
                     b).index
                 rel_load_connected_lines = rel_load.loc[:, connected_lines]
                 ts_issues = rel_load_connected_lines[
-                    rel_load_connected_lines > 0.9].dropna(
+                    rel_load_connected_lines > bar].dropna(
                     how="all").dropna(axis=1, how="all").index
 
                 # reduce active and reactive power of loads or generators
@@ -647,7 +647,7 @@ def curtailment_lv_lines_overloading(
             # recheck for overloading issues in LV
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_lv = rel_load.loc[:, lv_lines]
-            overloading_issues = rel_load_lv[rel_load_lv > 0.9].dropna(
+            overloading_issues = rel_load_lv[rel_load_lv > bar].dropna(
                 how="all").dropna(axis=1, how="all")
             lines_issues = overloading_issues.columns
             time_steps_issues = overloading_issues.index
@@ -1161,11 +1161,13 @@ def curtail_lv_grids(
 
             _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
 
+            bar = 0.8
+
             voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
             pypsa_lv, curtailment = curtailment_lv_voltage(
                 edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day,
-                pypsa_network=pypsa_lv, lv_grid=True,
+                pypsa_network=pypsa_lv, lv_grid=True
             )
 
             # ToDo Only recalculate voltage deviation if curtailment was conducted
@@ -1173,13 +1175,12 @@ def curtail_lv_grids(
             _ = results_helper_functions.voltage_diff(edisgo)
 
             # curtailment due to overloading issues
-
             # recalculate relative line loading
             rel_load = results_helper_functions.relative_load(edisgo)
 
             pypsa_lv, curtailment = curtailment_lv_lines_overloading(
                 edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day,
-                pypsa_network=pypsa_lv, lv_grid=True,
+                pypsa_network=pypsa_lv, lv_grid=True, bar=bar
             )
 
             lv_grid_matching = lv_grid.lower()
@@ -1197,7 +1198,7 @@ def curtail_lv_grids(
 
             transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
 
-            transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating * 0.9)]
+            transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
 
             i = 0
 
@@ -1227,7 +1228,7 @@ def curtail_lv_grids(
                 transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
 
                 transformer_overloading = transformer_loading_mva[
-                    transformer_loading_mva.ge(mvlv_transformer_rating * 1.1)]
+                    transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
 
                 i += 1
 
@@ -1616,10 +1617,15 @@ def calculate_curtailment(
         #     "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
         # )
 
+        print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
+
         for col in edisgo.timeseries._charging_points_active_power.columns:
             edisgo.timeseries._charging_points_active_power[col].values[:] = 0
         for col in edisgo.timeseries.charging_points_active_power.columns:
             edisgo.timeseries.charging_points_active_power[col].values[:] = 0
+
+        print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
+        print("Loads:", edisgo.timeseries.charging_points_active_power.sum().sum())
 
         t0 = perf_counter()
 
