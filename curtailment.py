@@ -553,7 +553,7 @@ def curtailment_lv_lines_overloading(
         rel_load_lv = rel_load.loc[:, lv_lines]
     else:
         rel_load_lv = rel_load.copy()
-    overloading_issues = rel_load_lv[rel_load_lv > 0.98].dropna(
+    overloading_issues = rel_load_lv[rel_load_lv > 0.9].dropna(
         how="all").dropna(axis=1, how="all")
     lines_issues = overloading_issues.columns
     time_steps_issues = overloading_issues.index
@@ -618,7 +618,7 @@ def curtailment_lv_lines_overloading(
                     b).index
                 rel_load_connected_lines = rel_load.loc[:, connected_lines]
                 ts_issues = rel_load_connected_lines[
-                    rel_load_connected_lines > 0.98].dropna(
+                    rel_load_connected_lines > 0.9].dropna(
                     how="all").dropna(axis=1, how="all").index
 
                 # reduce active and reactive power of loads or generators
@@ -647,7 +647,7 @@ def curtailment_lv_lines_overloading(
             # recheck for overloading issues in LV
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_lv = rel_load.loc[:, lv_lines]
-            overloading_issues = rel_load_lv[rel_load_lv > 0.98].dropna(
+            overloading_issues = rel_load_lv[rel_load_lv > 0.9].dropna(
                 how="all").dropna(axis=1, how="all")
             lines_issues = overloading_issues.columns
             time_steps_issues = overloading_issues.index
@@ -701,7 +701,7 @@ def curtailment_mvlv_stations_overloading(
     mvlv_stations = [_ for _ in rel_load.columns if "mvlv_station" in _]
     rel_load_mvlv_stations = rel_load.loc[:, mvlv_stations]
     overloading_issues = rel_load_mvlv_stations[
-        rel_load_mvlv_stations > 0.98].dropna(how="all").dropna(
+        rel_load_mvlv_stations > 0.9].dropna(how="all").dropna(
         axis=1, how="all")
     stations_issues = overloading_issues.columns
     time_steps_issues = overloading_issues.index
@@ -771,7 +771,7 @@ def curtailment_mvlv_stations_overloading(
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_mvlv_stations = rel_load.loc[:, mvlv_stations]
             overloading_issues = rel_load_mvlv_stations[
-                rel_load_mvlv_stations > 0.98].dropna(how="all").dropna(
+                rel_load_mvlv_stations > 0.9].dropna(how="all").dropna(
                 axis=1, how="all")
             stations_issues = overloading_issues.columns
             time_steps_issues = overloading_issues.index
@@ -818,7 +818,7 @@ def curtailment_mv_lines_overloading(
 
     mv_lines = edisgo.topology.mv_grid.lines_df.index
     rel_load_mv = rel_load.loc[:, mv_lines]
-    overloading_issues = rel_load_mv[rel_load_mv > 0.98].dropna(
+    overloading_issues = rel_load_mv[rel_load_mv > 0.9].dropna(
         how="all").dropna(axis=1, how="all")
     lines_issues = overloading_issues.columns
     time_steps_issues = overloading_issues.index
@@ -881,7 +881,7 @@ def curtailment_mv_lines_overloading(
                     b).index
                 rel_load_connected_lines = rel_load.loc[:, connected_lines]
                 ts_issues = rel_load_connected_lines[
-                    rel_load_connected_lines > 0.98].dropna(
+                    rel_load_connected_lines > 0.9].dropna(
                     how="all").dropna(axis=1, how="all").index
 
                 # reduce active and reactive power of loads or generators
@@ -910,7 +910,7 @@ def curtailment_mv_lines_overloading(
             # recheck for overloading issues in LV
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_mv = rel_load.loc[:, mv_lines]
-            overloading_issues = rel_load_mv[rel_load_mv > 0.98].dropna(
+            overloading_issues = rel_load_mv[rel_load_mv > 0.9].dropna(
                 how="all").dropna(axis=1, how="all")
             lines_issues = overloading_issues.columns
             time_steps_issues = overloading_issues.index
@@ -957,7 +957,7 @@ def curtailment_hvmv_station_overloading(
     hvmv_station = "hvmv_station_{}".format(edisgo.topology.mv_grid)
     rel_load_hvmv_station = rel_load.loc[:, hvmv_station]
     overloading_issues = rel_load_hvmv_station[
-        rel_load_hvmv_station > 0.98].dropna(how="all")
+        rel_load_hvmv_station > 0.9].dropna(how="all")
     time_steps_issues = overloading_issues.index
 
     if len(time_steps_issues) > 0:
@@ -1000,7 +1000,7 @@ def curtailment_hvmv_station_overloading(
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_hvmv_station = rel_load.loc[:, hvmv_station]
             overloading_issues = rel_load_hvmv_station[
-                rel_load_hvmv_station > 0.98].dropna(how="all")
+                rel_load_hvmv_station > 0.9].dropna(how="all")
             time_steps_issues = overloading_issues.index
 
             iteration_count += 1
@@ -1059,55 +1059,6 @@ def curtail_lv_grids(
             )
 
             pypsa_lv_orig = pypsa_lv.copy()
-
-            lv_grid_matching = lv_grid.lower()
-
-            lv_grid_matching = lv_grid_matching[:2] + "_" + lv_grid_matching[2:]
-
-            mvlv_transformer_rating = edisgo.topology.transformers_df[
-                edisgo.topology.transformers_df.index.str.contains(lv_grid_matching)
-            ].s_nom.sum()
-
-            transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(axis=1)
-
-            transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
-                axis=1)
-
-            transformer_loading_mva = np.sqrt(transformer_loading_mw**2 + transformer_loading_mvar**2)
-
-            transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating*1.1)]
-
-            i = 0
-
-            while not transformer_overloading.empty and i < max_iterations:
-                elia_logger.debug(
-                    "Number of time steps with overloading issues: {}".format(
-                        len(transformer_overloading)
-                    )
-                )
-
-                _curtail(
-                    pypsa_lv, pypsa_lv.generators.index, pypsa_lv.loads.index,
-                    transformer_overloading.index.tolist(),
-                )
-
-                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                    pypsa_lv_orig, pypsa_lv)
-                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
-
-                transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(
-                    axis=1)
-
-                transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
-                    axis=1)
-
-                transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
-
-                transformer_overloading = transformer_loading_mva[
-                    transformer_loading_mva.ge(mvlv_transformer_rating * 1.1)]
-
-                i += 1
 
             i = 0
 
@@ -1194,6 +1145,58 @@ def curtail_lv_grids(
                         j += 1
 
                 i += 1
+
+            lv_grid_matching = lv_grid.lower()
+
+            lv_grid_matching = lv_grid_matching[:2] + "_" + lv_grid_matching[2:]
+
+            mvlv_transformer_rating = edisgo.topology.transformers_df[
+                edisgo.topology.transformers_df.index.str.contains(lv_grid_matching)
+            ].s_nom.sum()
+
+            transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(axis=1)
+
+            transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
+                axis=1)
+
+            transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
+
+            transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating * 0.9)]
+
+            i = 0
+
+            while not transformer_overloading.empty and i < max_iterations:
+                elia_logger.debug(
+                    "Number of time steps with overloading issues: {}".format(
+                        len(transformer_overloading)
+                    )
+                )
+
+                _curtail(
+                    pypsa_lv, pypsa_lv.generators.index, pypsa_lv.loads.index,
+                    transformer_overloading.index.tolist(),
+                )
+
+                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                    pypsa_lv_orig, pypsa_lv)
+                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+
+                transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(
+                    axis=1)
+
+                transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
+                    axis=1)
+
+                transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
+
+                transformer_overloading = transformer_loading_mva[
+                    transformer_loading_mva.ge(mvlv_transformer_rating * 1.1)]
+
+                i += 1
+
+            if i == 0:
+                elia_logger.debug("No MVLV overloading issues to solve.")
 
             curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_lv_orig, pypsa_lv)
 
@@ -1598,14 +1601,7 @@ def calculate_curtailment(
             ]
         )
 
-        print(
-            "Load orig:",
-            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
-        )
-        print(
-            "Gen. orig:",
-            edisgo.timeseries.generators_active_power.sum().sum()
-        )
+        t0 = perf_counter()
 
         edisgo, curtailment = curtail_lv_grids(
             edisgo,
@@ -1617,13 +1613,10 @@ def calculate_curtailment(
         )
 
         print(
-            "Load after LV:",
-            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
+            "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
         )
-        print(
-            "Gen. after LV:",
-            edisgo.timeseries.generators_active_power.sum().sum()
-        )
+
+        t0 = perf_counter()
 
         edisgo, curtailment = curtail_mv_grid(
             edisgo,
@@ -1635,13 +1628,10 @@ def calculate_curtailment(
         )
 
         print(
-            "Load after MV:",
-            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
+            "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
         )
-        print(
-            "Gen. after MV:",
-            edisgo.timeseries.generators_active_power.sum().sum()
-        )
+
+        t0 = perf_counter()
 
         edisgo, curtailment = curtail_mvlv_grid(
             edisgo,
@@ -1654,12 +1644,7 @@ def calculate_curtailment(
         )
 
         print(
-            "Load after MV:",
-            edisgo.timeseries.charging_points_active_power.sum().sum() + edisgo.timeseries.loads_active_power.sum().sum()
-        )
-        print(
-            "Gen. after MV:",
-            edisgo.timeseries.generators_active_power.sum().sum()
+            "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
         )
 
         t1 = perf_counter()
