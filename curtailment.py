@@ -1602,6 +1602,9 @@ def calculate_curtailment(
             ]
         )
 
+        print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
+        print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
+
         t0 = perf_counter()
 
         edisgo, curtailment = curtail_lv_grids(
