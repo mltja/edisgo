@@ -1146,6 +1146,42 @@ def curtail_lv_grids(
 
                 i += 1
 
+            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_lv_orig, pypsa_lv)
+
+            curtailment.loc[
+                "lv_convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
+            curtailment.loc[
+                "lv_convergence_problems", "load"] += curtailed_load.sum().sum()
+
+            print("It took {} seconds to overcome the initial convergence problems in {}.".format(
+                round(perf_counter() - t1, 0), lv_grid
+            ))
+
+            pypsa_io.process_pfa_results(edisgo, pypsa_lv, edisgo.timeseries.timeindex)
+
+            _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
+
+            voltage_dev = results_helper_functions.voltage_diff(edisgo)
+
+            pypsa_lv, curtailment = curtailment_lv_voltage(
+                edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day,
+                pypsa_network=pypsa_lv, lv_grid=True,
+            )
+
+            # ToDo Only recalculate voltage deviation if curtailment was conducted
+            #  (will be done when voltage deviation is attribute in results object)
+            _ = results_helper_functions.voltage_diff(edisgo)
+
+            # curtailment due to overloading issues
+
+            # recalculate relative line loading
+            rel_load = results_helper_functions.relative_load(edisgo)
+
+            pypsa_lv, curtailment = curtailment_lv_lines_overloading(
+                edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day,
+                pypsa_network=pypsa_lv, lv_grid=True,
+            )
+
             lv_grid_matching = lv_grid.lower()
 
             lv_grid_matching = lv_grid_matching[:2] + "_" + lv_grid_matching[2:]
@@ -1197,42 +1233,6 @@ def curtail_lv_grids(
 
             if i == 0:
                 elia_logger.debug("No MVLV overloading issues to solve.")
-
-            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(pypsa_lv_orig, pypsa_lv)
-
-            curtailment.loc[
-                "lv_convergence_problems", "feed-in"] += curtailed_feedin.sum().sum()
-            curtailment.loc[
-                "lv_convergence_problems", "load"] += curtailed_load.sum().sum()
-
-            print("It took {} seconds to overcome the initial convergence problems in {}.".format(
-                round(perf_counter() - t1, 0), lv_grid
-            ))
-
-            pypsa_io.process_pfa_results(edisgo, pypsa_lv, edisgo.timeseries.timeindex)
-
-            _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
-
-            voltage_dev = results_helper_functions.voltage_diff(edisgo)
-
-            pypsa_lv, curtailment = curtailment_lv_voltage(
-                edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day,
-                pypsa_network=pypsa_lv, lv_grid=True,
-            )
-
-            # ToDo Only recalculate voltage deviation if curtailment was conducted
-            #  (will be done when voltage deviation is attribute in results object)
-            _ = results_helper_functions.voltage_diff(edisgo)
-
-            # curtailment due to overloading issues
-
-            # recalculate relative line loading
-            rel_load = results_helper_functions.relative_load(edisgo)
-
-            pypsa_lv, curtailment = curtailment_lv_lines_overloading(
-                edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day,
-                pypsa_network=pypsa_lv, lv_grid=True,
-            )
 
         return edisgo, curtailment
 
@@ -1601,20 +1601,25 @@ def calculate_curtailment(
             ]
         )
 
-        t0 = perf_counter()
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_lv_grids(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
+        # )
 
-        edisgo, curtailment = curtail_lv_grids(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
-
-        print(
-            "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
-        )
+        for col in edisgo.timeseries._charging_points_active_power.columns:
+            edisgo.timeseries._charging_points_active_power[col].values[:] = 0
+        for col in edisgo.timeseries.charging_points_active_power.columns:
+            edisgo.timeseries.charging_points_active_power[col].values[:] = 0
 
         t0 = perf_counter()
 
