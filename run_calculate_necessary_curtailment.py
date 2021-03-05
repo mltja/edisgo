@@ -36,17 +36,17 @@ data_dir = Path( # TODO: set dir
 sub_dir = r"eDisGo_curtailment_results" # TODO
 
 scenarios = [ # TODO
-    "NEP_C_2035",
-    "Reference_2050",
-    "Szenarette_Kleinwagen_2050",
-    "Mobility_Transition_2050",
+    # "NEP_C_2035",
+    # "Reference_2050",
+    # "Szenarette_Kleinwagen_2050",
+    # "Mobility_Transition_2050",
     "Electrification_2050",
-    "Electrification_2050_sensitivity_low_work",
+    # "Electrification_2050_sensitivity_low_work",
 ]
 
 grid_ids = ["177"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
+strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
