@@ -1235,6 +1235,8 @@ def curtail_lv_grids(
             if i == 0:
                 elia_logger.debug("No MVLV overloading issues to solve.")
 
+            _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
+
         return edisgo, curtailment
 
     except:
