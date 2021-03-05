@@ -421,7 +421,7 @@ def curtailment_mvlv_stations_voltage(
 
 
 def curtailment_mv_voltage(
-        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, mode="mvlv"):
+        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, mode="mvlv", mv_grid_is_agg=False):
 
     elia_logger = logging.getLogger(
         'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
@@ -510,16 +510,22 @@ def curtailment_mv_voltage(
 
         # overwrite time series in edisgo
         _overwrite_edisgo_timeseries(edisgo, pypsa_network)
-        # rerun power flow to update power flow results
-        edisgo.analyze()
+        if not mv_grid_is_agg:
+            # rerun power flow to update power flow results
+            edisgo.analyze()
 
-        if len(time_steps_issues) > 0:
+            if len(time_steps_issues) > 0:
+                _save_results_when_curtailment_failed(
+                    edisgo, grid_results_dir,
+                    "{}_{}_{}_mv_voltage".format(scenario, strategy, day.strftime("%Y-%m-%d")))
 
-            _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_{}_mv_voltage".format(scenario, strategy, day.strftime("%Y-%m-%d")))
+                raise ValueError("Curtailment not sufficient to solve MV voltage "
+                                 "issues.")
 
-            raise ValueError("Curtailment not sufficient to solve MV voltage "
-                             "issues.")
+        else:
+            pypsa_network.pf()
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+
 
         # calculate curtailment
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
@@ -805,7 +811,7 @@ def curtailment_mvlv_stations_overloading(
 
 
 def curtailment_mv_lines_overloading(
-        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mode="mvlv"):
+        edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mode="mvlv", mv_grid_is_agg=False):
 
     elia_logger = logging.getLogger(
         'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
@@ -913,17 +919,21 @@ def curtailment_mv_lines_overloading(
 
         # overwrite time series in edisgo
         _overwrite_edisgo_timeseries(edisgo, pypsa_network)
-        # rerun power flow to update power flow results
-        edisgo.analyze()
+        if not mv_grid_is_agg:
+            # rerun power flow to update power flow results
+            edisgo.analyze()
 
-        if len(time_steps_issues) > 0:
+            if len(time_steps_issues) > 0:
 
-            _save_results_when_curtailment_failed(
-                edisgo, grid_results_dir, "{}_{}_{}_mv_overloading".format(
-                    scenario, strategy, day.strftime("%Y-%m-%d")))
+                _save_results_when_curtailment_failed(
+                    edisgo, grid_results_dir, "{}_{}_{}_mv_overloading".format(
+                        scenario, strategy, day.strftime("%Y-%m-%d")))
 
-            raise ValueError("Curtailment not sufficient to solve grid "
-                             "issues in MV.")
+                raise ValueError("Curtailment not sufficient to solve grid "
+                                 "issues in MV.")
+        else:
+            pypsa_network.pf()
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
 
         # calculate curtailment
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
@@ -1273,7 +1283,7 @@ def curtail_mv_grid(
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
         curtailment = curtailment_mv_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, mode="mv")
+            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, mode="mv", mv_grid_is_agg=True)
 
         # ToDo Only recalculate voltage deviation if curtailment was conducted
         #  (will be done when voltage deviation is attribute in results object)
@@ -1285,7 +1295,7 @@ def curtail_mv_grid(
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment = curtailment_mv_lines_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mode="mv")
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mode="mv", mv_grid_is_agg=True)
 
         return edisgo, curtailment
 
@@ -1409,7 +1419,7 @@ def curtail_mvlv_grid(
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
         curtailment = curtailment_mv_voltage(
-            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day)
+            edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, mv_grid_is_agg=True)
 
         # ToDo Only recalculate voltage deviation if curtailment was conducted
         #  (will be done when voltage deviation is attribute in results object)
@@ -1426,7 +1436,7 @@ def curtail_mvlv_grid(
         rel_load = results_helper_functions.relative_load(edisgo)
 
         curtailment = curtailment_mv_lines_overloading(
-            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day)
+            edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day, mv_grid_is_agg=True)
 
         return edisgo, curtailment
 
@@ -1453,7 +1463,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "test",
+            "curtailment_days_v2",
         )
 
         os.makedirs(
