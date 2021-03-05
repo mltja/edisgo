@@ -1262,6 +1262,8 @@ def curtail_mv_grid(
             mode="mv",
         )
 
+        print(pypsa_mv.loads_t["p_set"].sum().sum())
+
         pypsa_mv_orig = pypsa_mv.copy()
 
         i = 0
@@ -1607,20 +1609,20 @@ def calculate_curtailment(
         print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
         print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
 
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_lv_grids(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
-
-        print(
-            "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
-        )
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_lv_grids(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
+        # )
 
         t0 = perf_counter()
 
