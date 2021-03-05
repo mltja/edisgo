@@ -1039,6 +1039,10 @@ def curtail_lv_grids(
         curtailment,
 ):
     try:
+        elia_logger = logging.getLogger(
+            'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
+        elia_logger.setLevel(logging.DEBUG)
+
         lv_grids = list(edisgo.topology._grids.keys())
 
         lv_grids = [
@@ -1055,6 +1059,55 @@ def curtail_lv_grids(
             )
 
             pypsa_lv_orig = pypsa_lv.copy()
+
+            lv_grid_matching = lv_grid.lower()
+
+            lv_grid_matching = lv_grid_matching[:2] + "_" + lv_grid_matching[2:]
+
+            mvlv_transformer_rating = edisgo.topology.transformers_df[
+                edisgo.topology.transformers_df.index.str.contains(lv_grid_matching)
+            ].s_nom.sum()
+
+            transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(axis=1)
+
+            transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
+                axis=1)
+
+            transformer_loading_mva = np.sqrt(transformer_loading_mw**2 + transformer_loading_mvar**2)
+
+            transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating*1.1)]
+
+            i = 0
+
+            while not transformer_overloading.empty and i < max_iterations:
+                elia_logger.debug(
+                    "Number of time steps with overloading issues: {}".format(
+                        len(transformer_overloading)
+                    )
+                )
+
+                _curtail(
+                    pypsa_lv, pypsa_lv.generators.index, pypsa_lv.loads.index,
+                    transformer_overloading.index.tolist(),
+                )
+
+                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                    pypsa_lv_orig, pypsa_lv)
+                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+
+                transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(
+                    axis=1)
+
+                transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
+                    axis=1)
+
+                transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
+
+                transformer_overloading = transformer_loading_mva[
+                    transformer_loading_mva.ge(mvlv_transformer_rating * 1.1)]
+
+                i += 1
 
             i = 0
 
@@ -1097,10 +1150,21 @@ def curtail_lv_grids(
             t1 = perf_counter()
 
             while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
+                elia_logger.debug(
+                    "Number of time steps with convergence issues: {}".format(
+                        len(edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist())
+                    )
+                )
+
                 _curtail(
                     pypsa_lv, pypsa_lv.generators.index, pypsa_lv.loads.index,
                     edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
                 )
+
+                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                    pypsa_lv_orig, pypsa_lv)
+                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
                 j = 0
 
@@ -1182,6 +1246,10 @@ def curtail_mv_grid(
         curtailment,
 ):
     try:
+        elia_logger = logging.getLogger(
+            'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
+        elia_logger.setLevel(logging.DEBUG)
+
         t1 = perf_counter()
 
         pypsa_mv = edisgo.to_pypsa(
@@ -1231,10 +1299,21 @@ def curtail_mv_grid(
         t1 = perf_counter()
 
         while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
+            elia_logger.debug(
+                "Number of time steps with convergence issues: {}".format(
+                    len(edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist())
+                )
+            )
+
             _curtail(
                 pypsa_mv, pypsa_mv.generators.index, pypsa_mv.loads.index,
                 edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
             )
+
+            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                pypsa_mv_orig, pypsa_mv)
+            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             j = 0
 
@@ -1313,6 +1392,10 @@ def curtail_mvlv_grid(
         mv_grid_id,
 ):
     try:
+        elia_logger = logging.getLogger(
+            'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
+        elia_logger.setLevel(logging.DEBUG)
+
         t1 = perf_counter()
 
         pypsa_mvlv = edisgo.to_pypsa(
@@ -1362,10 +1445,21 @@ def curtail_mvlv_grid(
         t1 = perf_counter()
 
         while i < max_iterations and all(pf_results["converged"]["0"].tolist()) is False:
+            elia_logger.debug(
+                "Number of time steps with convergence issues: {}".format(
+                    len(edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist())
+                )
+            )
+
             _curtail(
                 pypsa_mvlv, pypsa_mvlv.generators.index, pypsa_mvlv.loads.index,
                 edisgo.timeseries.timeindex[~pf_results["converged"]["0"]].tolist(),
             )
+
+            curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+                pypsa_mvlv_orig, pypsa_mvlv)
+            elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+                curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
 
             j = 0
 
@@ -1463,7 +1557,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "curtailment_days_v2",
+            "test",
         )
 
         os.makedirs(
