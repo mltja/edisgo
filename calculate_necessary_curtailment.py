@@ -1215,6 +1215,8 @@ def integrate_public_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
+            gdf = refactor_nv(gdf) # TODO
+
             # TODO: choose
             # _ = [
             #     EDisGo.integrate_component(
@@ -1242,15 +1244,16 @@ def integrate_public_charging(
                     geolocation=geolocation,
                     use_case=use_case,
                     add_ts=True,
-                    ts_active_power=df.loc[:, (ags, cp_idx)],
+                    ts_active_power=df.loc[:, (ags, cp_idx)].divide(divisor), # TODO
                     ts_reactive_power=ts_reactive_power,
                     p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
+                ) for ags, cp_idx, geolocation, p_nom, divisor in list(
                     zip(
                         gdf.ags.tolist(),
                         gdf.cp_idx.tolist(),
                         gdf.geometry.tolist(),
                         gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+                        gdf.divisor.tolist(),
                     )
                 )
             ]
@@ -1326,6 +1329,8 @@ def integrate_private_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
+            gdf = refactor_nv(gdf) # TODO
+
             # TODO: choose
             # _ = [
             #     EDisGo.integrate_component(
@@ -1353,15 +1358,16 @@ def integrate_private_charging(
                     geolocation=geolocation,
                     use_case=use_case,
                     add_ts=True,
-                    ts_active_power=df.loc[:, (ags, cp_idx)],
+                    ts_active_power=df.loc[:, (ags, cp_idx)].divide(divisor), # TODO
                     ts_reactive_power=ts_reactive_power,
                     p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
+                ) for ags, cp_idx, geolocation, p_nom, divisor in list(
                     zip(
                         gdf.ags.tolist(),
                         gdf.cp_idx.tolist(),
                         gdf.geometry.tolist(),
                         gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+                        gdf.divisor.tolist(),
                     )
                 )
             ]
@@ -1397,6 +1403,22 @@ def integrate_private_charging(
 
         return edisgo
 
+    except:
+        traceback.print_exc()
+
+
+def refactor_nv(gdf, max_voltage=300):
+    try:
+        gdf["divisor"] = gdf.cp_capacity.divide(max_voltage).apply(np.ceil).astype(int)
+
+        gdf.cp_capacity = gdf.cp_capacity.divide(gdf.divisor)
+
+        gdf_result = gdf.copy()[0:0]
+
+        for count, divisor in enumerate(gdf.divisor.tolist()):
+            gdf_result = gdf_result.append([gdf.iloc[count].to_frame().T]*divisor)
+
+        return gdf_result
     except:
         traceback.print_exc()
 
