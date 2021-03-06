@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 10 # TODO
+num_threads = 1 # TODO
 
 rng = default_rng(seed=5)
 
@@ -37,18 +37,18 @@ ding0_dir = Path( # TODO: set dir
 
 scenarios = [ # TODO
     "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    "Mobility_Transition_2050_simbev_run",
-    "Szenarette_Kleinwagen_2050_simbev_run",
-    "Reference_2050_simbev_run",
-    "NEP_C_2035_simbev_run",
+    # "Electrification_2050_sensitivity_low_work_simbev_run",
+    # "Mobility_Transition_2050_simbev_run",
+    # "Szenarette_Kleinwagen_2050_simbev_run",
+    # "Reference_2050_simbev_run",
+    # "NEP_C_2035_simbev_run",
 ]
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
+strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
@@ -83,7 +83,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_curtailment_results",
+                    "eDisGo_curtailment_test_nv",
                     scenario,
                     grid_id,
                     strategy,
