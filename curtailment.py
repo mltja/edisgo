@@ -1181,7 +1181,7 @@ def curtail_lv_grids(
                 pypsa_network=pypsa_lv, lv_grid=True
             )
 
-            bar = 1.0 # TODO
+            bar = 0.8 # TODO
 
             lv_grid_matching = lv_grid.lower()
 
