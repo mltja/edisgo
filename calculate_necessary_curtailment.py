@@ -1217,6 +1217,8 @@ def integrate_public_charging(
 
             gdf = refactor_nv(gdf) # TODO
 
+            print("breaker")
+
             # TODO: choose
             # _ = [
             #     EDisGo.integrate_component(
