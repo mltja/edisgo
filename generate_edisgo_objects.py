@@ -21,18 +21,18 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 1 # TODO
+num_threads = 2 # TODO
 
 rng = default_rng(seed=5)
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [ # TODO
@@ -46,9 +46,9 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["176", "177"]#, "1056", "1690", "1811", "2534"] # TODO
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
+strategies = ["grouped"]#, "grouped", "reduced", "residual"] # TODO
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
