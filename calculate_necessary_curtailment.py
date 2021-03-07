@@ -1411,7 +1411,7 @@ def integrate_private_charging(
 
 def refactor_nv(gdf, max_voltage=300):
     try:
-        gdf["divisor"] = gdf.cp_capacity.divide(max_voltage).apply(np.ceil).astype(int)
+        gdf["divisor"] = gdf.cp_connection_rating.divide(max_voltage).apply(np.ceil).astype(int)
 
         gdf.cp_capacity = gdf.cp_capacity.divide(gdf.divisor)
         gdf.cp_connection_rating = gdf.cp_connection_rating.divide(gdf.divisor)
