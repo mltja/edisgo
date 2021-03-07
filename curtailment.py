@@ -1161,8 +1161,6 @@ def curtail_lv_grids(
 
             _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
 
-            bar = 0.8 # TODO
-
             voltage_dev = results_helper_functions.voltage_diff(edisgo)
 
             pypsa_lv, curtailment = curtailment_lv_voltage(
@@ -1180,8 +1178,10 @@ def curtail_lv_grids(
 
             pypsa_lv, curtailment = curtailment_lv_lines_overloading(
                 edisgo, curtailment, rel_load, grid_results_dir, scenario, strategy, day,
-                pypsa_network=pypsa_lv, lv_grid=True, bar=bar
+                pypsa_network=pypsa_lv, lv_grid=True
             )
+
+            bar = 1.2 # TODO
 
             lv_grid_matching = lv_grid.lower()
 
