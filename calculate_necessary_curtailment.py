@@ -1215,7 +1215,7 @@ def integrate_public_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
-            gdf = refactor_gdf(gdf, mode="mv") # TODO
+            gdf = refactor_gdf(gdf, mode="only-mv") # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1330,7 +1330,7 @@ def integrate_private_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
-            gdf = refactor_gdf(gdf, mode="mv") # TODO
+            gdf = refactor_gdf(gdf, mode="only-mv") # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1436,6 +1436,8 @@ def refactor_gdf(gdf, mode="lv", max_voltage_lv=300, max_voltage_mv=4500):
             ]
 
             gdf_result["divisor"] = 1
+
+            gdf_result = gdf_result.iloc[:int(np.ceil(len(gdf_result)/2))] # TODO
 
         elif mode == "only-hvmv":
             gdf_result = gdf.copy()[
