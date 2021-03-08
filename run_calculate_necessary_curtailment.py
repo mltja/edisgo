@@ -219,7 +219,7 @@ def get_days(
         s = pd.read_csv(
             os.path.join(
                 data_dir,
-                sub_dir,
+                # sub_dir,
                 "extreme_weeks.csv",
             ),
             index_col=[0],
