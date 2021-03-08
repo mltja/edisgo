@@ -33,7 +33,7 @@ data_dir = Path( # TODO: set dir
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_curtailment_test_nv" # TODO
+sub_dir = r"eDisGo_curtailment_test_full_mv" # TODO
 
 scenarios = [ # TODO
     # "NEP_C_2035",
@@ -44,7 +44,7 @@ scenarios = [ # TODO
     # "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["177"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
