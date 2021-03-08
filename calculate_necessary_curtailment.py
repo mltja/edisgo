@@ -1215,7 +1215,7 @@ def integrate_public_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
-            gdf = refactor_gdf(gdf, mode="only-hvmv") # TODO
+            gdf = refactor_gdf(gdf, mode="mv") # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1330,7 +1330,7 @@ def integrate_private_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
-            gdf = refactor_gdf(gdf, mode="only-hvmv") # TODO
+            gdf = refactor_gdf(gdf, mode="mv") # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1421,6 +1421,13 @@ def refactor_gdf(gdf, mode="lv", max_voltage_lv=300, max_voltage_mv=4500):
     
             for count, divisor in enumerate(gdf.divisor.tolist()):
                 gdf_result = gdf_result.append([gdf.iloc[count].to_frame().T]*divisor)
+
+        elif mode == "mv":
+            gdf_result = gdf.copy()[
+                (gdf.cp_connection_rating > max_voltage_lv)
+            ]
+
+            gdf_result["divisor"] = 1
 
         elif mode == "only-mv":
             gdf_result = gdf.copy()[
