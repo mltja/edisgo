@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 2 # TODO
+num_threads = 1 # TODO
 
 rng = default_rng(seed=5)
 
@@ -46,7 +46,7 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177"]#, "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["177"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
@@ -56,6 +56,7 @@ grid_dirs = [
 ]
 
 rng.shuffle(grid_dirs)
+
 
 def generate_edisgo_objects(
         grid_dir,
@@ -83,7 +84,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_curtailment_test_nv",
+                    "eDisGo_curtailment_test_mv",
                     scenario,
                     grid_id,
                     strategy,
