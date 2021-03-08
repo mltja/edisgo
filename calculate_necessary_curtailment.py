@@ -1215,7 +1215,7 @@ def integrate_public_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
-            gdf = refactor_gdf(gdf, mode="only-mv") # TODO
+            gdf = refactor_gdf(gdf, mode="only-hvmv") # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1330,7 +1330,7 @@ def integrate_private_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
-            gdf = refactor_gdf(gdf, mode="only-mv") # TODO
+            gdf = refactor_gdf(gdf, mode="only-hvmv") # TODO
 
             if not gdf.empty:
                 # TODO: choose
