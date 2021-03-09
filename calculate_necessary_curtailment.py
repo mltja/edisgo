@@ -1437,7 +1437,7 @@ def refactor_gdf(gdf, mode="lv", max_voltage_lv=300, max_voltage_mv=4500):
 
             gdf_result["divisor"] = 1
 
-            gdf_result = gdf_result.iloc[int(np.ceil(len(gdf_result)*13/24)):] # TODO
+            gdf_result = gdf_result.iloc[int(np.ceil(len(gdf_result)*25/48)):] # TODO
             # gdf_result = gdf_result.iloc[int(np.ceil(len(gdf_result)/2)):int(np.ceil(len(gdf_result)*3/4))] # TODO
 
         elif mode == "only-hvmv":
