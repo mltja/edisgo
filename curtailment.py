@@ -292,9 +292,9 @@ def curtailment_lv_voltage(
                 raise ValueError("Curtailment not sufficient to solve LV voltage "
                                  "issues.")
         else:
-            pf_results = my_pf(pypsa_network, edisgo.timeseries.timeindex)
+            pf_results = my_pf(pypsa_network, time_steps_issues)
 
-            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         # calculate curtailment
         # ToDo: Why does .at not work?
