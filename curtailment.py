@@ -176,7 +176,7 @@ def _calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
     return curtailed_feedin_ts, curtailed_load_ts
 
 
-def my_pf(pypsa, timesteps, mode="iteratively"):
+def my_pf(pypsa, timesteps, mode="lpf"):
     if mode == "lpf":
         pypsa.lpf(timesteps)
 
