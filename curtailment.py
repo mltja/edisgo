@@ -415,9 +415,9 @@ def curtailment_mvlv_stations_voltage(
                 raise ValueError("Curtailment not sufficient to solve voltage "
                                  "issues at MV/LV stations.")
         else:
-            pf_results = my_pf(pypsa_network, edisgo.timeseries.timeindex)
+            pf_results = my_pf(pypsa_network, time_steps_issues)
 
-            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
             pypsa_network_orig, pypsa_network)
