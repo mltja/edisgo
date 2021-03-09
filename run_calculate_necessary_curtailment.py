@@ -33,14 +33,14 @@ data_dir = Path( # TODO: set dir
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_curtailment_results" # TODO
+sub_dir = r"eDisGo_curtailment_test_mv_fourth_quarter" # TODO
 
 scenarios = [ # TODO
     # "NEP_C_2035",
     # "Reference_2050",
     # "Szenarette_Kleinwagen_2050",
-    "Mobility_Transition_2050",
-    # "Electrification_2050",
+    # "Mobility_Transition_2050",
+    "Electrification_2050",
     # "Electrification_2050_sensitivity_low_work",
 ]
 
