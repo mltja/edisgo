@@ -1443,7 +1443,7 @@ def refactor_gdf(gdf, mode="lv", max_voltage_lv=300, max_voltage_mv=4500):
         elif mode == "only-hvmv":
             gdf_result = gdf.copy()[
                 (gdf.cp_connection_rating > max_voltage_mv)
-                ]
+            ]
 
             gdf_result["divisor"] = 1
 
