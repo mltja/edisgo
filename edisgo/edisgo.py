@@ -1168,7 +1168,7 @@ class EDisGo:
             is determined based on the nominal power `p_nom` (given as kwarg)
             as follows:
 
-            * voltage level 4 (MV busbar): nominal power between 4.5 MW and
+            * voltage level 4 (MV busbar): nominal power between 4.5 MW a nd
               17.5 MW
             * voltage level 5 (MV grid) : nominal power between 0.3 MW and
               4.5 MW
