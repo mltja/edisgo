@@ -179,7 +179,7 @@ def _calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
 def my_pf(pypsa, timesteps):
     pypsa.lpf(timesteps)
 
-    pf_results = pypsa.pf(timesteps, use_seed=True)
+    pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=1e-4)
 
     return pf_results
 
@@ -534,9 +534,9 @@ def curtailment_mv_voltage(
                                  "issues.")
 
         else:
-            pf_results = my_pf(pypsa_network, edisgo.timeseries.timeindex)
+            pf_results = my_pf(pypsa_network, time_steps_issues)
 
-            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
 
         # calculate curtailment
@@ -683,8 +683,8 @@ def curtailment_lv_lines_overloading(
                 raise ValueError("Curtailment not sufficient to solve overloading "
                                  "issues in LV.")
         else:
-            pf_results = my_pf(pypsa_network, edisgo.timeseries.timeindex)
-            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+            pf_results = my_pf(pypsa_network, time_steps_issues)
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         # calculate curtailment
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
@@ -807,8 +807,8 @@ def curtailment_mvlv_stations_overloading(
                 raise ValueError("Curtailment not sufficient to solve overloading "
                                  "issues at MV/LV stations.")
         else:
-            pf_results = my_pf(pypsa_network, edisgo.timeseries.timeindex)
-            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+            pf_results = my_pf(pypsa_network, time_steps_issues)
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         # calculate curtailment
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
@@ -945,8 +945,8 @@ def curtailment_mv_lines_overloading(
                 raise ValueError("Curtailment not sufficient to solve grid "
                                  "issues in MV.")
         else:
-            pf_results = my_pf(pypsa_network, edisgo.timeseries.timeindex)
-            pypsa_io.process_pfa_results(edisgo, pypsa_network, edisgo.timeseries.timeindex)
+            pf_results = my_pf(pypsa_network, time_steps_issues)
+            pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         # calculate curtailment
         curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
@@ -1194,7 +1194,7 @@ def curtail_lv_grids(
                 pypsa_network=pypsa_lv, lv_grid=True
             )
 
-            bar = 0.8 # TODO
+            bar = 1 + 1e-3 # TODO
 
             lv_grid_matching = lv_grid.lower()
 
