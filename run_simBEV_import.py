@@ -8,7 +8,7 @@ from pathlib import Path
 
 gc.collect()
 
-num_threads = 6
+num_threads = 6 # 6
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
