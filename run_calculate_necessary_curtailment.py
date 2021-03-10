@@ -26,7 +26,7 @@ gc.collect()
 
 # os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 1 # TODO
+num_threads = 12 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -37,7 +37,7 @@ sub_dir = r"eDisGo_object_files" # TODO
 
 scenarios = [ # TODO
     "NEP_C_2035",
-    # "Reference_2050",
+    "Reference_2050",
     # "Electrification_2050",
     # "Electrification_2050_sensitivity_low_work",
 ]
