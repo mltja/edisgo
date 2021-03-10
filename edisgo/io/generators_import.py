@@ -1,25 +1,19 @@
 import os
 import pandas as pd
-import numpy as np
 from sqlalchemy import func
 import random
 import logging
 
-from edisgo.network.grids import LVGrid
 from edisgo.network.timeseries import add_generators_timeseries
 from edisgo.tools import session_scope
 from edisgo.tools.geo import (
-    calc_geo_dist_vincenty,
-    calc_geo_lines_in_buffer,
     proj2equidistant,
-    proj2equidistant_reverse,
 )
 
 logger = logging.getLogger("edisgo")
 
 if "READTHEDOCS" not in os.environ:
     from egoio.db_tables import model_draft, supply
-    from shapely.geometry import LineString, Point
     from shapely.ops import transform
     from shapely.wkt import loads as wkt_loads
 
