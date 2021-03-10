@@ -1245,16 +1245,16 @@ def integrate_public_charging(
                         geolocation=geolocation,
                         use_case=use_case,
                         add_ts=True,
-                        ts_active_power=df.loc[:, (ags, cp_idx)].divide(divisor), # TODO
+                        ts_active_power=df.loc[:, (ags, cp_idx)],#.divide(divisor), # TODO
                         ts_reactive_power=ts_reactive_power,
                         p_nom=p_nom,
-                    ) for ags, cp_idx, geolocation, p_nom, divisor in list(
+                    ) for ags, cp_idx, geolocation, p_nom in list(#, divisor in list( # TODO
                         zip(
                             gdf.ags.tolist(),
                             gdf.cp_idx.tolist(),
                             gdf.geometry.tolist(),
                             gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
-                            gdf.divisor.tolist(),
+                            # gdf.divisor.tolist(), # TODO
                         )
                     )
                 ]
@@ -1360,16 +1360,16 @@ def integrate_private_charging(
                         geolocation=geolocation,
                         use_case=use_case,
                         add_ts=True,
-                        ts_active_power=df.loc[:, (ags, cp_idx)].divide(divisor), # TODO
+                        ts_active_power=df.loc[:, (ags, cp_idx)], #.divide(divisor), # TODO
                         ts_reactive_power=ts_reactive_power,
                         p_nom=p_nom,
-                    ) for ags, cp_idx, geolocation, p_nom, divisor in list(
+                    ) for ags, cp_idx, geolocation, p_nom in list(#, divisor in list( # TODO
                         zip(
                             gdf.ags.tolist(),
                             gdf.cp_idx.tolist(),
                             gdf.geometry.tolist(),
                             gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
-                            gdf.divisor.tolist(),
+                            # gdf.divisor.tolist(), # TODO
                         )
                     )
                 ]
