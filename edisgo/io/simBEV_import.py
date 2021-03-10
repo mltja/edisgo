@@ -387,7 +387,7 @@ def get_charging_points(
                 file,
             )
 
-            if count == 0 and len(cp_dfs[count]) > 0:
+            if count == 0 and len(cp_dfs[count]) > 0: # hpc
                 cp_dfs[count] = cp_dfs[count].drop(
                     [
                         "name",
@@ -399,37 +399,23 @@ def get_charging_points(
                     inplace=True,
                 )
                 # TODO: hpc has no weights @Johannes
-            elif count == 1 and len(cp_dfs[count]) > 0:
+            elif count == 1 and len(cp_dfs[count]) > 0: # public
                 cp_dfs[count] = cp_dfs[count].rename(
                     columns={
                         "sum_pois": "weight",
                     }
                 )
                 cp_dfs[count].weight = cp_dfs[count].weight.astype(int)
-                cp_dfs[count] = cp_dfs[count].sort_values(
-                    by=["weight"],
-                    ascending=False,
-                )
-                cp_dfs[count].reset_index(
-                    drop=True,
-                    inplace=True,
-                )
-            elif count == 2 and len(cp_dfs[count]) > 0:
+
+            elif count == 2 and len(cp_dfs[count]) > 0: # home
                 cp_dfs[count] = cp_dfs[count].rename(
                     columns={
                         "building_wohneinheiten": "weight",
                     }
                 )
                 cp_dfs[count].weight = cp_dfs[count].weight.astype(int)
-                cp_dfs[count] = cp_dfs[count].sort_values(
-                    by=["weight"],
-                    ascending=False,
-                )
-                cp_dfs[count].reset_index(
-                    drop=True,
-                    inplace=True,
-                )
-            elif count == 3 and len(cp_dfs[count]) > 0:
+
+            elif count == 3 and len(cp_dfs[count]) > 0: # work
                 cp_dfs[count] = cp_dfs[count].drop(
                     [
                         "landuse",
@@ -438,20 +424,13 @@ def get_charging_points(
                     axis="columns",
                 )
                 cp_dfs[count].weight = cp_dfs[count].weight.astype(float)
-                cp_dfs[count] = cp_dfs[count].sort_values(
-                    by=["weight"],
-                    ascending=False,
-                )
-                cp_dfs[count].reset_index(
-                    drop=True,
-                    inplace=True,
-                )
+
             else:
                 pass
 
         # add some extra charging locations at work, because of a low number of charging stations
         df_append = cp_dfs[1].copy().sample(
-            n=int(np.ceil(0.3 * len(cp_dfs[1]))),
+            n=int(np.ceil(0.5 * len(cp_dfs[1]))),
             random_state=25588,
         )
 
@@ -467,7 +446,7 @@ def get_charging_points(
             else:
                 cp_dfs[3] = cp_dfs[1].copy()
 
-        sum_weight_target = cp_dfs[3].weight.sum() / 0.7 * 0.3
+        sum_weight_target = cp_dfs[3].weight.sum() #/ 0.7 * 0.3
         sum_weight = df_append.weight.sum()
         df_append.weight = df_append.weight.multiply(sum_weight_target / sum_weight)
 
@@ -475,6 +454,31 @@ def get_charging_points(
             df_append,
             ignore_index=True,
         )
+
+        cp_dfs[1] = pd.concat( # public
+            [cp_dfs[1]] * 2,  # Erfahrungswert Try & Error
+            ignore_index=True,
+        )
+
+        cp_dfs[2] = pd.concat( # home
+            [cp_dfs[2]] * 5,  # Erfahrungswert Try & Error
+            ignore_index=True,
+        )
+
+        cp_dfs[3] = pd.concat( # work
+            [cp_dfs[3]] * 8,  # Erfahrungswert Try & Error
+            ignore_index=True,
+        )
+
+        for count in range(1,4):
+            cp_dfs[count] = cp_dfs[count].sort_values(
+                by=["weight"],
+                ascending=False,
+            )
+            cp_dfs[count].reset_index(
+                drop=True,
+                inplace=True,
+            )
 
         return tuple(cp_dfs)
 
