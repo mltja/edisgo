@@ -44,7 +44,7 @@ scenarios = [ # TODO
     # "Electrification_2050_sensitivity_low_work",
 ]
 
-grid_ids = ["1690"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["1056"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
@@ -66,7 +66,7 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        mode = "weeks" # TODO
+        mode = "days" # TODO
 
         if mode == "days":
             ts_count = 96
