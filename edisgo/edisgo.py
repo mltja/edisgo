@@ -369,10 +369,45 @@ class EDisGo:
     def import_generators(self, generator_scenario=None,
                           **kwargs):
         """
-        Import generator data for specified scenario from oedb and integrate
-        into grid.
+        Gets generator park for specified scenario and integrates them into
+        the grid.
 
-        For details see :func:`edisgo.io.generators_import.oedb`.
+        Currently, the only supported data source is scenario data generated
+        in the research project
+        `open_eGo <https://openegoproject.wordpress.com/>`_. You can choose
+        between two scenarios: 'nep2035' and 'ego100'. You can get more
+        information on the scenarios in the
+        `final report <https://www.uni-flensburg.de/fileadmin/content/\
+        abteilungen/industrial/dokumente/downloads/veroeffentlichungen/\
+        forschungsergebnisse/20190426endbericht-openego-fkz0325881-final\
+        .pdf>`_.
+
+        The generator data is retrieved from the
+        `open energy platform <https://openenergy-platform.org/>`_
+        from tables for
+        `conventional power plants <https://openenergy-platform.org/dataedit/\
+        view/supply/ego_dp_conv_powerplant>`_ and
+        `renewable power plants <https://openenergy-platform.org/dataedit/\
+        view/supply/ego_dp_res_powerplant>`_.
+
+        When the generator data is retrieved, the following steps are
+        conducted:
+
+            * Step 1: Update capacity of existing generators if `
+              update_existing` is True, which it is by default.
+            * Step 2: Remove decommissioned generators if
+              `remove_decommissioned` is True, which it is by default.
+            * Step 3: Integrate new MV generators.
+            * Step 4: Integrate new LV generators.
+
+        For more information on how generators are integrated, see
+        :attr:`~.network.topology.Topology.connect_to_mv` and
+        :attr:`~.network.topology.Topology.connect_to_lv`.
+
+        After the generator park is changed there may be grid issues due to the
+        additional in-feed. These are not solved automatically. If you want to
+        have a stable grid without grid issues you can invoke the automatic
+        grid expansion through the function :attr:`~.EDisGo.reinforce`.
 
         Parameters
         ----------
@@ -382,7 +417,8 @@ class EDisGo:
 
         Other Parameters
         ----------------
-        See :func:`edisgo.io.generators_import.oedb`.
+        kwargs :
+            See :func:`edisgo.io.generators_import.oedb`.
 
         """
         if generator_scenario:
@@ -431,7 +467,7 @@ class EDisGo:
         if all(pf_results["converged"]["0"].tolist()):
             pypsa_io.process_pfa_results(self, pypsa_network, timesteps)
         else:
-            raise ValueError("Power flow analysis did not converge for the"
+            raise ValueError("Power flow analysis did not converge for the "
                              "following time steps: {}.".format(
                 timesteps[~pf_results["converged"]["0"]].tolist())
             )
@@ -537,7 +573,10 @@ class EDisGo:
                         "_".join(_.loc[aggregate_generators_by_cols])),
                     axis=1)
                 gens_df_grouped["control"] = "PQ"
-                gens_df_grouped.drop(columns=["weather_cell_id"], inplace=True)
+                gens_df_grouped["control"] = "misc"
+                if "weather_cell_id" in gens_df_grouped.columns:
+                    gens_df_grouped.drop(
+                        columns=["weather_cell_id"], inplace=True)
                 self.topology.generators_df = gens_df_grouped.set_index("name")
                 # set up new generator time series
                 groups = gens_groupby.groups
@@ -1169,7 +1208,7 @@ class EDisGo:
             is determined based on the nominal power `p_nom` (given as kwarg)
             as follows:
 
-            * voltage level 4 (MV busbar): nominal power between 4.5 MW a nd
+            * voltage level 4 (MV busbar): nominal power between 4.5 MW and
               17.5 MW
             * voltage level 5 (MV grid) : nominal power between 0.3 MW and
               4.5 MW
