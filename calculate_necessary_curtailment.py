@@ -1215,45 +1215,49 @@ def integrate_public_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
-            # TODO: choose
-            # _ = [
-            #     EDisGo.integrate_component(
-            #         edisgo,
-            #         comp_type=comp_type,
-            #         geolocation=geolocation,
-            #         use_case=use_case,
-            #         add_ts=True,
-            #         ts_active_power=df.loc[:, (ags, cp_idx)],
-            #         ts_reactive_power=ts_reactive_power,
-            #         p_nom=df.loc[:, (ags, cp_idx)].max(),
-            #     ) for ags, cp_idx, geolocation in list(
-            #         zip(
-            #             gdf.ags.tolist(),
-            #             gdf.cp_idx.tolist(),
-            #             gdf.geometry.tolist(),
-            #         )
-            #     )
-            # ]
+            gdf = refactor_gdf(gdf, mode="only-mv") # TODO
 
-            _ = [
-                EDisGo.integrate_component(
-                    edisgo,
-                    comp_type=comp_type,
-                    geolocation=geolocation,
-                    use_case=use_case,
-                    add_ts=True,
-                    ts_active_power=df.loc[:, (ags, cp_idx)],
-                    ts_reactive_power=ts_reactive_power,
-                    p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
-                    zip(
-                        gdf.ags.tolist(),
-                        gdf.cp_idx.tolist(),
-                        gdf.geometry.tolist(),
-                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+            if not gdf.empty:
+                # TODO: choose
+                # _ = [
+                #     EDisGo.integrate_component(
+                #         edisgo,
+                #         comp_type=comp_type,
+                #         geolocation=geolocation,
+                #         use_case=use_case,
+                #         add_ts=True,
+                #         ts_active_power=df.loc[:, (ags, cp_idx)],
+                #         ts_reactive_power=ts_reactive_power,
+                #         p_nom=df.loc[:, (ags, cp_idx)].max(),
+                #     ) for ags, cp_idx, geolocation in list(
+                #         zip(
+                #             gdf.ags.tolist(),
+                #             gdf.cp_idx.tolist(),
+                #             gdf.geometry.tolist(),
+                #         )
+                #     )
+                # ]
+
+                _ = [
+                    EDisGo.integrate_component(
+                        edisgo,
+                        comp_type=comp_type,
+                        geolocation=geolocation,
+                        use_case=use_case,
+                        add_ts=True,
+                        ts_active_power=df.loc[:, (ags, cp_idx)].divide(divisor), # TODO
+                        ts_reactive_power=ts_reactive_power,
+                        p_nom=p_nom,
+                    ) for ags, cp_idx, geolocation, p_nom, divisor in list(
+                        zip(
+                            gdf.ags.tolist(),
+                            gdf.cp_idx.tolist(),
+                            gdf.geometry.tolist(),
+                            gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+                            gdf.divisor.tolist(),
+                        )
                     )
-                )
-            ]
+                ]
 
         return edisgo
 
@@ -1326,77 +1330,124 @@ def integrate_private_charging(
                 else:
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
-            # TODO: choose
-            # _ = [
-            #     EDisGo.integrate_component(
-            #         edisgo,
-            #         comp_type=comp_type,
-            #         geolocation=geolocation,
-            #         use_case=use_case,
-            #         add_ts=True,
-            #         ts_active_power=df.loc[:, (ags, cp_idx)],
-            #         ts_reactive_power=ts_reactive_power,
-            #         p_nom=df.loc[:, (ags, cp_idx)].max(),
-            #     ) for ags, cp_idx, geolocation in list(
-            #         zip(
-            #             gdf.ags.tolist(),
-            #             gdf.cp_idx.tolist(),
-            #             gdf.geometry.tolist(),
-            #         )
-            #     )
-            # ]
+            gdf = refactor_gdf(gdf, mode="only-mv") # TODO
 
-            _ = [
-                EDisGo.integrate_component(
-                    edisgo,
-                    comp_type=comp_type,
-                    geolocation=geolocation,
-                    use_case=use_case,
-                    add_ts=True,
-                    ts_active_power=df.loc[:, (ags, cp_idx)],
-                    ts_reactive_power=ts_reactive_power,
-                    p_nom=p_nom,
-                ) for ags, cp_idx, geolocation, p_nom in list(
-                    zip(
-                        gdf.ags.tolist(),
-                        gdf.cp_idx.tolist(),
-                        gdf.geometry.tolist(),
-                        gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+            if not gdf.empty:
+                # TODO: choose
+                # _ = [
+                #     EDisGo.integrate_component(
+                #         edisgo,
+                #         comp_type=comp_type,
+                #         geolocation=geolocation,
+                #         use_case=use_case,
+                #         add_ts=True,
+                #         ts_active_power=df.loc[:, (ags, cp_idx)],
+                #         ts_reactive_power=ts_reactive_power,
+                #         p_nom=df.loc[:, (ags, cp_idx)].max(),
+                #     ) for ags, cp_idx, geolocation in list(
+                #         zip(
+                #             gdf.ags.tolist(),
+                #             gdf.cp_idx.tolist(),
+                #             gdf.geometry.tolist(),
+                #         )
+                #     )
+                # ]
+
+                _ = [
+                    EDisGo.integrate_component(
+                        edisgo,
+                        comp_type=comp_type,
+                        geolocation=geolocation,
+                        use_case=use_case,
+                        add_ts=True,
+                        ts_active_power=df.loc[:, (ags, cp_idx)].divide(divisor), # TODO
+                        ts_reactive_power=ts_reactive_power,
+                        p_nom=p_nom,
+                    ) for ags, cp_idx, geolocation, p_nom, divisor in list(
+                        zip(
+                            gdf.ags.tolist(),
+                            gdf.cp_idx.tolist(),
+                            gdf.geometry.tolist(),
+                            gdf.cp_connection_rating.divide(1000).tolist(),  # kW -> MW
+                            gdf.divisor.tolist(),
+                        )
                     )
-                )
-            ]
+                ]
 
-        new_switch_line = edisgo.topology.lines_df.loc[
-            (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
-            (edisgo.topology.lines_df["bus1"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"])
-            ].index.tolist()[0]
+            new_switch_line = edisgo.topology.lines_df.loc[
+                (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
+                (edisgo.topology.lines_df["bus1"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"])
+                ].index.tolist()[0]
 
-        edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
+            edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
 
-        # grid_results_dir = Path(
-        #     os.path.join(  # TODO: set dir
-        #         # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_plot_data\generators",
-        #         r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_plot_data/generators",
-        #         grid_dir.parts[-1],
-        #     )
-        # )
-        #
-        # os.makedirs(
-        #     grid_results_dir,
-        #     exist_ok=True,
-        # )
-        #
-        # edisgo.save(
-        #     grid_results_dir,
-        #     save_results=False,
-        #     save_topology=True,
-        #     save_timeseries=False,
-        # )
-        #
-        # print("Grid {} saved.".format(grid_dir.parts[-1]))
+            # grid_results_dir = Path(
+            #     os.path.join(  # TODO: set dir
+            #         # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_plot_data\generators",
+            #         r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_plot_data/generators",
+            #         grid_dir.parts[-1],
+            #     )
+            # )
+            #
+            # os.makedirs(
+            #     grid_results_dir,
+            #     exist_ok=True,
+            # )
+            #
+            # edisgo.save(
+            #     grid_results_dir,
+            #     save_results=False,
+            #     save_topology=True,
+            #     save_timeseries=False,
+            # )
+            #
+            # print("Grid {} saved.".format(grid_dir.parts[-1]))
 
         return edisgo
 
+    except:
+        traceback.print_exc()
+
+
+def refactor_gdf(gdf, mode="lv", max_voltage_lv=300, max_voltage_mv=4500):
+    try:
+        if mode is "lv":
+            gdf["divisor"] = gdf.cp_connection_rating.divide(max_voltage_lv).apply(np.ceil).astype(int)
+    
+            gdf.cp_capacity = gdf.cp_capacity.divide(gdf.divisor)
+            gdf.cp_connection_rating = gdf.cp_connection_rating.divide(gdf.divisor)
+    
+            gdf_result = gdf.copy()[0:0]
+    
+            for count, divisor in enumerate(gdf.divisor.tolist()):
+                gdf_result = gdf_result.append([gdf.iloc[count].to_frame().T]*divisor)
+
+        elif mode == "mv":
+            gdf_result = gdf.copy()[
+                (gdf.cp_connection_rating > max_voltage_lv)
+            ]
+
+            gdf_result["divisor"] = 1
+
+        elif mode == "only-mv":
+            gdf_result = gdf.copy()[
+                (gdf.cp_connection_rating > max_voltage_lv) &
+                (gdf.cp_connection_rating <= max_voltage_mv)
+            ]
+
+            gdf_result["divisor"] = 1
+
+            gdf_result = gdf_result.iloc[int(np.ceil(len(gdf_result)*49/96)):] # TODO
+            # gdf_result = gdf_result.iloc[int(np.ceil(len(gdf_result)/2)):int(np.ceil(len(gdf_result)*3/4))] # TODO
+
+        elif mode == "only-hvmv":
+            gdf_result = gdf.copy()[
+                (gdf.cp_connection_rating > max_voltage_mv)
+            ]
+
+            gdf_result["divisor"] = 1
+
+        return gdf_result
     except:
         traceback.print_exc()
 
