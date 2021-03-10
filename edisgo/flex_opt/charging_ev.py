@@ -24,7 +24,6 @@ def charging(
         df_grid_data = get_grid_data()
 
         for grid_idx, grid_id in df_grid_data.grid_id.iteritems():
-
             print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
 
             ags_list = df_grid_data.ags.at[grid_idx]
@@ -443,8 +442,8 @@ def grouped_charging(
 
         cp_ags_list = list(
             zip(
-                df_standing.ags.tolist(),
-                df_standing.cp_idx.tolist(),
+                gdf_cps.ags.tolist(),
+                gdf_cps.cp_idx.tolist(),
             )
         )
 
@@ -457,7 +456,7 @@ def grouped_charging(
         cp_load = np.empty(
             shape=(
                 int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
-                len(gdf_cps),
+                len(cp_ags_list_unique),
             ),
             dtype=float,
         )
@@ -1143,6 +1142,44 @@ def get_grid_cps_and_charging_processes(
         df_standing_total = df_standing_total.fillna(0)
         df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float)
         df_standing_total.chargingdemand = df_standing_total.chargingdemand.astype(float)
+
+        df_standing_total["charging_time"] = df_standing_total.chargingdemand.divide(
+            df_standing_total.netto_charging_capacity.divide(4)
+        )
+
+        df_standing_total["include_last_ts"] = df_standing_total.charging_time.copy()
+
+        df_standing_total.loc[
+            df_standing_total.include_last_ts >= 1
+        ] = df_standing_total.loc[
+            df_standing_total.include_last_ts >= 1
+        ].assign(
+            include_last_ts=df_standing_total.loc[
+                                df_standing_total.include_last_ts >= 1
+                            ].charging_time.mod(
+                df_standing_total.loc[
+                    df_standing_total.include_last_ts >= 1
+                ].charging_time.apply(np.floor)
+            )
+        )
+
+        df_standing_total.include_last_ts = (df_standing_total.include_last_ts + 0.3).round(0).astype(int)
+
+        df_standing_total.charging_time = df_standing_total.charging_time.apply(
+            np.floor
+        ).astype(int) + df_standing_total.include_last_ts
+
+        df_standing_total.chargingdemand = df_standing_total.charging_time.divide(4).multiply(
+            df_standing_total.netto_charging_capacity
+        )
+
+        df_standing_total = df_standing_total.drop(
+            [
+                "charging_time",
+                "include_last_ts",
+            ],
+            axis="columns",
+        )
 
         ags_series = gdf_cps_total.pop("ags")
         geometry_series = gdf_cps_total.pop("geometry")
