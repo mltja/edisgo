@@ -445,8 +445,8 @@ def grouped_charging(
 
         cp_ags_list = list(
             zip(
-                df_standing.ags.tolist(),
-                df_standing.cp_idx.tolist(),
+                gdf_cps.ags.tolist(),
+                gdf_cps.cp_idx.tolist(),
             )
         )
 
