@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 1
+num_threads = 6 # TODO
 
 rng = default_rng(seed=5)
 
@@ -35,20 +35,21 @@ ding0_dir = Path( # TODO: set dir
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
-scenarios = [
-    "Electrification_2050_simbev_run",
+scenarios = [ # TODO
+    # "Electrification_2050_simbev_run",
     # "Electrification_2050_sensitivity_low_work_simbev_run",
-    # "Mobility_Transition_2050_simbev_run",
-    # "Szenarette_Kleinwagen_2050_simbev_run",
     # "Reference_2050_simbev_run",
-    # "NEP_C_2035_simbev_run",
+    "NEP_C_2035_simbev_run",
 ]
+
+# "Mobility_Transition_2050_simbev_run",
+# "Szenarette_Kleinwagen_2050_simbev_run",
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176"]#["176", "177", "1056", "1690", "1811", "2534"]
+grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual"]
+strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
@@ -56,6 +57,7 @@ grid_dirs = [
 ]
 
 rng.shuffle(grid_dirs)
+
 
 def generate_edisgo_objects(
         grid_dir,
@@ -80,6 +82,26 @@ def generate_edisgo_objects(
         for strategy in strategies:
             t1 = perf_counter()
 
+            export_dir = Path(
+                os.path.join(
+                    data_dir,
+                    "eDisGo_object_files",
+                    scenario,
+                    grid_id,
+                    strategy,
+                )
+            )
+
+            os.makedirs(
+                export_dir,
+                exist_ok=True,
+            )
+
+            # check_dirs = os.listdir(export_dir)
+            #
+            # if len(check_dirs) >= 3:
+            #     pass
+            # else:
             edisgo = cc.integrate_public_charging(
                 ding0_dir,
                 grid_dir,
@@ -107,9 +129,9 @@ def generate_edisgo_objects(
                 strategy,
             )
 
-            # gc.collect()
-            #
-            # edisgo.aggregate_components(mode="by_load_and_generation")
+            gc.collect()
+
+            edisgo.aggregate_components()
 
             gc.collect()
 
@@ -122,21 +144,6 @@ def generate_edisgo_objects(
             )
 
             t1 = perf_counter()
-
-            export_dir = Path(
-                os.path.join(
-                    data_dir,
-                    "eDisGo_curtailment_results_plots",
-                    scenario,
-                    grid_id,
-                    strategy,
-                )
-            )
-
-            os.makedirs(
-                export_dir,
-                exist_ok=True,
-            )
 
             edisgo.save(
                 directory=export_dir,
