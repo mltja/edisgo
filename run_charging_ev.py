@@ -49,12 +49,14 @@ data_tuples = [
     (directory, ding0_dir) for directory in data_dirs
 ]
 
+
 if __name__ == "__main__":
     if num_threads == 1:
-        cEV.charging(
-            data_dirs[5],
-            ding0_dir,
-        )
+        for data_dir in data_dirs:
+            cEV.charging(
+                data_dir,
+                ding0_dir,
+            )
     else:
         with multiprocessing.Pool(num_threads) as pool:
             pool.starmap(
