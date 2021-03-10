@@ -176,7 +176,7 @@ def _calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
     return curtailed_feedin_ts, curtailed_load_ts
 
 
-def my_pf(pypsa, timesteps, mode="lpf", x_tol=1e-5):
+def my_pf(pypsa, timesteps, mode="lpf", x_tol=1e-6):
     if mode == "lpf":
         pypsa.lpf(timesteps)
 
@@ -1236,7 +1236,7 @@ def curtail_lv_grids(
             transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
                 axis=1)
 
-            transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
+            transformer_loading_mva = np.sqrt(transformer_loading_mw**2 + transformer_loading_mvar**2)
 
             transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
 
@@ -1605,7 +1605,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "test_weekly",
+            "test_1_full",
         )
 
         os.makedirs(
@@ -1654,55 +1654,55 @@ def calculate_curtailment(
         # for col in edisgo.timeseries.charging_points_active_power.columns:
         #     edisgo.timeseries.charging_points_active_power[col].values[:] = 0
         #
-        print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
-        print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
-        print("Gens:", edisgo.timeseries.generators_active_power.sum().sum())
+        # print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
+        # print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
+        # print("Gens:", edisgo.timeseries.generators_active_power.sum().sum())
 
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_lv_grids(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
-
-        print(
-            "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
-        )
-
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_mv_grid(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
-
-        print(
-            "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
-        )
-
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_mvlv_grid(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-            mv_grid_id,
-        )
-
-        print(
-            "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
-        )
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_lv_grids(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
+        # )
+        #
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_mv_grid(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
+        # )
+        #
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_mvlv_grid(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        #     mv_grid_id,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
+        # )
 
         t1 = perf_counter()
 
