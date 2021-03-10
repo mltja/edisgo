@@ -24,141 +24,138 @@ def charging(
         df_grid_data = get_grid_data()
 
         for grid_idx, grid_id in df_grid_data.grid_id.iteritems():
+            print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
 
-            if grid_id == 1690:
+            ags_list = df_grid_data.ags.at[grid_idx]
 
-                print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
+            ags_list.sort()
 
-                ags_list = df_grid_data.ags.at[grid_idx]
+            ags_dirs = [
+                Path(os.path.join(data_dir, ags)) for ags in ags_list
+            ]
 
-                ags_list.sort()
+            t1 = perf_counter()
 
-                ags_dirs = [
-                    Path(os.path.join(data_dir, ags)) for ags in ags_list
-                ]
+            gdf_cps_total, df_standing_total = get_grid_cps_and_charging_processes(
+                ags_dirs,
+                setup_dict["eta_CP"],
+            )
 
-                t1 = perf_counter()
+            # FIXME
+            df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float) \
+                .divide(setup_dict["eta_CP"]).round(1).multiply(setup_dict["eta_CP"])
 
-                gdf_cps_total, df_standing_total = get_grid_cps_and_charging_processes(
-                    ags_dirs,
-                    setup_dict["eta_CP"],
-                )
+            print("It took {} seconds to read in the data for grid {} for scenario {}.".format(
+                round(perf_counter() - t1, 1), grid_id, data_dir.parts[-2]
+            ))
 
-                # FIXME
-                df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float) \
-                    .divide(setup_dict["eta_CP"]).round(1).multiply(setup_dict["eta_CP"])
+            t1 = perf_counter()
 
-                print("It took {} seconds to read in the data for grid {} for scenario {}.".format(
-                    round(perf_counter() - t1, 1), grid_id, data_dir.parts[-2]
-                ))
+            edisgo, gdf_cps_total, s_residual_load = integrate_cps(
+                gdf_cps_total,
+                ding0_dir,
+                grid_id,
+                data_dir,
+                worst_case_analysis="worst-case",
+                generator_scenario="ego100",
+            )
 
-                t1 = perf_counter()
+            gc.collect()
 
-                edisgo, gdf_cps_total, s_residual_load = integrate_cps(
-                    gdf_cps_total,
-                    ding0_dir,
-                    grid_id,
-                    data_dir,
-                    worst_case_analysis="worst-case",
-                    generator_scenario="ego100",
-                )
+            print("It took {} seconds to generate the eDisGo object for grid {} for scenario {}.".format(
+                round(perf_counter() - t1, 1), grid_id, data_dir.parts[-2]
+            ))
 
-                gc.collect()
+            use_cases = gdf_cps_total.use_case.unique().tolist()
 
-                print("It took {} seconds to generate the eDisGo object for grid {} for scenario {}.".format(
-                    round(perf_counter() - t1, 1), grid_id, data_dir.parts[-2]
-                ))
+            use_cases.sort()
 
-                use_cases = gdf_cps_total.use_case.unique().tolist()
+            for count_cases, use_case in enumerate(use_cases):
+                df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
+                gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
 
-                use_cases.sort()
-
-                for count_cases, use_case in enumerate(use_cases):
-                    df_standing_data = df_standing_total.copy()[df_standing_total.use_case == use_case]
-                    gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case == use_case]
-
-                    gdf_to_geojson(
-                        gdf_cp_data,
-                        use_case,
-                        grid_id,
-                        data_dir,
-                    )
-
-                    for strategy in ["dumb", "reduced", "grouped"]:
-                        if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
-                            t1 = perf_counter()
-                            grid_independent_charging(
-                                edisgo,
-                                df_standing_data,
-                                gdf_cp_data,
-                                setup_dict,
-                                use_case,
-                                grid_id,
-                                data_dir,
-                                strategy=strategy,
-                            )
-                            print(
-                                "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                                "use case {} in grid {} for scenario {} with charging strategy {}.".format(
-                                    get_use_case_name(use_case), grid_id, data_dir.parts[-2], strategy,
-                                )
-                            )
-                            gc.collect()
-                        elif strategy == "grouped" and (use_case == 3 or use_case == 4):
-                            t1 = perf_counter()
-                            grouped_charging(
-                                edisgo,
-                                df_standing_data,
-                                gdf_cp_data,
-                                setup_dict,
-                                use_case,
-                                grid_id,
-                                data_dir,
-                                strategy=strategy,
-                            )
-                            print(
-                                "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                                "use case {} in grid {} for scenario {} with charging strategy {}.".format(
-                                    get_use_case_name(use_case), grid_id, data_dir.parts[-2], strategy,
-                                )
-                            )
-                            gc.collect()
-
-                del edisgo
-
-                df_residual_load = get_residual_load_with_evs(
-                    s_residual_load,
-                    setup_dict,
-                    data_dir,
-                    grid_id,
-                )
-
-                gc.collect()
-
-                strategy = "residual"
-
-                use_cases = [3, 4]
-
-                df_standing_data = df_standing_total.copy()[df_standing_total.use_case.isin(use_cases)]
-                gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case.isin(use_cases)]
-
-                t1 = perf_counter()
-                residual_load_charging(
-                    df_standing_data,
-                    df_residual_load,
+                gdf_to_geojson(
                     gdf_cp_data,
-                    setup_dict,
+                    use_case,
                     grid_id,
                     data_dir,
-                    strategy=strategy,
                 )
-                print(
-                    "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                    "grid {} for scenario {} with charging strategy {}.".format(
-                        grid_id, data_dir.parts[-2], strategy,
-                    )
+
+                for strategy in ["dumb", "reduced", "grouped"]:
+                    if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
+                        t1 = perf_counter()
+                        grid_independent_charging(
+                            edisgo,
+                            df_standing_data,
+                            gdf_cp_data,
+                            setup_dict,
+                            use_case,
+                            grid_id,
+                            data_dir,
+                            strategy=strategy,
+                        )
+                        print(
+                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                            "use case {} in grid {} for scenario {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, data_dir.parts[-2], strategy,
+                            )
+                        )
+                        gc.collect()
+                    elif strategy == "grouped" and (use_case == 3 or use_case == 4):
+                        t1 = perf_counter()
+                        grouped_charging(
+                            edisgo,
+                            df_standing_data,
+                            gdf_cp_data,
+                            setup_dict,
+                            use_case,
+                            grid_id,
+                            data_dir,
+                            strategy=strategy,
+                        )
+                        print(
+                            "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                            "use case {} in grid {} for scenario {} with charging strategy {}.".format(
+                                get_use_case_name(use_case), grid_id, data_dir.parts[-2], strategy,
+                            )
+                        )
+                        gc.collect()
+
+            del edisgo
+
+            df_residual_load = get_residual_load_with_evs(
+                s_residual_load,
+                setup_dict,
+                data_dir,
+                grid_id,
+            )
+
+            gc.collect()
+
+            strategy = "residual"
+
+            use_cases = [3, 4]
+
+            df_standing_data = df_standing_total.copy()[df_standing_total.use_case.isin(use_cases)]
+            gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case.isin(use_cases)]
+
+            t1 = perf_counter()
+            residual_load_charging(
+                df_standing_data,
+                df_residual_load,
+                gdf_cp_data,
+                setup_dict,
+                grid_id,
+                data_dir,
+                strategy=strategy,
+            )
+            print(
+                "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                "grid {} for scenario {} with charging strategy {}.".format(
+                    grid_id, data_dir.parts[-2], strategy,
                 )
-                gc.collect()
+            )
+            gc.collect()
 
     except:
         traceback.print_exc()
