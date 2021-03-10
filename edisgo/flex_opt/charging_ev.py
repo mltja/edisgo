@@ -24,7 +24,6 @@ def charging(
         df_grid_data = get_grid_data()
 
         for grid_idx, grid_id in df_grid_data.grid_id.iteritems():
-
             print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
 
             ags_list = df_grid_data.ags.at[grid_idx]
@@ -443,8 +442,8 @@ def grouped_charging(
 
         cp_ags_list = list(
             zip(
-                df_standing.ags.tolist(),
-                df_standing.cp_idx.tolist(),
+                gdf_cps.ags.tolist(),
+                gdf_cps.cp_idx.tolist(),
             )
         )
 
@@ -457,7 +456,7 @@ def grouped_charging(
         cp_load = np.empty(
             shape=(
                 int(setup_dict["days"] * (60 / setup_dict["stepsize"]) * 24),
-                len(gdf_cps),
+                len(cp_ags_list_unique),
             ),
             dtype=float,
         )

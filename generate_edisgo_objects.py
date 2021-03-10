@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 10 # TODO
+num_threads = 6 # TODO
 
 rng = default_rng(seed=5)
 
@@ -36,13 +36,14 @@ ding0_dir = Path( # TODO: set dir
 )
 
 scenarios = [ # TODO
-    "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    "Mobility_Transition_2050_simbev_run",
-    "Szenarette_Kleinwagen_2050_simbev_run",
-    "Reference_2050_simbev_run",
+    # "Electrification_2050_simbev_run",
+    # "Electrification_2050_sensitivity_low_work_simbev_run",
+    # "Reference_2050_simbev_run",
     "NEP_C_2035_simbev_run",
 ]
+
+# "Mobility_Transition_2050_simbev_run",
+# "Szenarette_Kleinwagen_2050_simbev_run",
 
 sub_dir = r"eDisGo_charging_time_series"
 
@@ -56,6 +57,7 @@ grid_dirs = [
 ]
 
 rng.shuffle(grid_dirs)
+
 
 def generate_edisgo_objects(
         grid_dir,
@@ -83,7 +85,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_curtailment_results",
+                    "eDisGo_object_files",
                     scenario,
                     grid_id,
                     strategy,
@@ -95,68 +97,68 @@ def generate_edisgo_objects(
                 exist_ok=True,
             )
 
-            check_dirs = os.listdir(export_dir)
+            # check_dirs = os.listdir(export_dir)
+            #
+            # if len(check_dirs) >= 3:
+            #     pass
+            # else:
+            edisgo = cc.integrate_public_charging(
+                ding0_dir,
+                grid_dir,
+                grid_id,
+                files,
+                date=start_date,
+                generator_scenario="ego100",
+            )
 
-            if len(check_dirs) >= 3:
-                pass
-            else:
-                edisgo = cc.integrate_public_charging(
-                    ding0_dir,
-                    grid_dir,
-                    grid_id,
-                    files,
-                    date=start_date,
-                    generator_scenario="ego100",
-                )
+            gc.collect()
 
-                gc.collect()
+            print(
+                "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
+                    strategy, scenario, grid_id
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            )
 
-                print(
-                    "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
-                        strategy, scenario, grid_id
-                    ),
-                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-                )
+            t1 = perf_counter()
 
-                t1 = perf_counter()
+            edisgo = cc.integrate_private_charging(
+                edisgo,
+                grid_dir,
+                files,
+                strategy,
+            )
 
-                edisgo = cc.integrate_private_charging(
-                    edisgo,
-                    grid_dir,
-                    files,
-                    strategy,
-                )
+            gc.collect()
 
-                gc.collect()
+            edisgo.aggregate_components()
 
-                edisgo.aggregate_components()
+            gc.collect()
 
-                gc.collect()
+            print(
+                "Private charging has been integrated for",
+                "scenario {} in grid {} with strategy {}.".format(
+                    scenario, grid_id, strategy
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            )
 
-                print(
-                    "Private charging has been integrated for",
-                    "scenario {} in grid {} with strategy {}.".format(
-                        scenario, grid_id, strategy
-                    ),
-                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-                )
+            t1 = perf_counter()
 
-                t1 = perf_counter()
+            edisgo.save(
+                directory=export_dir,
+            )
 
-                edisgo.save(
-                    directory=export_dir,
-                )
+            print(
+                "Scenario {} in grid {} with strategy {} has been saved.".format(
+                    scenario, grid_id, strategy
+                ),
+                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+            )
 
-                print(
-                    "Scenario {} in grid {} with strategy {} has been saved.".format(
-                        scenario, grid_id, strategy
-                    ),
-                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-                )
+            del edisgo
 
-                del edisgo
-
-                gc.collect()
+            gc.collect()
 
         print(
             "Scenario {} in grid {} has been saved.".format(
