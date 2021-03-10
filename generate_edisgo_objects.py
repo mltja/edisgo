@@ -38,11 +38,12 @@ ding0_dir = Path( # TODO: set dir
 scenarios = [ # TODO
     # "Electrification_2050_simbev_run",
     # "Electrification_2050_sensitivity_low_work_simbev_run",
-    # "Mobility_Transition_2050_simbev_run",
-    # "Szenarette_Kleinwagen_2050_simbev_run",
     # "Reference_2050_simbev_run",
     "NEP_C_2035_simbev_run",
 ]
+
+# "Mobility_Transition_2050_simbev_run",
+# "Szenarette_Kleinwagen_2050_simbev_run",
 
 sub_dir = r"eDisGo_charging_time_series"
 
@@ -96,8 +97,8 @@ def generate_edisgo_objects(
                 exist_ok=True,
             )
 
-            check_dirs = os.listdir(export_dir)
-
+            # check_dirs = os.listdir(export_dir)
+            #
             # if len(check_dirs) >= 3:
             #     pass
             # else:
