@@ -1268,7 +1268,7 @@ class EDisGo:
             kwargs['geom'] = geolocation
             if comp_type == "ChargingPoint":
                 kwargs['use_case'] = use_case
-            comp_name = connect_to_mv(
+            comp_name = self.topology.connect_to_mv(
                 self, kwargs, comp_type)
 
         # Connect in LV
