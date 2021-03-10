@@ -176,11 +176,11 @@ def _calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
     return curtailed_feedin_ts, curtailed_load_ts
 
 
-def my_pf(pypsa, timesteps, mode="lpf"):
+def my_pf(pypsa, timesteps, mode="lpf", x_tol=1e-4):
     if mode == "lpf":
         pypsa.lpf(timesteps)
 
-        pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=1e-4)
+        pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=x_tol)
 
     elif mode == "iteratively":
         gen_p_set_orig = pypsa.generators_t["p_set"].copy()
@@ -195,7 +195,7 @@ def my_pf(pypsa, timesteps, mode="lpf"):
 
         pypsa.lpf(timesteps)
 
-        pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=1e-4)
+        pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=x_tol)
 
         for i in np.arange(0.2, 1.1, 0.1):
             pypsa.generators_t["p_set"] = gen_p_set_orig.multiply(i)
@@ -203,7 +203,7 @@ def my_pf(pypsa, timesteps, mode="lpf"):
             pypsa.loads_t["p_set"] = load_p_set_orig.multiply(i)
             pypsa.loads_t["q_set"] = load_q_set_orig.multiply(i)
 
-            pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=1e-4)
+            pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=x_tol)
 
     else:
         pf_results = pypsa.pf(timesteps, x_tol=1e-4)
