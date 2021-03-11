@@ -185,9 +185,9 @@ def generate_edisgo_objects(
 
             t1 = perf_counter()
 
-            # edisgo.save( # TODO
-            #     directory=export_dir,
-            # )
+            edisgo.save(
+                directory=export_dir,
+            )
 
             print(
                 "Scenario {} in grid {} with strategy {} has been saved.".format(

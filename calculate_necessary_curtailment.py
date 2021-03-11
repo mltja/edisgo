@@ -1221,9 +1221,6 @@ def integrate_public_charging(
 
             # gdf = refactor_gdf(gdf, mode="only-mv") # TODO
 
-            if len(gdf) > 3: # TODO
-                gdf = gdf.iloc[:3]
-
             if not gdf.empty:
                 # TODO: choose
                 # _ = [
@@ -1346,9 +1343,6 @@ def integrate_private_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
             # gdf = refactor_gdf(gdf, mode="only-mv") # TODO
-
-            if len(gdf) > 3: # TODO
-                gdf = gdf.iloc[:3]
 
             cp_matching_dfs[count_files] = pd.DataFrame(index=[*range(len(gdf))])
 
