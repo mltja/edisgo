@@ -26,7 +26,7 @@ gc.collect()
 
 # os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 6 # TODO
+num_threads = 1 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -45,7 +45,7 @@ scenarios = [ # TODO
 # "Szenarette_Kleinwagen_2050",
 # "Mobility_Transition_2050",
 
-grid_ids = ["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["2534"]#, "177", "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
@@ -90,8 +90,6 @@ def run_calculate_curtailment(
                 day,
                 ts_count,
             )
-
-            break # TODO
 
         gc.collect()
 
