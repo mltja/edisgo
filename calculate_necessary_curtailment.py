@@ -1168,10 +1168,14 @@ def integrate_public_charging(
             if ("geojson" in f and ("public" in f or "hpc" in f))
         ]
 
+        geo_files.sort()
+
         ts_files = [
             Path(os.path.join(grid_dir, f)) for f in files
             if ("h5" in f and ("public" in f or "hpc" in f))
         ]
+
+        ts_files.sort()
 
         if len(ts_files) == 2:
             use_cases = ["fast", "public"]
@@ -1216,6 +1220,9 @@ def integrate_public_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
             # gdf = refactor_gdf(gdf, mode="only-mv") # TODO
+
+            if len(gdf) > 3: # TODO
+                gdf = gdf.iloc[:3]
 
             if not gdf.empty:
                 # TODO: choose
@@ -1277,10 +1284,14 @@ def integrate_private_charging(
             if ("geojson" in f and ("home" in f or "work" in f))
         ]
 
+        geo_files.sort()
+
         ts_files = [
             Path(os.path.join(grid_dir, f)) for f in files
             if ("h5" in f and strategy in f and ("home" in f or "work" in f))
         ]
+
+        ts_files.sort()
 
         use_cases = ["home", "work"]
 
@@ -1294,12 +1305,16 @@ def integrate_private_charging(
             name="ts_reactive_power",
         )
 
-        for geo_f, ts_f, use_case in list(
+        cp_matching_dfs = [0] * len(geo_files)
+
+        for count_files, (geo_f, ts_f, use_case) in enumerate(
+            list(
                 zip(
                     geo_files,
                     ts_files,
                     use_cases,
                 )
+            )
         ):
             gdf = gpd.read_file(
                 geo_f,
@@ -1318,7 +1333,7 @@ def integrate_private_charging(
 
             df.index = temp_timeindex
 
-            df = df.loc[timeindex[0]:timeindex[-1]].divide(1000)  # kW -> MW
+            df = df.loc[timeindex[0]:timeindex[-1]].divide(1000) # kW -> MW
 
             if not "cp_idx" in gdf.columns:
                 if len(df.columns.level[1]) == 1:
@@ -1331,6 +1346,11 @@ def integrate_private_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
             # gdf = refactor_gdf(gdf, mode="only-mv") # TODO
+
+            if len(gdf) > 3: # TODO
+                gdf = gdf.iloc[:3]
+
+            cp_matching_dfs[count_files] = pd.DataFrame(index=[*range(len(gdf))])
 
             if not gdf.empty:
                 # TODO: choose
@@ -1353,7 +1373,7 @@ def integrate_private_charging(
                 #     )
                 # ]
 
-                _ = [
+                edisgo_id = [
                     EDisGo.integrate_component(
                         edisgo,
                         comp_type=comp_type,
@@ -1373,6 +1393,10 @@ def integrate_private_charging(
                         )
                     )
                 ]
+
+            cp_matching_dfs[count_files]["edisgo_id"] = edisgo_id
+            cp_matching_dfs[count_files]["ags"] = gdf.ags.tolist()
+            cp_matching_dfs[count_files]["cp_idx"] = gdf.cp_idx.tolist()
 
             new_switch_line = edisgo.topology.lines_df.loc[
                 (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
@@ -1403,7 +1427,7 @@ def integrate_private_charging(
             #
             # print("Grid {} saved.".format(grid_dir.parts[-1]))
 
-        return edisgo
+        return edisgo, cp_matching_dfs[0], cp_matching_dfs[1]
 
     except:
         traceback.print_exc()
