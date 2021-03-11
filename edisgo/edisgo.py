@@ -652,46 +652,46 @@ class EDisGo:
                             for k, v in groups.items()], axis=1)
 
             # charging points
-            if not self.topology.charging_points_df.empty:
-                loads_groupby = self.topology.charging_points_df.groupby(
-                    aggregate_charging_points_by_cols)
-                naming = "Charging_points_{}"
-                # set up new charging_points_df
-                loads_df_grouped = loads_groupby.sum().reset_index()
-                loads_df_grouped["name"] = loads_df_grouped.apply(
-                    lambda _: naming.format(
-                        "_".join(_.loc[aggregate_charging_points_by_cols])),
-                    axis=1)
-                self.topology.charging_points_df = loads_df_grouped.set_index(
-                    "name")
-                # set up new charging points time series
-                groups = loads_groupby.groups
-                if isinstance(list(groups.keys())[0], tuple):
-                    self.timeseries.charging_points_active_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format("_".join(k)):
-                                 self.timeseries.charging_points_active_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
-                    self.timeseries.charging_points_reactive_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format("_".join(k)):
-                                 self.timeseries.charging_points_reactive_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
-                else:
-                    self.timeseries.charging_points_active_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format(k):
-                                 self.timeseries.charging_points_active_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
-                    self.timeseries.charging_points_reactive_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format(k):
-                                 self.timeseries.charging_points_reactive_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
+            # if not self.topology.charging_points_df.empty:
+            #     loads_groupby = self.topology.charging_points_df.groupby(
+            #         aggregate_charging_points_by_cols)
+            #     naming = "Charging_points_{}"
+            #     # set up new charging_points_df
+            #     loads_df_grouped = loads_groupby.sum().reset_index()
+            #     loads_df_grouped["name"] = loads_df_grouped.apply(
+            #         lambda _: naming.format(
+            #             "_".join(_.loc[aggregate_charging_points_by_cols])),
+            #         axis=1)
+            #     self.topology.charging_points_df = loads_df_grouped.set_index(
+            #         "name")
+            #     # set up new charging points time series
+            #     groups = loads_groupby.groups
+            #     if isinstance(list(groups.keys())[0], tuple):
+            #         self.timeseries.charging_points_active_power = pd.concat(
+            #             [pd.DataFrame(
+            #                 {naming.format("_".join(k)):
+            #                      self.timeseries.charging_points_active_power.loc[
+            #                      :, v].sum(axis=1)})
+            #                 for k, v in groups.items()], axis=1)
+            #         self.timeseries.charging_points_reactive_power = pd.concat(
+            #             [pd.DataFrame(
+            #                 {naming.format("_".join(k)):
+            #                      self.timeseries.charging_points_reactive_power.loc[
+            #                      :, v].sum(axis=1)})
+            #                 for k, v in groups.items()], axis=1)
+            #     else:
+            #         self.timeseries.charging_points_active_power = pd.concat(
+            #             [pd.DataFrame(
+            #                 {naming.format(k):
+            #                      self.timeseries.charging_points_active_power.loc[
+            #                      :, v].sum(axis=1)})
+            #                 for k, v in groups.items()], axis=1)
+            #         self.timeseries.charging_points_reactive_power = pd.concat(
+            #             [pd.DataFrame(
+            #                 {naming.format(k):
+            #                      self.timeseries.charging_points_reactive_power.loc[
+            #                      :, v].sum(axis=1)})
+            #                 for k, v in groups.items()], axis=1)
 
         # aggregate all loads (conventional loads and charging points) at the
         # same bus

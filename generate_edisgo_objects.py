@@ -5,11 +5,13 @@ import warnings
 import multiprocessing
 import traceback
 import calculate_necessary_curtailment as cc
+import pandas as pd
 
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
 from numpy.random import default_rng
+from copy import deepcopy
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -21,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 6 # TODO
+num_threads = 1 # TODO
 
 rng = default_rng(seed=5)
 
@@ -47,7 +49,7 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
@@ -79,7 +81,7 @@ def generate_edisgo_objects(
 
         start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
 
-        for strategy in strategies:
+        for count_strategies, strategy in enumerate(strategies):
             t1 = perf_counter()
 
             export_dir = Path(
@@ -97,57 +99,95 @@ def generate_edisgo_objects(
                 exist_ok=True,
             )
 
-            # check_dirs = os.listdir(export_dir)
-            #
-            # if len(check_dirs) >= 3:
-            #     pass
-            # else:
-            edisgo = cc.integrate_public_charging(
-                ding0_dir,
-                grid_dir,
-                grid_id,
-                files,
-                date=start_date,
-                generator_scenario="ego100",
-            )
+            if count_strategies == 0:
+                edisgo = cc.integrate_public_charging(
+                    ding0_dir,
+                    grid_dir,
+                    grid_id,
+                    files,
+                    date=start_date,
+                    generator_scenario="ego100",
+                )
 
-            gc.collect()
+                gc.collect()
 
-            print(
-                "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
-                    strategy, scenario, grid_id
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
+                print(
+                    "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
+                        strategy, scenario, grid_id
+                    ),
+                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                )
+
+                t1 = perf_counter()
+
+                edisgo, df_matching_home, df_matching_work = cc.integrate_private_charging(
+                    edisgo,
+                    grid_dir,
+                    files,
+                    strategy,
+                )
+
+                gc.collect()
+
+                edisgo.aggregate_components()
+
+                gc.collect()
+
+                print(
+                    "Private charging has been integrated for",
+                    "scenario {} in grid {} with strategy {}.".format(
+                        scenario, grid_id, strategy
+                    ),
+                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                )
+
+            else:
+                for col in df_matching_home.edisgo_id.tolist():
+                    edisgo.timeseries._charging_points_active_power[col].values[:] = 0
+                    edisgo.timeseries.charging_points_active_power[col].values[:] = 0
+                for col in df_matching_work.edisgo_id.tolist():
+                    edisgo.timeseries._charging_points_active_power[col].values[:] = 0
+                    edisgo.timeseries.charging_points_active_power[col].values[:] = 0
+
+                ts_files = [
+                    Path(os.path.join(grid_dir, f)) for f in files
+                    if ("h5" in f and strategy in f and ("home" in f or "work" in f))
+                ]
+
+                ts_files.sort()
+
+                for count_files, ts_f in enumerate(ts_files):
+                    if count_files == 0:
+                        df_matching = df_matching_home.copy()
+                    elif count_files == 1:
+                        df_matching = df_matching_work.copy()
+
+                    df = pd.read_hdf(
+                        ts_f,
+                        key="df_load",
+                    )
+
+                    df = df.iloc[:len(edisgo.timeseries.charging_points_active_power)].divide(1000) # kW -> MW
+
+                    for edisgo_id, ags, cp_idx in list(
+                        zip(
+                            df_matching.edisgo_id.tolist(),
+                            df_matching.ags.tolist(),
+                            df_matching.cp_idx.tolist(),
+                        )
+                    ):
+                        edisgo.timeseries._charging_points_active_power[edisgo_id] = df.loc[
+                                                                                     :, (ags, cp_idx)
+                                                                                     ].values
+                        edisgo.timeseries.charging_points_active_power[edisgo_id] = df.loc[
+                                                                                     :, (ags, cp_idx)
+                                                                                     ].values
 
             t1 = perf_counter()
 
-            edisgo = cc.integrate_private_charging(
-                edisgo,
-                grid_dir,
-                files,
-                strategy,
-            )
-
-            gc.collect()
-
-            edisgo.aggregate_components()
-
-            gc.collect()
-
-            print(
-                "Private charging has been integrated for",
-                "scenario {} in grid {} with strategy {}.".format(
-                    scenario, grid_id, strategy
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-            )
-
-            t1 = perf_counter()
-
-            edisgo.save(
-                directory=export_dir,
-            )
+            # edisgo.save( # TODO
+            #     directory=export_dir,
+            # )
 
             print(
                 "Scenario {} in grid {} with strategy {} has been saved.".format(
@@ -156,7 +196,11 @@ def generate_edisgo_objects(
                 "It took {} seconds.".format(round(perf_counter() - t1, 0)),
             )
 
-            del edisgo
+            print(
+                "Total charging demand in scenario {} in grid {} with strategy {}: {} MWh".format(
+                    scenario, grid_id, strategy, round(edisgo.timeseries.charging_points_active_power.sum().sum()/4, 0)
+                )
+            )
 
             gc.collect()
 
@@ -166,6 +210,8 @@ def generate_edisgo_objects(
             ),
             "It took {} seconds".format(round(perf_counter() - t0, 0))
         )
+
+        del edisgo
 
     except:
         traceback.print_exc()
