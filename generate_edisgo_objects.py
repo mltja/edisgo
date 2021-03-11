@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 1 # TODO
+num_threads = 5 # TODO
 
 rng = default_rng(seed=5)
 
@@ -49,7 +49,7 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["176", "177", "1056", "1690", "1811"]#, "2534"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
