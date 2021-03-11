@@ -1221,61 +1221,61 @@ def curtail_lv_grids(
                 pypsa_network=pypsa_lv, lv_grid=True
             )
 
-            bar = 1 + 1e-3 # TODO
-
-            lv_grid_matching = lv_grid.lower()
-
-            lv_grid_matching = lv_grid_matching[:2] + "_" + lv_grid_matching[2:]
-
-            mvlv_transformer_rating = edisgo.topology.transformers_df[
-                edisgo.topology.transformers_df.index.str.contains(lv_grid_matching)
-            ].s_nom.sum()
-
-            transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(axis=1)
-
-            transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
-                axis=1)
-
-            transformer_loading_mva = np.sqrt(transformer_loading_mw**2 + transformer_loading_mvar**2)
-
-            transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
-
-            i = 0
-
-            while not transformer_overloading.empty and i < max_iterations:
-                elia_logger.debug(
-                    "Number of time steps with overloading issues: {}".format(
-                        len(transformer_overloading)
-                    )
-                )
-
-                _curtail(
-                    pypsa_lv, pypsa_lv.generators.index, pypsa_lv.loads.index,
-                    transformer_overloading.index.tolist(),
-                )
-
-                curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
-                    pypsa_lv_orig, pypsa_lv)
-                elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
-                    curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
-
-                transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(
-                    axis=1)
-
-                transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
-                    axis=1)
-
-                transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
-
-                transformer_overloading = transformer_loading_mva[
-                    transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
-
-                i += 1
-
-            if i == 0:
-                elia_logger.debug("No MVLV overloading issues to solve.")
-
-            _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
+            # bar = 1 + 1e-3 # TODO
+            #
+            # lv_grid_matching = lv_grid.lower()
+            #
+            # lv_grid_matching = lv_grid_matching[:2] + "_" + lv_grid_matching[2:]
+            #
+            # mvlv_transformer_rating = edisgo.topology.transformers_df[
+            #     edisgo.topology.transformers_df.index.str.contains(lv_grid_matching)
+            # ].s_nom.sum()
+            #
+            # transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(axis=1)
+            #
+            # transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
+            #     axis=1)
+            #
+            # transformer_loading_mva = np.sqrt(transformer_loading_mw**2 + transformer_loading_mvar**2)
+            #
+            # transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
+            #
+            # i = 0
+            #
+            # while not transformer_overloading.empty and i < max_iterations:
+            #     elia_logger.debug(
+            #         "Number of time steps with overloading issues: {}".format(
+            #             len(transformer_overloading)
+            #         )
+            #     )
+            #
+            #     _curtail(
+            #         pypsa_lv, pypsa_lv.generators.index, pypsa_lv.loads.index,
+            #         transformer_overloading.index.tolist(),
+            #     )
+            #
+            #     curtailed_feedin, curtailed_load = _calculate_curtailed_energy(
+            #         pypsa_lv_orig, pypsa_lv)
+            #     elia_logger.debug("Curtailed energy (feed-in/load): {}, {}".format(
+            #         curtailed_feedin.sum().sum(), curtailed_load.sum().sum()))
+            #
+            #     transformer_loading_mw = pypsa_lv.loads_t["p_set"].sum(axis=1) - pypsa_lv.generators_t["p_set"].sum(
+            #         axis=1)
+            #
+            #     transformer_loading_mvar = pypsa_lv.loads_t["q_set"].sum(axis=1) - pypsa_lv.generators_t["q_set"].sum(
+            #         axis=1)
+            #
+            #     transformer_loading_mva = np.sqrt(transformer_loading_mw ** 2 + transformer_loading_mvar ** 2)
+            #
+            #     transformer_overloading = transformer_loading_mva[
+            #         transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
+            #
+            #     i += 1
+            #
+            # if i == 0:
+            #     elia_logger.debug("No MVLV overloading issues to solve.")
+            #
+            # _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
 
         return edisgo, curtailment
 
@@ -1605,7 +1605,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "test_1_full",
+            "test_2_full",
         )
 
         os.makedirs(
@@ -1658,51 +1658,51 @@ def calculate_curtailment(
         # print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
         # print("Gens:", edisgo.timeseries.generators_active_power.sum().sum())
 
-        # t0 = perf_counter()
-        #
-        # edisgo, curtailment = curtail_lv_grids(
-        #     edisgo,
-        #     grid_results_dir,
-        #     day,
-        #     scenario,
-        #     strategy,
-        #     curtailment,
-        # )
-        #
-        # print(
-        #     "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
-        # )
-        #
-        # t0 = perf_counter()
-        #
-        # edisgo, curtailment = curtail_mv_grid(
-        #     edisgo,
-        #     grid_results_dir,
-        #     day,
-        #     scenario,
-        #     strategy,
-        #     curtailment,
-        # )
-        #
-        # print(
-        #     "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
-        # )
-        #
-        # t0 = perf_counter()
-        #
-        # edisgo, curtailment = curtail_mvlv_grid(
-        #     edisgo,
-        #     grid_results_dir,
-        #     day,
-        #     scenario,
-        #     strategy,
-        #     curtailment,
-        #     mv_grid_id,
-        # )
-        #
-        # print(
-        #     "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
-        # )
+        t0 = perf_counter()
+
+        edisgo, curtailment = curtail_lv_grids(
+            edisgo,
+            grid_results_dir,
+            day,
+            scenario,
+            strategy,
+            curtailment,
+        )
+
+        print(
+            "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
+        )
+
+        t0 = perf_counter()
+
+        edisgo, curtailment = curtail_mv_grid(
+            edisgo,
+            grid_results_dir,
+            day,
+            scenario,
+            strategy,
+            curtailment,
+        )
+
+        print(
+            "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
+        )
+
+        t0 = perf_counter()
+
+        edisgo, curtailment = curtail_mvlv_grid(
+            edisgo,
+            grid_results_dir,
+            day,
+            scenario,
+            strategy,
+            curtailment,
+            mv_grid_id,
+        )
+
+        print(
+            "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
+        )
 
         t1 = perf_counter()
 
