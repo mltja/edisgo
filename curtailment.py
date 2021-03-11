@@ -437,7 +437,7 @@ def curtailment_mvlv_stations_voltage(
 
                 _save_results_when_curtailment_failed(
                     edisgo, grid_results_dir, "{}_{}_{}_mvlv_stations_voltage".format(
-                        scenario, strategy, day.strftime))#("%Y-%m-%d")))
+                        scenario, strategy, day))#.strftime("%Y-%m-%d")))
 
                 raise ValueError("Curtailment not sufficient to solve voltage "
                                  "issues at MV/LV stations.")
@@ -555,7 +555,7 @@ def curtailment_mv_voltage(
             if len(time_steps_issues) > 0:
                 _save_results_when_curtailment_failed(
                     edisgo, grid_results_dir,
-                    "{}_{}_{}_mv_voltage".format(scenario, strategy, day.strftime))#("%Y-%m-%d")))
+                    "{}_{}_{}_mv_voltage".format(scenario, strategy, day))#.strftime("%Y-%m-%d")))
 
                 raise ValueError("Curtailment not sufficient to solve MV voltage "
                                  "issues.")
@@ -705,7 +705,7 @@ def curtailment_lv_lines_overloading(
 
                 _save_results_when_curtailment_failed(
                     edisgo, grid_results_dir, "{}_{}_{}_lv_overloading".format(
-                        scenario, strategy, day.strftime))#("%Y-%m-%d")))
+                        scenario, strategy, day))#.strftime("%Y-%m-%d")))
 
                 raise ValueError("Curtailment not sufficient to solve overloading "
                                  "issues in LV.")
@@ -829,7 +829,7 @@ def curtailment_mvlv_stations_overloading(
 
                 _save_results_when_curtailment_failed(
                     edisgo, grid_results_dir, "{}_{}_{}_mvlv_stations_overloading".format(
-                        scenario, strategy, day.strftime))#("%Y-%m-%d")))
+                        scenario, strategy, day))#.strftime("%Y-%m-%d")))
 
                 raise ValueError("Curtailment not sufficient to solve overloading "
                                  "issues at MV/LV stations.")
@@ -967,7 +967,7 @@ def curtailment_mv_lines_overloading(
 
                 _save_results_when_curtailment_failed(
                     edisgo, grid_results_dir, "{}_{}_{}_mv_overloading".format(
-                        scenario, strategy, day.strftime))#("%Y-%m-%d")))
+                        scenario, strategy, day))#.strftime("%Y-%m-%d")))
 
                 raise ValueError("Curtailment not sufficient to solve grid "
                                  "issues in MV.")
@@ -1622,7 +1622,7 @@ def calculate_curtailment(
         # else:
         edisgo.timeseries.residual_load.to_csv(
             os.path.join(grid_results_dir, "{}_{}_{}_residual_load_before_curtailment.csv".format(
-                scenario, strategy, day.strftime))#("%Y-%m-%d")))
+                scenario, strategy, day))#.strftime("%Y-%m-%d")))
         )
 
         # save original time series before curtailment
