@@ -1100,7 +1100,7 @@ def curtail_lv_grids(
 
         s_angle_diff = pd.Series(arr_angle_diff, index=pypsa_network.lines.index) * 180 / np.pi
 
-        bar = 5 # TODO
+        bar = 4 # TODO
 
         s_angle_diff = s_angle_diff[s_angle_diff.ge(bar)].filter(like="_lvgd_")
 
@@ -1114,7 +1114,7 @@ def curtail_lv_grids(
             lv_grid for lv_grid in lv_grids if any(sub in lv_grid for sub in lv_grid_list_overloading)
         ]
 
-        for lv_grid in lv_grids:
+        for count_grids, lv_grid in enumerate(lv_grids):
 
             t1 = perf_counter()
 
@@ -1246,7 +1246,7 @@ def curtail_lv_grids(
                 pypsa_network=pypsa_lv, lv_grid=True
             )
 
-            bar = 1 + 0.5 # 1e-3 # TODO
+            bar = 1 + 0.2 # 1e-3 # TODO
 
             lv_grid_matching = lv_grid.lower()
 
@@ -1302,6 +1302,8 @@ def curtail_lv_grids(
 
             _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
 
+            print(count_grids, r"/", len(lv_grids))
+
         return edisgo, curtailment
 
     except:
@@ -1326,8 +1328,6 @@ def curtail_mv_grid(
         pypsa_mv = edisgo.to_pypsa(
             mode="mv",
         )
-
-        print(pypsa_mv.loads_t["p_set"].sum().sum())
 
         pypsa_mv_orig = pypsa_mv.copy()
 
@@ -1678,10 +1678,10 @@ def calculate_curtailment(
         #     edisgo.timeseries._charging_points_active_power[col].values[:] = 0
         # for col in edisgo.timeseries.charging_points_active_power.columns:
         #     edisgo.timeseries.charging_points_active_power[col].values[:] = 0
-        #
-        # print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
-        # print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
-        # print("Gens:", edisgo.timeseries.generators_active_power.sum().sum())
+
+        print("CPs:", edisgo.timeseries.charging_points_active_power.sum().sum())
+        print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
+        print("Gens:", edisgo.timeseries.generators_active_power.sum().sum())
 
         t0 = perf_counter()
 
