@@ -1630,7 +1630,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "test_3_weeks",
+            "weekly_curtailment_v1",
         )
 
         os.makedirs(
