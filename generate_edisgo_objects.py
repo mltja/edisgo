@@ -7,11 +7,11 @@ import traceback
 import calculate_necessary_curtailment as cc
 import pandas as pd
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from time import perf_counter
 from numpy.random import default_rng
-from copy import deepcopy
+
 
 # suppress infos from pypsa
 logger = logging.getLogger("pypsa")
@@ -23,25 +23,25 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 9 # TODO
+num_threads = 1 # TODO
 
 rng = default_rng(seed=5)
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [ # TODO
-    "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    "Reference_2050_simbev_run",
-    # "NEP_C_2035_simbev_run",
+    # "Electrification_2050_simbev_run",
+    # "Electrification_2050_sensitivity_low_work_simbev_run",
+    # "Reference_2050_simbev_run",
+    "NEP_C_2035_simbev_run",
 ]
 
 # "Mobility_Transition_2050_simbev_run",
@@ -49,9 +49,9 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
+strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
@@ -59,6 +59,36 @@ grid_dirs = [
 ]
 
 rng.shuffle(grid_dirs)
+
+
+def get_days(
+        grid_id,
+        mode="days",
+):
+    try:
+        s = pd.read_csv(
+            os.path.join(
+                data_dir,
+                # sub_dir,
+                "extreme_weeks.csv",
+            ),
+            index_col=[0],
+            parse_dates=[1,2,3,4],
+        ).loc[int(grid_id)]
+
+        if mode == "days":
+            days = []
+
+            for ts in [s.start_week_low, s.start_week_high]:
+                for i in range(7):
+                    days.append(ts + timedelta(days=i))
+
+        elif mode == "weeks":
+            days = [s.start_week_low, s.start_week_high]
+
+        return days
+    except:
+        traceback.print_exc()
 
 
 def generate_edisgo_objects(
@@ -80,6 +110,11 @@ def generate_edisgo_objects(
         print("Scenario {} in grid {} is being processed.".format(scenario, grid_id))
 
         start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
+
+        days = get_days(
+            grid_id,
+            mode="weeks",
+        )
 
         for count_strategies, strategy in enumerate(strategies):
             t1 = perf_counter()
@@ -107,6 +142,7 @@ def generate_edisgo_objects(
                     files,
                     date=start_date,
                     generator_scenario="ego100",
+                    days=days,
                 )
 
                 gc.collect()
@@ -125,6 +161,28 @@ def generate_edisgo_objects(
                     grid_dir,
                     files,
                     strategy,
+                )
+
+                edisgo.topology.lines_df["check"] = 1 / edisgo.topology.lines_df.length.divide(0.001)
+
+                if not edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].empty:
+                    edisgo.topology.lines_df[
+                        edisgo.topology.lines_df.check > 1
+                        ] = edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].assign(
+                        length=edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].length.multiply(
+                            edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].check
+                        ),
+                        r=edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].r.multiply(
+                            edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].check
+                        ),
+                        x=edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].x.multiply(
+                            edisgo.topology.lines_df[edisgo.topology.lines_df.check > 1].check
+                        ),
+                    )
+
+                edisgo.topology.lines_df.drop(
+                    columns=["check"],
+                    inplace=True,
                 )
 
                 gc.collect()

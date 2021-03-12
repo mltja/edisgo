@@ -29,8 +29,8 @@ gc.collect()
 num_threads = 1 # TODO
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_object_files" # TODO
@@ -45,7 +45,7 @@ scenarios = [ # TODO
 # "Szenarette_Kleinwagen_2050",
 # "Mobility_Transition_2050",
 
-grid_ids = ["1811"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["2534"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
@@ -178,6 +178,28 @@ def stepwise_curtailment(
             ]
 
             gc.collect()
+
+        edisgo_chunk.topology.lines_df["check"] = 1 / edisgo_chunk.topology.lines_df.length.divide(0.001)
+
+        if not edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].empty:
+            edisgo_chunk.topology.lines_df[
+                edisgo_chunk.topology.lines_df.check > 1
+            ] = edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].assign(
+                length=edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].length.multiply(
+                    edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].check
+                ),
+                r=edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].r.multiply(
+                    edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].check
+                ),
+                x=edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].x.multiply(
+                    edisgo_chunk.topology.lines_df[edisgo_chunk.topology.lines_df.check > 1].check
+                ),
+            )
+
+        edisgo_chunk.topology.lines_df.drop(
+            columns=["check"],
+            inplace=True,
+        )
 
         print(
             "EDisGo Object for day {} has been loaded.".format(
