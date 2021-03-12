@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 9 # TODO
+num_threads = 24 # TODO
 
 rng = default_rng(seed=5)
 
@@ -41,7 +41,7 @@ scenarios = [ # TODO
     "Electrification_2050_simbev_run",
     "Electrification_2050_sensitivity_low_work_simbev_run",
     "Reference_2050_simbev_run",
-    # "NEP_C_2035_simbev_run",
+    "NEP_C_2035_simbev_run",
 ]
 
 # "Mobility_Transition_2050_simbev_run",
