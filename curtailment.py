@@ -206,7 +206,7 @@ def my_pf(pypsa, timesteps, mode="lpf", x_tol=1e-6):
             pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=x_tol)
 
     else:
-        pf_results = pypsa.pf(timesteps, x_tol=1e-4)
+        pf_results = pypsa.pf(timesteps, x_tol=x_tol)
 
     return pf_results, pypsa
 
@@ -1658,51 +1658,51 @@ def calculate_curtailment(
         # print("Loads:", edisgo.timeseries.loads_active_power.sum().sum())
         # print("Gens:", edisgo.timeseries.generators_active_power.sum().sum())
 
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_lv_grids(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
-
-        print(
-            "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
-        )
-
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_mv_grid(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
-
-        print(
-            "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
-        )
-
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_mvlv_grid(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-            mv_grid_id,
-        )
-
-        print(
-            "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
-        )
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_lv_grids(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
+        # )
+        #
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_mv_grid(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
+        # )
+        #
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_mvlv_grid(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        #     mv_grid_id,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
+        # )
 
         t1 = perf_counter()
 
