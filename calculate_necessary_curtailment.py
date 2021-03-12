@@ -1116,13 +1116,29 @@ def integrate_public_charging(
             edisgo.timeseries._loads_active_power[col].max() for col in edisgo.topology.loads_df.index.tolist()
         ]
 
-        timeindex = pd.date_range(
-            date,
-            periods=len_timeindex * 4,
-            freq="15min",
-        )
+        # timeindex = pd.date_range(
+        #     date,
+        #     periods=len_timeindex * 4,
+        #     freq="15min",
+        # )
+
+        timeindeces = [0] * 2
+
+        len_week = 96 * 7
+
+        for count, day in enumerate(days):
+            timeindeces[count] = pd.date_range(
+                day,
+                periods=len_week,
+                freq="15min",
+            )
+
+        timeindex = pd.DatetimeIndex(np.sort(np.concatenate((timeindeces[0], timeindeces[1]), axis=None), axis=0))
 
         edisgo.timeseries.timeindex = timeindex
+
+        edisgo.timeseries.charging_points_active_power = pd.DataFrame(index=timeindex)
+        edisgo.timeseries.charging_points_reactive_power = pd.DataFrame(index=timeindex)
 
         edisgo.timeseries.generators_active_power = edisgo.timeseries.generators_active_power.ffill()
         edisgo.timeseries.generators_reactive_power = edisgo.timeseries.generators_reactive_power.ffill()
@@ -1207,10 +1223,7 @@ def integrate_public_charging(
 
             df.index = temp_timeindex
 
-            df = df[timeindex].divide(1000)  # kW -> MW
-
-            print("breaker")
-            breakpoint()
+            df = df.loc[timeindex].divide(1000)  # kW -> MW
 
             if "cp_idx" not in gdf.columns:
                 if len(df.columns.levels[1]) == 1:
@@ -1224,6 +1237,9 @@ def integrate_public_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_id))
 
             # gdf = refactor_gdf(gdf, mode="only-mv") # TODO
+
+            # if len(gdf) > 3:
+            #     gdf = gdf.iloc[:3] # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1334,7 +1350,7 @@ def integrate_private_charging(
 
             df.index = temp_timeindex
 
-            df = df[timeindex].divide(1000) # kW -> MW
+            df = df.loc[timeindex].divide(1000) # kW -> MW
 
             if not "cp_idx" in gdf.columns:
                 if len(df.columns.level[1]) == 1:
@@ -1347,6 +1363,9 @@ def integrate_private_charging(
                     raise ValueError("Something is wrong with the cp_idx in grid {}.".format(grid_dir.parts[-1]))
 
             # gdf = refactor_gdf(gdf, mode="only-mv") # TODO
+
+            # if len(gdf) > 3:
+            #     gdf = gdf.iloc[:3] # TODO
 
             cp_matching_dfs[count_files] = pd.DataFrame(index=[*range(len(gdf))])
 

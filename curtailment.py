@@ -176,7 +176,7 @@ def _calculate_curtailed_energy(pypsa_network_orig, pypsa_network):
     return curtailed_feedin_ts, curtailed_load_ts
 
 
-def my_pf(pypsa, timesteps, mode="lpf", x_tol=1e-6):
+def my_pf(pypsa, timesteps, mode="lpf", x_tol=1e-5):
     if mode == "lpf":
         pypsa.lpf(timesteps)
 
@@ -1100,7 +1100,7 @@ def curtail_lv_grids(
 
         s_angle_diff = pd.Series(arr_angle_diff, index=pypsa_network.lines.index) * 180 / np.pi
 
-        bar = 4 # TODO
+        bar = 3 # TODO
 
         s_angle_diff = s_angle_diff[s_angle_diff.ge(bar)].filter(like="_lvgd_")
 
