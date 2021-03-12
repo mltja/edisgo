@@ -1031,6 +1031,7 @@ def integrate_public_charging(
         files,
         date="2011-01-01",
         generator_scenario="ego100",
+        days=None,
 ):
     try:
         len_timeindex = 8760
@@ -1206,7 +1207,10 @@ def integrate_public_charging(
 
             df.index = temp_timeindex
 
-            df = df.loc[timeindex[0]:timeindex[-1]].divide(1000) # kW -> MW
+            df = df[timeindex].divide(1000)  # kW -> MW
+
+            print("breaker")
+            breakpoint()
 
             if "cp_idx" not in gdf.columns:
                 if len(df.columns.levels[1]) == 1:
@@ -1330,7 +1334,7 @@ def integrate_private_charging(
 
             df.index = temp_timeindex
 
-            df = df.loc[timeindex[0]:timeindex[-1]].divide(1000) # kW -> MW
+            df = df[timeindex].divide(1000) # kW -> MW
 
             if not "cp_idx" in gdf.columns:
                 if len(df.columns.level[1]) == 1:
