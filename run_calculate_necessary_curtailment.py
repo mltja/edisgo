@@ -24,7 +24,7 @@ from edisgo.edisgo import import_edisgo_from_files
 
 gc.collect()
 
-# os.sched_setaffinity(0,range(1000)) # TODO
+os.sched_setaffinity(0,range(1000)) # TODO
 
 num_threads = 1 # TODO
 

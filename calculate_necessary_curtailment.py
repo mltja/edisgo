@@ -1071,7 +1071,7 @@ def integrate_public_charging(
 
         edisgo = reinforce_transformers_and_lines(
             edisgo,
-            by=0.4,
+            by=0.3,
         )
 
         timeseries_data_path = os.path.join(
