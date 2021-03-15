@@ -1291,7 +1291,9 @@ def curtail_lv_grids(
 
             transformer_loading_mva = np.sqrt(transformer_loading_mw**2 + transformer_loading_mvar**2)
 
-            transformer_overloading = transformer_loading_mva[transformer_loading_mva.ge(mvlv_transformer_rating * bar)]
+            transformer_overloading = transformer_loading_mva[
+                transformer_loading_mva.ge(mvlv_transformer_rating * bar)
+            ]
 
             i = 0
 
@@ -1736,26 +1738,26 @@ def calculate_curtailment(
         #     strategy,
         #     curtailment,
         # )
-
-        print(
-            "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
-        )
-
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_mvlv_grid(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-            mv_grid_id,
-        )
-
-        print(
-            "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
-        )
+        #
+        # print(
+        #     "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
+        # )
+        #
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_mvlv_grid(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        #     mv_grid_id,
+        # )
+        #
+        # print(
+        #     "It took {} seconds to calculate the mvlv grid.".format(perf_counter() - t0)
+        # )
 
         t1 = perf_counter()
 
