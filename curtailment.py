@@ -757,7 +757,7 @@ def curtailment_mvlv_stations_overloading(
     mvlv_stations = [_ for _ in rel_load.columns if "mvlv_station" in _]
     rel_load_mvlv_stations = rel_load.loc[:, mvlv_stations]
     overloading_issues = rel_load_mvlv_stations[
-        rel_load_mvlv_stations > 0.9].dropna(how="all").dropna(
+        rel_load_mvlv_stations > 0.99].dropna(how="all").dropna(
         axis=1, how="all")
     stations_issues = overloading_issues.columns
     time_steps_issues = overloading_issues.index
@@ -831,7 +831,7 @@ def curtailment_mvlv_stations_overloading(
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_mvlv_stations = rel_load.loc[:, mvlv_stations]
             overloading_issues = rel_load_mvlv_stations[
-                rel_load_mvlv_stations > 0.9].dropna(how="all").dropna(
+                rel_load_mvlv_stations > 0.99].dropna(how="all").dropna(
                 axis=1, how="all")
             stations_issues = overloading_issues.columns
             time_steps_issues = overloading_issues.index
@@ -878,7 +878,7 @@ def curtailment_mv_lines_overloading(
 
     mv_lines = edisgo.topology.mv_grid.lines_df.index
     rel_load_mv = rel_load.loc[:, mv_lines]
-    overloading_issues = rel_load_mv[rel_load_mv > 0.9].dropna(
+    overloading_issues = rel_load_mv[rel_load_mv > 0.99].dropna(
         how="all").dropna(axis=1, how="all")
     lines_issues = overloading_issues.columns
     time_steps_issues = overloading_issues.index
@@ -941,7 +941,7 @@ def curtailment_mv_lines_overloading(
                     b).index
                 rel_load_connected_lines = rel_load.loc[:, connected_lines]
                 ts_issues = rel_load_connected_lines[
-                    rel_load_connected_lines > 0.9].dropna(
+                    rel_load_connected_lines > 0.99].dropna(
                     how="all").dropna(axis=1, how="all").index
 
                 # reduce active and reactive power of loads or generators
@@ -974,7 +974,7 @@ def curtailment_mv_lines_overloading(
             # recheck for overloading issues in LV
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_mv = rel_load.loc[:, mv_lines]
-            overloading_issues = rel_load_mv[rel_load_mv > 0.9].dropna(
+            overloading_issues = rel_load_mv[rel_load_mv > 0.99].dropna(
                 how="all").dropna(axis=1, how="all")
             lines_issues = overloading_issues.columns
             time_steps_issues = overloading_issues.index
@@ -1021,7 +1021,7 @@ def curtailment_hvmv_station_overloading(
     hvmv_station = "hvmv_station_{}".format(edisgo.topology.mv_grid)
     rel_load_hvmv_station = rel_load.loc[:, hvmv_station]
     overloading_issues = rel_load_hvmv_station[
-        rel_load_hvmv_station > 0.9].dropna(how="all")
+        rel_load_hvmv_station > 0.99].dropna(how="all")
     time_steps_issues = overloading_issues.index
 
     if len(time_steps_issues) > 0:
@@ -1068,7 +1068,7 @@ def curtailment_hvmv_station_overloading(
             rel_load = results_helper_functions.relative_load(edisgo)
             rel_load_hvmv_station = rel_load.loc[:, hvmv_station]
             overloading_issues = rel_load_hvmv_station[
-                rel_load_hvmv_station > 0.9].dropna(how="all")
+                rel_load_hvmv_station > 0.99].dropna(how="all")
             time_steps_issues = overloading_issues.index
 
             iteration_count += 1
