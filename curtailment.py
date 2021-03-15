@@ -205,6 +205,9 @@ def my_pf(pypsa, timesteps, mode="lpf", x_tol=1e-5):
 
             pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=x_tol)
 
+    elif mode == "use_seed":
+        pf_results = pypsa.pf(timesteps, use_seed=True, x_tol=x_tol)
+
     else:
         pf_results = pypsa.pf(timesteps, x_tol=x_tol)
 
@@ -276,7 +279,11 @@ def curtailment_lv_voltage(
                     pypsa_network, gens_feeder, loads_feeder, ts_issues)
 
             # run power flow analysis on all time steps with voltage issues
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            if iteration_count == 0:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            else:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
+
             if all(pf_results["converged"]["0"].tolist()):
                 pypsa_io.process_pfa_results(edisgo, pypsa_network,
                                              time_steps_issues)
@@ -319,7 +326,7 @@ def curtailment_lv_voltage(
                 raise ValueError("Curtailment not sufficient to solve LV voltage "
                                  "issues.")
         else:
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
 
             pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
@@ -400,7 +407,10 @@ def curtailment_mvlv_stations_voltage(
                     pypsa_network, gens_grid, loads_grid, ts_issues)
 
             # run power flow analysis on limited number of time steps
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            if iteration_count == 0:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            else:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
 
             if all(pf_results["converged"]["0"].tolist()):
                 pypsa_io.process_pfa_results(edisgo, pypsa_network,
@@ -442,7 +452,7 @@ def curtailment_mvlv_stations_voltage(
                 raise ValueError("Curtailment not sufficient to solve voltage "
                                  "issues at MV/LV stations.")
         else:
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
 
             pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
@@ -517,7 +527,10 @@ def curtailment_mv_voltage(
                     pypsa_network, gens_feeder, loads_feeder, ts_issues)
 
             # run power flow analysis on all time steps with MV issues
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            if iteration_count == 0:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            else:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
 
             if all(pf_results["converged"]["0"].tolist()):
                 pypsa_io.process_pfa_results(edisgo, pypsa_network,
@@ -561,7 +574,7 @@ def curtailment_mv_voltage(
                                  "issues.")
 
         else:
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
 
             pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
@@ -666,7 +679,10 @@ def curtailment_lv_lines_overloading(
                     pypsa_network, gens_feeder, loads_feeder, ts_issues)
 
             # run power flow analysis on all time steps with MV issues
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            if iteration_count == 0:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            else:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
 
             if all(pf_results["converged"]["0"].tolist()):
                 pypsa_io.process_pfa_results(edisgo, pypsa_network,
@@ -710,7 +726,7 @@ def curtailment_lv_lines_overloading(
                 raise ValueError("Curtailment not sufficient to solve overloading "
                                  "issues in LV.")
         else:
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
             pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         # calculate curtailment
@@ -792,7 +808,11 @@ def curtailment_mvlv_stations_overloading(
                     pypsa_network, gens_grid, loads_grid, ts_issues)
 
             # run power flow analysis on limited number of time steps
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            if iteration_count == 0:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            else:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
+
             if all(pf_results["converged"]["0"].tolist()):
                 pypsa_io.process_pfa_results(edisgo, pypsa_network,
                                              time_steps_issues)
@@ -834,7 +854,7 @@ def curtailment_mvlv_stations_overloading(
                 raise ValueError("Curtailment not sufficient to solve overloading "
                                  "issues at MV/LV stations.")
         else:
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
             pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         # calculate curtailment
@@ -930,7 +950,11 @@ def curtailment_mv_lines_overloading(
                     pypsa_network, gens_feeder, loads_feeder, ts_issues)
 
             # run power flow analysis on all time steps with MV issues
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            if iteration_count == 0:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            else:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
+
             if all(pf_results["converged"]["0"].tolist()):
                 pypsa_io.process_pfa_results(edisgo, pypsa_network,
                                              time_steps_issues)
@@ -972,7 +996,7 @@ def curtailment_mv_lines_overloading(
                 raise ValueError("Curtailment not sufficient to solve grid "
                                  "issues in MV.")
         else:
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
             pypsa_io.process_pfa_results(edisgo, pypsa_network, time_steps_issues)
 
         # calculate curtailment
@@ -1019,7 +1043,11 @@ def curtailment_hvmv_station_overloading(
                 pypsa_network, gens, loads, time_steps_issues)
 
             # run power flow analysis on all time steps with overloading issues
-            pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            if iteration_count == 0:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues)
+            else:
+                pf_results, pypsa_network = my_pf(pypsa_network, time_steps_issues, mode="use_seed")
+
             if all(pf_results["converged"]["0"].tolist()):
                 pypsa_io.process_pfa_results(edisgo, pypsa_network,
                                              time_steps_issues)
@@ -1302,7 +1330,7 @@ def curtail_lv_grids(
 
             _overwrite_edisgo_timeseries(edisgo, pypsa_lv)
 
-            print(count_grids, r"/", len(lv_grids))
+            print(count_grids+1, r"/", len(lv_grids))
 
         return edisgo, curtailment
 
