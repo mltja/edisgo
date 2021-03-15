@@ -24,22 +24,22 @@ from edisgo.edisgo import import_edisgo_from_files
 
 gc.collect()
 
-# os.sched_setaffinity(0,range(1000)) # TODO
+os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 1 # TODO
+num_threads = 4 # TODO
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_object_files" # TODO
 
 scenarios = [ # TODO
     "NEP_C_2035",
-    # "Reference_2050",
-    # "Electrification_2050",
-    # "Electrification_2050_sensitivity_low_work",
+    "Reference_2050",
+    "Electrification_2050",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
 # "Szenarette_Kleinwagen_2050",
@@ -47,7 +47,7 @@ scenarios = [ # TODO
 
 grid_ids = ["177"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
+strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
@@ -67,7 +67,7 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        mode = "days" # TODO
+        mode = "weeks" # TODO
 
         if mode == "days":
             ts_count = 96
