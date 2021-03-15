@@ -1726,16 +1726,16 @@ def calculate_curtailment(
             "It took {} seconds to calculate all lv grids.".format(perf_counter()-t0)
         )
 
-        t0 = perf_counter()
-
-        edisgo, curtailment = curtail_mv_grid(
-            edisgo,
-            grid_results_dir,
-            day,
-            scenario,
-            strategy,
-            curtailment,
-        )
+        # t0 = perf_counter()
+        #
+        # edisgo, curtailment = curtail_mv_grid(
+        #     edisgo,
+        #     grid_results_dir,
+        #     day,
+        #     scenario,
+        #     strategy,
+        #     curtailment,
+        # )
 
         print(
             "It took {} seconds to calculate the mv grid.".format(perf_counter() - t0)
