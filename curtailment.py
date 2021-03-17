@@ -142,22 +142,26 @@ def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1): # TO
     ts_curtail_loads = residual_load[residual_load < 0].index
 
     # curtail loads or generators by specified curtailment factor
-    # active power
-    pypsa_network.generators_t.p_set.loc[ts_curtail_gens, gens] = (
-        gens_ts.loc[ts_curtail_gens, :] -
-        curtailment_step *
-        gens_ts.loc[ts_curtail_gens, :])
-    pypsa_network.loads_t.p_set.loc[ts_curtail_loads, loads] = (
-        loads_ts.loc[ts_curtail_loads, :] -
-        curtailment_step *
-        loads_ts.loc[ts_curtail_loads, :])
-    # reactive power
-    tmp = pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens]
-    pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens] = (
-        tmp - curtailment_step * tmp)
-    tmp = pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads]
-    pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads] = (
-        tmp - curtailment_step * tmp)
+    if not ts_curtail_gens.empty:
+        # active power
+        pypsa_network.generators_t.p_set.loc[ts_curtail_gens, gens] = (
+            gens_ts.loc[ts_curtail_gens, :] -
+            curtailment_step *
+            gens_ts.loc[ts_curtail_gens, :])
+        # reactive power
+        tmp = pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens]
+        pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens] = (
+                tmp - curtailment_step * tmp)
+    if not ts_curtail_loads.empty:
+        # active power
+        pypsa_network.loads_t.p_set.loc[ts_curtail_loads, loads] = (
+            loads_ts.loc[ts_curtail_loads, :] -
+            curtailment_step *
+            loads_ts.loc[ts_curtail_loads, :])
+        # reactive power
+        tmp = pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads]
+        pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads] = (
+            tmp - curtailment_step * tmp)
 
     return pypsa_network
 
@@ -1660,7 +1664,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "weekly_curtailment_test",
+            "weekly_curtailment_v1",
         )
 
         os.makedirs(
