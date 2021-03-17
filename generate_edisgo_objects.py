@@ -51,7 +51,7 @@ sub_dir = r"eDisGo_charging_time_series"
 
 grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual", "no_cps"] # TODO
+strategies = ["dumb", "grouped", "reduced", "residual", "no_charging"] # TODO
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))

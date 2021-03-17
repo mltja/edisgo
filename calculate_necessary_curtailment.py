@@ -1406,43 +1406,43 @@ def integrate_private_charging(
                     )
                 ]
 
-            cp_matching_dfs[count_files]["edisgo_id"] = edisgo_id
-            cp_matching_dfs[count_files]["ags"] = gdf.ags.tolist()
-            cp_matching_dfs[count_files]["cp_idx"] = gdf.cp_idx.tolist()
+        cp_matching_dfs[count_files]["edisgo_id"] = edisgo_id
+        cp_matching_dfs[count_files]["ags"] = gdf.ags.tolist()
+        cp_matching_dfs[count_files]["cp_idx"] = gdf.cp_idx.tolist()
 
-            new_switch_line = edisgo.topology.lines_df.loc[
-                (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
-                (edisgo.topology.lines_df["bus1"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"])
-                ].index.tolist()[0]
+        new_switch_line = edisgo.topology.lines_df.loc[
+            (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
+            (edisgo.topology.lines_df["bus1"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"])
+            ].index.tolist()[0]
 
-            edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
+        edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
 
-            edisgo = reinforce_transformers_and_lines(
-                edisgo,
-                by=0.3,
-            )
+        edisgo = reinforce_transformers_and_lines(
+            edisgo,
+            by=0.3,
+        )
 
-            # grid_results_dir = Path(
-            #     os.path.join(  # TODO: set dir
-            #         # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_plot_data\generators",
-            #         r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_plot_data/generators",
-            #         grid_dir.parts[-1],
-            #     )
-            # )
-            #
-            # os.makedirs(
-            #     grid_results_dir,
-            #     exist_ok=True,
-            # )
-            #
-            # edisgo.save(
-            #     grid_results_dir,
-            #     save_results=False,
-            #     save_topology=True,
-            #     save_timeseries=False,
-            # )
-            #
-            # print("Grid {} saved.".format(grid_dir.parts[-1]))
+        # grid_results_dir = Path(
+        #     os.path.join(  # TODO: set dir
+        #         # r"\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_plot_data\generators",
+        #         r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results/eDisGo_plot_data/generators",
+        #         grid_dir.parts[-1],
+        #     )
+        # )
+        #
+        # os.makedirs(
+        #     grid_results_dir,
+        #     exist_ok=True,
+        # )
+        #
+        # edisgo.save(
+        #     grid_results_dir,
+        #     save_results=False,
+        #     save_topology=True,
+        #     save_timeseries=False,
+        # )
+        #
+        # print("Grid {} saved.".format(grid_dir.parts[-1]))
 
         return edisgo, cp_matching_dfs[0], cp_matching_dfs[1]
 
