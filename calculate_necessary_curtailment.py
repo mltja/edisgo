@@ -1069,11 +1069,6 @@ def integrate_public_charging(
             timeindex=timeindex,
         )
 
-        edisgo = reinforce_transformers_and_lines(
-            edisgo,
-            by=0.4,
-        )
-
         timeseries_data_path = os.path.join(
             grid_dir.parent.parent.parent,
             r"hp.csv",
@@ -1421,6 +1416,11 @@ def integrate_private_charging(
                 ].index.tolist()[0]
 
             edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
+
+            edisgo = reinforce_transformers_and_lines(
+                edisgo,
+                by=0.3,
+            )
 
             # grid_results_dir = Path(
             #     os.path.join(  # TODO: set dir
