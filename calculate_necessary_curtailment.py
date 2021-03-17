@@ -1406,9 +1406,9 @@ def integrate_private_charging(
                     )
                 ]
 
-        cp_matching_dfs[count_files]["edisgo_id"] = edisgo_id
-        cp_matching_dfs[count_files]["ags"] = gdf.ags.tolist()
-        cp_matching_dfs[count_files]["cp_idx"] = gdf.cp_idx.tolist()
+                cp_matching_dfs[count_files]["edisgo_id"] = edisgo_id
+                cp_matching_dfs[count_files]["ags"] = gdf.ags.tolist()
+                cp_matching_dfs[count_files]["cp_idx"] = gdf.cp_idx.tolist()
 
         new_switch_line = edisgo.topology.lines_df.loc[
             (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
