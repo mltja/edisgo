@@ -489,7 +489,7 @@ def curtailment_mv_voltage(
     voltage_issues = voltage_dev_mv[voltage_dev_mv != 0].dropna(
         how="all").dropna(axis=1, how="all")
     voltage_issues.to_csv( # TODO
-        os.path.join(grid_results_dir, "{}_voltage_issues.csv".format(grid_results_dir.parts[-4]))
+        os.path.join(grid_results_dir, "voltage_{}_voltage_issues.csv".format(grid_results_dir.parts[-4]))
     )
     buses_issues = voltage_issues.columns
     time_steps_issues = voltage_issues.index
@@ -511,10 +511,10 @@ def curtailment_mv_voltage(
 
             if iteration_count == 0: # TODO
                 buses_df_issues.to_csv(
-                    os.path.join(grid_results_dir, "{}_buses_df_issues.csv".format(grid_results_dir.parts[-4]))
+                    os.path.join(grid_results_dir, "voltage_{}_buses_df_issues.csv".format(grid_results_dir.parts[-4]))
                 )
                 pd.DataFrame(feeders).to_csv(
-                    os.path.join(grid_results_dir, "{}_feeders.csv".format(grid_results_dir.parts[-4]))
+                    os.path.join(grid_results_dir, "voltage_{}_feeders.csv".format(grid_results_dir.parts[-4]))
                 )
 
             elia_logger.debug(
@@ -542,7 +542,7 @@ def curtailment_mv_voltage(
                     gens_feeder_df = edisgo.topology.generators_df[
                         edisgo.topology.generators_df.bus.isin(buses)]
                     gens_feeder_df.to_csv(
-                        os.path.join(grid_results_dir, "{}_gens_feeder_{}_df.csv".format(
+                        os.path.join(grid_results_dir, "voltage_{}_gens_feeder_{}_df.csv".format(
                             grid_results_dir.parts[-4], feeder
                         ))
                     )
@@ -557,7 +557,7 @@ def curtailment_mv_voltage(
                     ]
 
                     lines_df.to_csv(
-                        os.path.join(grid_results_dir, "{}_lines_df_{}_df.csv".format(
+                        os.path.join(grid_results_dir, "voltage_{}_lines_df_{}_df.csv".format(
                             grid_results_dir.parts[-4], feeder
                         ))
                     )
@@ -925,6 +925,9 @@ def curtailment_mv_lines_overloading(
     rel_load_mv = rel_load.loc[:, mv_lines]
     overloading_issues = rel_load_mv[rel_load_mv > 0.99].dropna(
         how="all").dropna(axis=1, how="all")
+    overloading_issues.to_csv(  # TODO
+        os.path.join(grid_results_dir, "overloading_{}_issues.csv".format(grid_results_dir.parts[-4]))
+    )
     lines_issues = overloading_issues.columns
     time_steps_issues = overloading_issues.index
 
@@ -947,6 +950,14 @@ def curtailment_mv_lines_overloading(
                 lines_issues, ["bus0", "bus1"]].stack().unique()
             buses_df_issues = edisgo.topology.buses_df.loc[buses_issues, :]
             feeders = buses_df_issues.loc[:, "mv_feeder"].dropna().unique()
+
+            if iteration_count == 0: # TODO
+                buses_df_issues.to_csv(
+                    os.path.join(grid_results_dir, "overloading_{}_buses_df_issues.csv".format(grid_results_dir.parts[-4]))
+                )
+                pd.DataFrame(feeders).to_csv(
+                    os.path.join(grid_results_dir, "overloading_{}_feeders.csv".format(grid_results_dir.parts[-4]))
+                )
 
             elia_logger.debug(
                 "Number of MV feeders with overloading issues: {}".format(
@@ -988,6 +999,26 @@ def curtailment_mv_lines_overloading(
                 ts_issues = rel_load_connected_lines[
                     rel_load_connected_lines > 0.99].dropna(
                     how="all").dropna(axis=1, how="all").index
+
+                if iteration_count == 0:
+                    gens_feeder_df = edisgo.topology.generators_df[
+                        edisgo.topology.generators_df.bus.isin(
+                            buses_downstream
+                        )
+                    ]
+                    gens_feeder_df.to_csv(
+                        os.path.join(grid_results_dir, "overloading_{}_gens_feeder_{}_df.csv".format(
+                            grid_results_dir.parts[-4], feeder
+                        ))
+                    )
+
+                    connected_lines = edisgo.topology.get_connected_lines_from_bus(b)
+
+                    connected_lines.to_csv(
+                        os.path.join(grid_results_dir, "overloading_{}_lines_df_{}_df.csv".format(
+                            grid_results_dir.parts[-4], feeder
+                        ))
+                    )
 
                 # reduce active and reactive power of loads or generators
                 # (depending on whether it is a load or feed-in case)
