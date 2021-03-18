@@ -1603,7 +1603,7 @@ class Topology:
                 # do not allow connection to virtual busses
                 if "virtual" not in dist_min_obj["repr"]:
                     # FIXME: Workaround Kilian PF problems with integration of CPs on lines
-                    if dist_min_obj["shp"].geom_type != "Point":
+                    if dist_min_obj["shp"].geom_type == "Point":
                         target_obj_result = self._connect_mv_bus_to_target_object(
                             edisgo_object=edisgo_object,
                             bus=self.buses_df.loc[bus, :],
