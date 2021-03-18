@@ -124,7 +124,7 @@ def _save_results_when_curtailment_failed(edisgo_obj, results_dir, mode):
     )
 
 
-def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1): # TODO
+def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.05): # TODO
 
     # get time series for loads and generators
     gens_ts = pypsa_network.generators_t.p_set.loc[
