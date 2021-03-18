@@ -24,9 +24,9 @@ from edisgo.edisgo import import_edisgo_from_files
 
 gc.collect()
 
-os.sched_setaffinity(0,range(1000)) # TODO
+# os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 16 # TODO
+num_threads = 1 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -37,17 +37,17 @@ sub_dir = r"eDisGo_object_files" # TODO
 
 scenarios = [ # TODO
     "NEP_C_2035",
-    "Reference_2050",
-    "Electrification_2050",
-    "Electrification_2050_sensitivity_low_work",
+    # "Reference_2050",
+    # "Electrification_2050",
+    # "Electrification_2050_sensitivity_low_work",
 ]
 
 # "Szenarette_Kleinwagen_2050",
 # "Mobility_Transition_2050",
 
-grid_ids = ["1056", "1690", "1811"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["1056"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
+strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
@@ -84,7 +84,7 @@ def run_calculate_curtailment(
         else:
             days = [None]
 
-        for day in days:
+        for day in [days[1]]: # TODO
             stepwise_curtailment(
                 directory,
                 day,
