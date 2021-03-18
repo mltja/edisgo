@@ -141,7 +141,7 @@ def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1): # TO
     ts_curtail_gens = residual_load[residual_load > 0].index
     ts_curtail_loads = residual_load[residual_load < 0].index
 
-    # curtail loads or generators by specified curtailment factor
+    # curtail generators by specified curtailment factor
     # active power
     pypsa_network.generators_t.p_set.loc[ts_curtail_gens, gens] = (
         gens_ts.loc[ts_curtail_gens, :] -
@@ -151,6 +151,7 @@ def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1): # TO
     tmp = pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens]
     pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens] = (
             tmp - curtailment_step * tmp)
+    # curtail loads by specified curtailment factor
     # active power
     pypsa_network.loads_t.p_set.loc[ts_curtail_loads, loads] = (
         loads_ts.loc[ts_curtail_loads, :] -
