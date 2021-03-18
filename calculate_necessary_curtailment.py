@@ -1236,6 +1236,8 @@ def integrate_public_charging(
             # if len(gdf) > 3:
             #     gdf = gdf.iloc[:3] # TODO
 
+            gdf.cp_connection_rating = 350
+
             if not gdf.empty:
                 # TODO: choose
                 # _ = [
