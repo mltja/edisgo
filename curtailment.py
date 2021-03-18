@@ -524,7 +524,7 @@ def curtailment_mv_voltage(
                 "Number of time steps with voltage issues in MV: {}".format(
                     len(time_steps_issues)))
 
-            for count, feeder in enumerate(feeders):
+            for feeder in feeders:
                 # get all buses in feeder
                 buses = edisgo.topology.buses_df[
                     edisgo.topology.buses_df.mv_feeder == feeder].index
@@ -547,6 +547,20 @@ def curtailment_mv_voltage(
                         ))
                     )
 
+                    lines_df = edisgo.topology.lines_df.copy()
+
+                    lines_df = lines_df[
+                        (lines_df.bus0.isin(buses)) &
+                        (lines_df.bus1.isin(buses)) &
+                        (lines_df.bus0 == feeder) &
+                        (lines_df.bus1 == feeder)
+                    ]
+
+                    lines_df.to_csv(
+                        os.path.join(grid_results_dir, "{}_lines_df_{}_df.csv".format(
+                            grid_results_dir.parts[-4], feeder
+                        ))
+                    )
 
                 # get time steps with voltage issues in feeder
                 ts_issues = voltage_issues.loc[
