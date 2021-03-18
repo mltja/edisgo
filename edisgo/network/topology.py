@@ -2195,8 +2195,9 @@ class Topology:
                 ]
             )
             # avoid very short lines by limiting line length to at least 1m
-            if line_length < 0.001:
-                line_length = 0.001
+            # FIXME: 10m Test Kilian
+            if line_length < 0.01:
+                line_length = 0.01
 
             new_line_name = self.add_line(
                 bus0=target_obj["repr"],
