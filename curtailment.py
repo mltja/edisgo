@@ -477,7 +477,8 @@ def curtailment_mvlv_stations_voltage(
 
 
 def curtailment_mv_voltage(
-        edisgo, curtailment, voltage_dev, grid_results_dir, scenario, strategy, day, mode="mvlv", mv_grid_is_agg=False):
+        edisgo, curtailment, voltage_dev, grid_results_dir,
+        scenario, strategy, day, mode="mvlv", mv_grid_is_agg=False):
 
     elia_logger = logging.getLogger(
         'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
@@ -487,6 +488,9 @@ def curtailment_mv_voltage(
     voltage_dev_mv = voltage_dev.loc[:, mv_buses]
     voltage_issues = voltage_dev_mv[voltage_dev_mv != 0].dropna(
         how="all").dropna(axis=1, how="all")
+    voltage_issues.to_csv( # TODO
+        os.path.join(grid_results_dir, "{}_voltage_issues.csv".format(grid_results_dir.parts[-4]))
+    )
     buses_issues = voltage_issues.columns
     time_steps_issues = voltage_issues.index
 
@@ -505,6 +509,14 @@ def curtailment_mv_voltage(
             buses_df_issues = edisgo.topology.buses_df.loc[buses_issues, :]
             feeders = buses_df_issues.loc[:, "mv_feeder"].unique()
 
+            if iteration_count == 0: # TODO
+                buses_df_issues.to_csv(
+                    os.path.join(grid_results_dir, "{}_buses_df_issues.csv".format(grid_results_dir.parts[-4]))
+                )
+                pd.DataFrame(feeders).to_csv(
+                    os.path.join(grid_results_dir, "{}_feeders.csv".format(grid_results_dir.parts[-4]))
+                )
+
             elia_logger.debug(
                 "Number of MV feeders with voltage issues: {}".format(
                     len(feeders)))
@@ -512,7 +524,7 @@ def curtailment_mv_voltage(
                 "Number of time steps with voltage issues in MV: {}".format(
                     len(time_steps_issues)))
 
-            for feeder in feeders:
+            for count, feeder in enumerate(feeders):
                 # get all buses in feeder
                 buses = edisgo.topology.buses_df[
                     edisgo.topology.buses_df.mv_feeder == feeder].index
@@ -525,6 +537,16 @@ def curtailment_mv_voltage(
                     edisgo.topology.charging_points_df[
                         edisgo.topology.charging_points_df.bus.isin(
                             buses)].index)
+
+                if iteration_count == 0:
+                    gens_feeder_df = edisgo.topology.generators_df[
+                        edisgo.topology.generators_df.bus.isin(buses)]
+                    gens_feeder_df.to_csv(
+                        os.path.join(grid_results_dir, "{}_gens_feeder_{}_df.csv".format(
+                            grid_results_dir.parts[-4], feeder
+                        ))
+                    )
+
 
                 # get time steps with voltage issues in feeder
                 ts_issues = voltage_issues.loc[
@@ -1667,10 +1689,10 @@ def calculate_curtailment(
             'MA: {} {} {}'.format(scenario, edisgo.topology.id, strategy))
         elia_logger.setLevel(logging.DEBUG)
 
-        grid_results_dir = os.path.join( # TODO
+        grid_results_dir = Path(os.path.join( # TODO
             grid_dir,
-            "weekly_curtailment_v2",
-        )
+            "test",
+        ))
 
         os.makedirs(
             grid_results_dir,

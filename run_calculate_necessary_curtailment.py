@@ -24,19 +24,19 @@ from edisgo.edisgo import import_edisgo_from_files
 
 gc.collect()
 
-os.sched_setaffinity(0,range(1000)) # TODO
+# os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 2 # TODO
+num_threads = 1 # TODO
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_object_files" # TODO
 
 scenarios = [ # TODO
-    "NEP_C_2035",
+    # "NEP_C_2035",
     "Reference_2050",
     # "Electrification_2050",
     # "Electrification_2050_sensitivity_low_work",
