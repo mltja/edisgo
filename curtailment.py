@@ -141,26 +141,32 @@ def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.1): # TO
     ts_curtail_gens = residual_load[residual_load > 0].index
     ts_curtail_loads = residual_load[residual_load < 0].index
 
-    # curtail generators by specified curtailment factor
-    # active power
-    pypsa_network.generators_t.p_set.loc[ts_curtail_gens, gens] = (
-        gens_ts.loc[ts_curtail_gens, :] -
-        curtailment_step *
-        gens_ts.loc[ts_curtail_gens, :])
-    # reactive power
-    tmp = pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens]
-    pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens] = (
+    if not ts_curtail_gens.empty:
+        # curtail generators by specified curtailment factor
+        # active power
+        pypsa_network.generators_t.p_set.loc[ts_curtail_gens, gens] = (
+            gens_ts.loc[ts_curtail_gens, :] -
+            curtailment_step *
+            gens_ts.loc[ts_curtail_gens, :])
+        # reactive power
+        tmp = pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens]
+        pypsa_network.generators_t.q_set.loc[ts_curtail_gens, gens] = (
             tmp - curtailment_step * tmp)
-    # curtail loads by specified curtailment factor
-    # active power
-    pypsa_network.loads_t.p_set.loc[ts_curtail_loads, loads] = (
-        loads_ts.loc[ts_curtail_loads, :] -
-        curtailment_step *
-        loads_ts.loc[ts_curtail_loads, :])
-    # reactive power
-    tmp = pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads]
-    pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads] = (
-        tmp - curtailment_step * tmp)
+
+    if not ts_curtail_loads.empty:
+        # curtail loads by specified curtailment factor
+        # active power
+        pypsa_network.loads_t.p_set.loc[ts_curtail_loads, loads] = (
+            loads_ts.loc[ts_curtail_loads, :] -
+            curtailment_step *
+            loads_ts.loc[ts_curtail_loads, :])
+        # reactive power
+        tmp = pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads]
+        pypsa_network.loads_t.q_set.loc[ts_curtail_loads, loads] = (
+            tmp - curtailment_step * tmp)
+
+    if ts_curtail_loads.empty and ts_curtail_gens.empty:
+        print("Nothing to curtail. I'm stuck in a while loop.")
 
     return pypsa_network
 
@@ -1663,7 +1669,7 @@ def calculate_curtailment(
 
         grid_results_dir = os.path.join( # TODO
             grid_dir,
-            "weekly_curtailment_v1",
+            "weekly_curtailment_v2",
         )
 
         os.makedirs(
