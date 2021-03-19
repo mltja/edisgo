@@ -124,7 +124,7 @@ def _save_results_when_curtailment_failed(edisgo_obj, results_dir, mode):
     )
 
 
-def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.2): # TODO
+def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.05): # TODO
 
     # get time series for loads and generators
     gens_ts = pypsa_network.generators_t.p_set.loc[
@@ -721,7 +721,7 @@ def curtailment_lv_lines_overloading(
                 # reduce active and reactive power of loads or generators
                 # (depending on whether it is a load or feed-in case)
                 pypsa_network = _curtail(
-                    pypsa_network, gens_feeder, loads_feeder, ts_issues)#, curtailment_step=0.1) # TODO
+                    pypsa_network, gens_feeder, loads_feeder, ts_issues, curtailment_step=0.1) # TODO
 
             # run power flow analysis on all time steps with MV issues
             if iteration_count == 0:
@@ -2010,7 +2010,7 @@ def calculate_curtailment(
         # check if everything was solved
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
         issues = voltage_dev[
-            abs(voltage_dev) > 2e-2].dropna( # TODO
+            abs(voltage_dev) > 2e-3].dropna( # TODO
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
             print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
@@ -2031,7 +2031,7 @@ def calculate_curtailment(
             pass
         rel_load = results_helper_functions.relative_load(edisgo)
         issues = rel_load[
-            rel_load > 1+2e-2].dropna( # TODO
+            rel_load > 1+2e-3].dropna( # TODO
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
             print("Not all overloading issues solved on day {} of Grid {} with strategy {}.".format(

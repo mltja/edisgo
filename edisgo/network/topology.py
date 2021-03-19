@@ -1615,7 +1615,6 @@ class Topology:
                             )
 
                             if target_obj_result is not None:
-                                print(target_obj_result) # TODO
                                 comp_connected = True
                                 break
                     else:
@@ -1631,7 +1630,6 @@ class Topology:
                             )
 
                             if target_obj_result is not None:
-                                print(target_obj_result) # TODO
                                 comp_connected = True
                                 break
 
