@@ -1236,7 +1236,7 @@ def integrate_public_charging(
             # if len(gdf) > 3:
             #     gdf = gdf.iloc[:3] # TODO
 
-            gdf.cp_connection_rating = 350 # TODO
+            # gdf.cp_connection_rating = 350 # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1421,7 +1421,7 @@ def integrate_private_charging(
 
         edisgo = reinforce_transformers_and_lines(
             edisgo,
-            by=0.3,
+            by=0.3, # TODO
         )
 
         # grid_results_dir = Path(
