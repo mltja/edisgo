@@ -1613,7 +1613,7 @@ class Topology:
 
                     if target_obj_result is not None:
                         comp_connected = True
-                            break
+                        break
 
             if not comp_connected:
                 logger.error(
