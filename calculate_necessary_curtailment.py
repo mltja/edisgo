@@ -1069,10 +1069,6 @@ def integrate_public_charging(
             timeindex=timeindex,
         )
 
-        df = edisgo.topology.lines_df[edisgo.topology.lines_df.index.str.contains("3964241")]
-
-        print("Before CP Integration:", len(df))
-
         timeseries_data_path = os.path.join(
             grid_dir.parent.parent.parent,
             r"hp.csv",
@@ -1240,7 +1236,7 @@ def integrate_public_charging(
             # if len(gdf) > 3:
             #     gdf = gdf.iloc[:3] # TODO
 
-            gdf.cp_connection_rating = 350 # TODO
+            # gdf.cp_connection_rating = 350 # TODO
 
             if not gdf.empty:
                 # TODO: choose
@@ -1369,8 +1365,6 @@ def integrate_private_charging(
             #     gdf = gdf.iloc[:3] # TODO
 
             cp_matching_dfs[count_files] = pd.DataFrame(index=[*range(len(gdf))])
-
-            gdf.cp_connection_rating = 350 # TODO
 
             if not gdf.empty:
                 # TODO: choose
