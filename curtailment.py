@@ -124,7 +124,7 @@ def _save_results_when_curtailment_failed(edisgo_obj, results_dir, mode):
     )
 
 
-def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.05): # TODO
+def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.2): # TODO
 
     # get time series for loads and generators
     gens_ts = pypsa_network.generators_t.p_set.loc[
@@ -721,7 +721,7 @@ def curtailment_lv_lines_overloading(
                 # reduce active and reactive power of loads or generators
                 # (depending on whether it is a load or feed-in case)
                 pypsa_network = _curtail(
-                    pypsa_network, gens_feeder, loads_feeder, ts_issues)
+                    pypsa_network, gens_feeder, loads_feeder, ts_issues)#, curtailment_step=0.1) # TODO
 
             # run power flow analysis on all time steps with MV issues
             if iteration_count == 0:
