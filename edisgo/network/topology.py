@@ -1600,6 +1600,8 @@ class Topology:
             # object)
             comp_connected = False
             for dist_min_obj in conn_objects_min_stack:
+                if "charging" in dist_min_obj["repr"].lower():
+                    print(dist_min_obj["repr"])
                 # do not allow connection to virtual busses
                 if "virtual" not in dist_min_obj["repr"]:
                     # FIXME: Workaround Kilian PF problems with integration of CPs on lines
@@ -2196,9 +2198,8 @@ class Topology:
                 ]
             )
             # avoid very short lines by limiting line length to at least 1m
-            # FIXME: 10m Test Kilian
-            if line_length < 0.01:
-                line_length = 0.01
+            if line_length < 0.001:
+                line_length = 0.001
 
             new_line_name = self.add_line(
                 bus0=target_obj["repr"],

@@ -26,20 +26,20 @@ gc.collect()
 
 os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 2 # TODO
+num_threads = 4 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_object_files_v3" # TODO
+sub_dir = r"eDisGo_object_files_v4" # TODO
 
 scenarios = [ # TODO
     "NEP_C_2035",
     "Reference_2050",
-    # "Electrification_2050",
-    # "Electrification_2050_sensitivity_low_work",
+    "Electrification_2050",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
 # "Szenarette_Kleinwagen_2050",
