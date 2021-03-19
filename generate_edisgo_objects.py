@@ -23,24 +23,24 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 24 # TODO
+num_threads = 1 # TODO
 
 rng = default_rng(seed=5)
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [ # TODO
-    "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    "Reference_2050_simbev_run",
+    # "Electrification_2050_simbev_run",
+    # "Electrification_2050_sensitivity_low_work_simbev_run",
+    # "Reference_2050_simbev_run",
     "NEP_C_2035_simbev_run",
 ]
 
@@ -49,9 +49,9 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["2534"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
-strategies = ["dumb", "grouped", "reduced", "residual", "no_charging"] # TODO
+strategies = ["dumb"]#, "grouped", "reduced", "residual", "no_charging"] # TODO
 
 grid_dirs = [
     Path(os.path.join(data_dir, scenario, sub_dir, grid_id))
@@ -122,7 +122,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_object_files_v3", # TODO
+                    "eDisGo_object_files_test", # TODO
                     scenario,
                     grid_id,
                     strategy,
