@@ -28,20 +28,20 @@ num_threads = 1 # TODO
 rng = default_rng(seed=5)
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [ # TODO
     "Electrification_2050_simbev_run",
-    # "Electrification_2050_sensitivity_low_work_simbev_run",
-    # "Reference_2050_simbev_run",
-    # "NEP_C_2035_simbev_run",
+    "Electrification_2050_sensitivity_low_work_simbev_run",
+    "Reference_2050_simbev_run",
+    "NEP_C_2035_simbev_run",
 ]
 
 # "Mobility_Transition_2050_simbev_run",
@@ -107,7 +107,7 @@ def generate_edisgo_objects(
 
         files.sort()
 
-        print("Scenario {} in grid {} is being processed.".format(scenario, grid_id))
+        # print("Scenario {} in grid {} is being processed.".format(scenario, grid_id))
 
         start_date = datetime.strptime("2011-01-01", "%Y-%m-%d")
 
@@ -122,7 +122,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_object_files_v5", # TODO
+                    "test", # TODO
                     scenario,
                     grid_id,
                     strategy,
@@ -147,12 +147,12 @@ def generate_edisgo_objects(
 
                 gc.collect()
 
-                print(
-                    "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
-                        strategy, scenario, grid_id
-                    ),
-                    "It took {} seconds.".format(round(perf_counter() - t0, 0)),
-                )
+                # print(
+                #     "Public charging with strategy {} has been integrated for scenario {} in grid {}.".format(
+                #         strategy, scenario, grid_id
+                #     ),
+                #     "It took {} seconds.".format(round(perf_counter() - t0, 0)),
+                # )
 
                 t1 = perf_counter()
 
@@ -162,6 +162,10 @@ def generate_edisgo_objects(
                     files,
                     strategy,
                 )
+
+                df = edisgo.topology.lines_df[edisgo.topology.lines_df.index.str.contains("3964241")]
+
+                print("After CP Integration:", len(df))
 
                 edisgo.topology.lines_df["check"] = 1 / edisgo.topology.lines_df.length.divide(0.001)
 
@@ -191,13 +195,13 @@ def generate_edisgo_objects(
 
                 gc.collect()
 
-                print(
-                    "Private charging has been integrated for",
-                    "scenario {} in grid {} with strategy {}.".format(
-                        scenario, grid_id, strategy
-                    ),
-                    "It took {} seconds.".format(round(perf_counter() - t1, 0)),
-                )
+                # print(
+                #     "Private charging has been integrated for",
+                #     "scenario {} in grid {} with strategy {}.".format(
+                #         scenario, grid_id, strategy
+                #     ),
+                #     "It took {} seconds.".format(round(perf_counter() - t1, 0)),
+                # )
             elif count_strategies == 4:
                 for col in edisgo.timeseries.charging_points_active_power.columns:
                     edisgo.timeseries._charging_points_active_power[col].values[:] = 0
@@ -257,31 +261,31 @@ def generate_edisgo_objects(
 
             t1 = perf_counter()
 
-            edisgo.save(
-                directory=export_dir,
-            )
+            # edisgo.save(
+            #     directory=export_dir,
+            # )
 
-            print(
-                "Scenario {} in grid {} with strategy {} has been saved.".format(
-                    scenario, grid_id, strategy
-                ),
-                "It took {} seconds.".format(round(perf_counter() - t2, 0)),
-            )
-
-            print(
-                "Total charging demand in scenario {} in grid {} with strategy {}: {} MWh".format(
-                    scenario, grid_id, strategy, round(edisgo.timeseries.charging_points_active_power.sum().sum()/4, 0)
-                )
-            )
+            # print(
+            #     "Scenario {} in grid {} with strategy {} has been saved.".format(
+            #         scenario, grid_id, strategy
+            #     ),
+            #     "It took {} seconds.".format(round(perf_counter() - t2, 0)),
+            # )
+            #
+            # print(
+            #     "Total charging demand in scenario {} in grid {} with strategy {}: {} MWh".format(
+            #         scenario, grid_id, strategy, round(edisgo.timeseries.charging_points_active_power.sum().sum()/4, 0)
+            #     )
+            # )
 
             gc.collect()
 
-        print(
-            "Scenario {} in grid {} has been saved.".format(
-                scenario, grid_id
-            ),
-            "It took {} seconds".format(round(perf_counter() - t0, 0))
-        )
+        # print(
+        #     "Scenario {} in grid {} has been saved.".format(
+        #         scenario, grid_id
+        #     ),
+        #     "It took {} seconds".format(round(perf_counter() - t0, 0))
+        # )
 
         del edisgo
 

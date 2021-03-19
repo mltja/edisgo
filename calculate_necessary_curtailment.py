@@ -1069,6 +1069,10 @@ def integrate_public_charging(
             timeindex=timeindex,
         )
 
+        df = edisgo.topology.lines_df[edisgo.topology.lines_df.index.str.contains("3964241")]
+
+        print("Before CP Integration:", len(df))
+
         timeseries_data_path = os.path.join(
             grid_dir.parent.parent.parent,
             r"hp.csv",
