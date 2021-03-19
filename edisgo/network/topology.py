@@ -1602,6 +1602,7 @@ class Topology:
             for dist_min_obj in conn_objects_min_stack:
                 # do not allow connection to virtual busses
                 if "virtual" not in dist_min_obj["repr"]:
+                    print(dist_min_obj["repr"])
                     # # FIXME: Workaround Kilian PF problems with integration of CPs
                     # if "charging" not in dist_min_obj["repr"].lower():
                     # if dist_min_obj["shp"].geom_type == "Point":
