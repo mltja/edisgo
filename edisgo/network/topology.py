@@ -1602,19 +1602,20 @@ class Topology:
             for dist_min_obj in conn_objects_min_stack:
                 # do not allow connection to virtual busses
                 if "virtual" not in dist_min_obj["repr"]:
-                    print(dist_min_obj["repr"])
-                    # # FIXME: Workaround Kilian PF problems with integration of CPs
-                    # if "charging" not in dist_min_obj["repr"].lower():
                     # if dist_min_obj["shp"].geom_type == "Point":
-                    target_obj_result = self._connect_mv_bus_to_target_object(
-                        edisgo_object=edisgo_object,
-                        bus=self.buses_df.loc[bus, :],
-                        target_obj=dist_min_obj,
-                    )
+                    # # FIXME: Workaround Kilian PF problems with integration of CPs
+                    if "charging" not in dist_min_obj["repr"].lower():
+                        if "gen" not in dist_min_obj["repr"].lower():
+                            target_obj_result = self._connect_mv_bus_to_target_object(
+                                edisgo_object=edisgo_object,
+                                bus=self.buses_df.loc[bus, :],
+                                target_obj=dist_min_obj,
+                            )
 
-                    if target_obj_result is not None:
-                        comp_connected = True
-                        break
+                            if target_obj_result is not None:
+                                print(target_obj_result)
+                                comp_connected = True
+                                break
 
             if not comp_connected:
                 logger.error(
