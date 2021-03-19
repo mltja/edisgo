@@ -1260,7 +1260,7 @@ class EDisGo:
 
         # Connect in MV
         if voltage_level in [4, 5]:
-            kwargs['voltage_level'] = 4 # TODO
+            kwargs['voltage_level'] = voltage_level
             kwargs['geom'] = geolocation
             comp_name = self.topology.connect_to_mv(
                 self, kwargs, comp_type)
