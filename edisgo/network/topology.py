@@ -15,6 +15,7 @@ from edisgo.tools.tools import (
     calculate_apparent_power,
     check_bus_for_removal,
     check_line_for_removal,
+    select_cable
 )
 from edisgo.tools import networkx_helper
 from edisgo.tools import geo
@@ -656,12 +657,13 @@ class Topology:
         Parameters
         ----------
         bus_name : str
-            name of bus
+            Name of bus to get connected lines for.
 
         Returns
         --------
         :pandas:`pandas.DataFrame<DataFrame>`
-            Dataframe of connected lines
+            Dataframe with connected lines with the same format as
+            :attr:`~.network.topology.Topology.lines_df`.
 
         """
         return self.lines_df.loc[self.lines_df.bus0 == bus_name].append(
@@ -1110,8 +1112,8 @@ class Topology:
 
         Other Parameters
         -----------------
-        number : int
-            Number of charging stations at charging point.
+        kwargs :
+            Kwargs may contain any further attributes you want to specify.
 
         """
         try:
@@ -1138,16 +1140,16 @@ class Topology:
                     grid_name, random.randint(10 ** 8, 10 ** 9)
                 )
 
-        number = kwargs.get("number", None)
-        new_df = pd.DataFrame(
-            data={
+        data = {
                 "bus": bus,
                 "p_nom": p_nom,
-                "use_case": use_case,
-                "number": number
-            },
-            index=[name],
-        )
+                "use_case": use_case
+            }
+        data.update(kwargs)
+        new_df = pd.Series(
+            data,
+            name=name,
+        ).to_frame().T
         self.charging_points_df = self._charging_points_df.append(new_df)
         return name
 
@@ -1496,14 +1498,6 @@ class Topology:
         """
         # ToDo connect charging points via transformer?
 
-        # ToDo use select_cable instead of standard line?
-        # get standard equipment
-        std_line_type = self.equipment_data["mv_cables"].loc[
-            edisgo_object.config["grid_expansion_standard_equipment"][
-                "mv_line"
-            ]
-        ]
-
         # create new bus for new component
         if not type(comp_data["geom"]) is Point:
             geom = wkt_loads(comp_data["geom"])
@@ -1555,12 +1549,16 @@ class Topology:
             if line_length < 0.001:
                 line_length = 0.001
 
+            line_type, num_parallel = select_cable(
+                edisgo_object, "mv", comp_data["p_nom"])
+
             line_name = self.add_line(
                 bus0=self.mv_grid.station.index[0],
                 bus1=bus,
                 length=line_length,
                 kind="cable",
-                type_info=std_line_type.name,
+                type_info=line_type.name,
+                num_parallel=num_parallel
             )
 
             # add line to equipment changes to track costs
@@ -1602,15 +1600,20 @@ class Topology:
             for dist_min_obj in conn_objects_min_stack:
                 # do not allow connection to virtual busses
                 if "virtual" not in dist_min_obj["repr"]:
+
                     # if dist_min_obj["shp"].geom_type == "Point":
                     # # FIXME: Workaround Kilian PF problems with integration of CPs
                     if comp_type == "Generator":
                         if "gen" not in dist_min_obj["repr"].lower():
-                            target_obj_result = self._connect_mv_bus_to_target_object(
-                                edisgo_object=edisgo_object,
-                                bus=self.buses_df.loc[bus, :],
-                                target_obj=dist_min_obj,
-                            )
+		            line_type, num_parallel = select_cable(
+		                edisgo_object, "mv", comp_data["p_nom"])
+		            target_obj_result = self._connect_mv_bus_to_target_object(
+		                edisgo_object=edisgo_object,
+		                bus=self.buses_df.loc[bus, :],
+		                target_obj=dist_min_obj,
+		                line_type=line_type.name,
+		                number_parallel_lines=num_parallel
+		            )
 
                             if target_obj_result is not None:
                                 print(target_obj_result)
@@ -1618,16 +1621,19 @@ class Topology:
                                 break
                     else:
                         if "charging" not in dist_min_obj["repr"].lower():
-                            target_obj_result = self._connect_mv_bus_to_target_object(
-                                edisgo_object=edisgo_object,
-                                bus=self.buses_df.loc[bus, :],
-                                target_obj=dist_min_obj,
-                            )
+		            line_type, num_parallel = select_cable(
+		                edisgo_object, "mv", comp_data["p_nom"])
+		            target_obj_result = self._connect_mv_bus_to_target_object(
+		                edisgo_object=edisgo_object,
+		                bus=self.buses_df.loc[bus, :],
+		                target_obj=dist_min_obj,
+		                line_type=line_type.name,
+		                number_parallel_lines=num_parallel
+		            )
 
-                            if target_obj_result is not None:
-                                print(target_obj_result)
-                                comp_connected = True
-                                break
+                    if target_obj_result is not None:
+                        comp_connected = True
+                        break
 
             if not comp_connected:
                 logger.error(
@@ -1648,29 +1654,13 @@ class Topology:
         provided in the `comp_data` parameter.
         It connects
 
-            * Components with no MV/LV substation ID
-                * directly to random MV/LV substation (will probably be
-                  changed to random LV grid or LV grid closest to component)
+            * Components with specified voltage level 6
+                * to MV/LV substation (a new bus is created for
+                  the new component, unless no geometry data is available in
+                  which case the new component is connected directly to the
+                  substation)
 
-            * Components with an MV/LV substation ID that does not exist (i.e.
-              components in an aggregated load area)
-                * directly to the HV/MV station (will probably be changed to
-                  random LV grid or LV grid closest to component)
-
-            * Components with an existing MV/LV substation ID but missing
-              geometry data
-                * directly to the MV/LV substation of the specified LV grid
-                  (will probably be changed to somewhere in the LV grid,
-                  depending on specified voltage level)
-
-            * Components with an existing MV/LV substation ID and geometry
-              data:
-
-                * with specified voltage level 6
-                    * to MV/LV substation (a new bus is created for
-                      the new component)
-
-                * Generators with specified voltage level 7
+            * Generators with specified voltage level 7
                     * with a nominal capacity of <=30 kW to LV loads of type
                       residential, if available
                     * with a nominal capacity of >30 kW to LV loads of type
@@ -1678,21 +1668,28 @@ class Topology:
                     * to random bus in the LV grid as fallback if no
                       appropriate load is available
 
-                * Charging Points with specified voltage level 7
-                    * with use case home to LV loads of type
-                      residential, if available
-                    * with use case work to LV loads of type
-                      retail, industrial or agricultural, if available, otherwise
-                     * with use case public or fast to some bus in the grid that
-                       is not a house connection
-                     * to random bus in the LV grid that
-                       is not a house connection if no appropriate load is available
-                      (fallback)
-                * the number of generators or charging point connected at
-                  one load is restricted by the parameter
-                  `allowed_number_of_comp_per_bus`. If every possible load
-                  already has more than the allowed number then the new component
-                  is directly connected to the MV/LV substation.
+            * Charging Points with specified voltage level 7
+                * with use case home to LV loads of type
+                  residential, if available
+                * with use case work to LV loads of type
+                  retail, industrial or agricultural, if available, otherwise
+                * with use case public or fast to some bus in the grid that
+                  is not a house connection
+                * to random bus in the LV grid that
+                  is not a house connection if no appropriate load is available
+                 (fallback)
+            * the number of generators or charging point connected at
+              one load is restricted by the parameter
+              `allowed_number_of_comp_per_bus`. If every possible load
+              already has more than the allowed number then the new component
+              is directly connected to the MV/LV substation.
+
+        In case no MV/LV substation ID is provided a random LV grid is chosen.
+        In case the provided MV/LV substation ID does not exist (i.e. in case
+        of components in an aggregated load area), the new component is
+        directly connected to the HV/MV station. (Will be changed once
+        generators in aggregated areas are treated differently in
+        ding0.)
 
         Parameters
         ----------
@@ -1732,6 +1729,8 @@ class Topology:
         predefined seed to ensure reproducibility.
 
         """
+
+        global add_func
 
         def _connect_to_station():
             """
@@ -1775,20 +1774,16 @@ class Topology:
             # avoid very short lines by limiting line length to at least 1m
             if line_length < 0.001:
                 line_length = 0.001
-            # get standard equipment
-            std_line_type = self.equipment_data[
-                "lv_cables"
-            ].loc[
-                edisgo_object.config["grid_expansion_standard_equipment"][
-                    "lv_line"
-                ]
-            ]
+            # get suitable line type
+            line_type, num_parallel = select_cable(
+                edisgo_object, "lv", comp_data["p_nom"])
             line_name = self.add_line(
                 bus0=station_bus,
                 bus1=b,
                 length=line_length,
                 kind="cable",
-                type_info=std_line_type.name,
+                type_info=line_type.name,
+                num_parallel=num_parallel
             )
 
             # add line to equipment changes to track costs
@@ -1826,21 +1821,11 @@ class Topology:
                     "LVGrid_{}".format(int(comp_data["mvlv_subst_id"]))
                 ]
 
-                # if no geom is given, connect to LV grid's station
-                if not comp_data["geom"]:
-                    comp_name = add_func(
-                        bus=lv_grid.station.index[0], **comp_data
-                    )
-                    logger.debug(
-                        "Component {} has no geom entry and will be connected "
-                        "to grid's LV station.".format(comp_name)
-                    )
-                    return comp_name
-
             # if substation ID (= LV grid ID) is given but it does not match an
             # existing LV grid ID (i.e. it is an aggregated LV grid), connect
             # component to HV-MV substation
-            # ToDo: Keep it like this?
+            # ToDo: Change once LV components in aggregated areas are handled
+            #  differently in ding0
             else:
                 comp_name = add_func(
                     bus=self.mv_grid.station.index[0],
@@ -1848,8 +1833,7 @@ class Topology:
                 )
                 return comp_name
 
-        # if no MV-LV substation ID is given (and there is therefore also no
-        # geometry data), choose random LV grid and connect to station
+        # if no MV/LV substation ID is given, choose random LV grid
         else:
             if comp_type == "Generator":
                 random.seed(a=comp_data["generator_id"])
@@ -1859,42 +1843,32 @@ class Topology:
                 random.seed(a=len(self.charging_points_df))
             lv_grid_id = random.choice(lv_grid_ids)
             lv_grid = LVGrid(id=lv_grid_id, edisgo_obj=edisgo_object)
-            comp_name = add_func(
-                bus=lv_grid.station.index[0], **comp_data
-            )
             logger.warning(
-                "Component {} has no mvlv_subst_id. It is therefore allocated "
+                "Component has no mvlv_subst_id. It is therefore allocated "
                 "to a random LV Grid ({}).".format(
-                    comp_name, lv_grid_id
+                    lv_grid_id
                 )
             )
-            return comp_name
 
         # v_level 6 -> connect to grid's LV station
         if comp_data["voltage_level"] == 6:
-            comp_name = _connect_to_station()
+            # if no geom is given, connect directly to LV grid's station, as
+            # connecting via separate bus will otherwise throw an error (see
+            # _connect_to_station function)
+            if ("geom" not in comp_data.keys()) or \
+                    ("geom" in comp_data.keys() and not comp_data["geom"]):
+                comp_name = add_func(
+                    bus=lv_grid.station.index[0], **comp_data
+                )
+                logger.debug(
+                    "Component {} has no geom entry and will be connected "
+                    "to grid's LV station.".format(comp_name)
+                )
+            else:
+                comp_name = _connect_to_station()
             return comp_name
 
-        # v_level 7 -> assign generator to load
-        # Generators:
-        # Generators with P <= 30 kW are connected to residential loads, if
-        # available; generators with 30 kW <= P <= 100 kW are connected to
-        # retail, industrial, or agricultural loads, if available.
-        # Charging Points:
-        # Charging points with use case 'home' are connected to residential
-        # loads, if available; charging points with use case 'work' are
-        # connected to retail, industrial, or agricultural loads, if available;
-        # charging points with other use cases ('public' or 'fast') are
-        # connected somewhere in the grid.
-        # In case the above described criteria do not give a bus to connect to,
-        # the generator or charging point is connected to a random bus in the
-        # LV grid.
-        # If there are valid buses, the generator or charging point is
-        # connected to a bus out of the valid buses with less than or equal
-        # the allowed number of generators / charging points at one bus.
-        # If every one of the valid buses already has the allowed number of
-        # generators / charging points, the new component is directly
-        # connected to the substation.
+        # v_level 7 -> connect in LV grid
         elif comp_data["voltage_level"] == 7:
 
             # get valid buses to connect new component to
@@ -1952,7 +1926,8 @@ class Topology:
                 return comp_name
 
             # search through list of target buses for bus with less
-            # than two generators / charging points
+            # than or equal the allowed number of components of the same type
+            # already connected to it
             lv_conn_target = None
 
             # ToDo: Once export in ding0 connects generators directly to bus
@@ -2029,14 +2004,18 @@ class Topology:
                 )
             return comp_name
 
-    def _connect_mv_bus_to_target_object(self, edisgo_object, bus, target_obj):
+    def _connect_mv_bus_to_target_object(self, edisgo_object, bus, target_obj,
+                                         line_type, number_parallel_lines):
         """
-        Connects MV generators to target object in MV network
+        Connects given MV bus to given target object (MV line or bus).
 
-        If the target object is a bus, a new line is created to it.
+        If the target object is a bus, a new line between the two buses is
+        created.
         If the target object is a line, the node is connected to a newly
         created bus (using perpendicular projection) on this line.
-        New lines are created using standard equipment.
+        New lines are created using the line type specified through parameter
+        `line_type` and using the number of parallel lines specified through
+        parameter `number_parallel_lines`.
 
         Parameters
         ----------
@@ -2045,23 +2024,27 @@ class Topology:
             Data of bus to connect.
             Series has same rows as columns of
             :attr:`~.network.topology.Topology.buses_df`.
-        target_obj : :class:`~.network.components.Component`
-            Object that node shall be connected to
+        target_obj : dict
+            Dictionary containing the following necessary target object
+            information:
+
+                * repr : str
+                    Name of line or bus to connect to.
+                * shp : :shapely:`Shapely Point object<points>` or \
+                :shapely:`Shapely Line object<lines>`
+                    Geometry of line or bus to connect to.
+
+        line_type : str
+            Line type to use to connect new component with.
+        number_parallel_lines : int
+            Number of parallel lines to connect new component with.
 
         Returns
         -------
-        :class:`~.network.components.Component` or None
-            Node that node was connected to
+        str
+            Name of the bus the given bus was connected to.
 
         """
-
-        # get standard equipment
-        std_line_type = self.equipment_data["mv_cables"].loc[
-            edisgo_object.config["grid_expansion_standard_equipment"][
-                "mv_line"
-            ]
-        ]
-        std_line_kind = "cable"
 
         srid = self.grid_district["srid"]
         bus_shp = transform(geo.proj2equidistant(srid), Point(bus.x, bus.y))
@@ -2181,8 +2164,9 @@ class Topology:
                 bus0=branch_tee_repr,
                 bus1=bus.name,
                 length=line_length,
-                kind=std_line_kind,
-                type_info=std_line_type.name,
+                kind="cable",
+                type_info=line_type,
+                num_parallel=number_parallel_lines
             )
             # add line to equipment changes
             edisgo_object.results._add_line_to_equipment_changes(
@@ -2217,8 +2201,9 @@ class Topology:
                 bus0=target_obj["repr"],
                 bus1=bus.name,
                 length=line_length,
-                kind=std_line_kind,
-                type_info=std_line_type.name,
+                kind="cable",
+                type_info=line_type,
+                num_parallel=number_parallel_lines
             )
 
             # add line to equipment changes
@@ -2227,6 +2212,7 @@ class Topology:
             )
 
             return target_obj["repr"]
+
     def to_graph(self):
         """
         Returns graph representation of the grid.
