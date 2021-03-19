@@ -1736,7 +1736,7 @@ def calculate_curtailment(
 
         grid_results_dir = Path(os.path.join( # TODO
             grid_dir,
-            "weekly_curtailment_v1",
+            "weekly_curtailment_v2",
         ))
 
         os.makedirs(
@@ -2010,7 +2010,7 @@ def calculate_curtailment(
         # check if everything was solved
         voltage_dev = results_helper_functions.voltage_diff(edisgo)
         issues = voltage_dev[
-            abs(voltage_dev) > 2e-3].dropna( # TODO
+            abs(voltage_dev) > 1e-2].dropna( # TODO
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
             print("Not all voltage issues solved on day {} of Grid {} with strategy {}.".format(
@@ -2031,7 +2031,7 @@ def calculate_curtailment(
             pass
         rel_load = results_helper_functions.relative_load(edisgo)
         issues = rel_load[
-            rel_load > 1+2e-3].dropna( # TODO
+            rel_load > 1+1e-2].dropna( # TODO
             how="all").dropna(axis=1, how="all")
         if not issues.empty:
             print("Not all overloading issues solved on day {} of Grid {} with strategy {}.".format(
