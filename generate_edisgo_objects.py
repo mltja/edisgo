@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 1 # TODO
+num_threads = 4 # TODO
 
 rng = default_rng(seed=5)
 
@@ -122,7 +122,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_object_files_v5", # TODO
+                    "eDisGo_object_files_v6", # TODO
                     scenario,
                     grid_id,
                     strategy,
