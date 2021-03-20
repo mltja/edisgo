@@ -1419,10 +1419,10 @@ def integrate_private_charging(
 
         edisgo.topology.switches_df.at["circuit_breaker_1", "branch"] = new_switch_line
 
-        edisgo = reinforce_transformers_and_lines(
-            edisgo,
-            by=0.3, # TODO
-        )
+        # edisgo = reinforce_transformers_and_lines(
+        #     edisgo,
+        #     by=0.3, # TODO
+        # )
 
         # grid_results_dir = Path(
         #     os.path.join(  # TODO: set dir
