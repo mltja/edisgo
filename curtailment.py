@@ -167,6 +167,7 @@ def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.05): # T
 
     if ts_curtail_loads.empty and ts_curtail_gens.empty:
         print("Nothing to curtail. I'm stuck in a while loop.")
+        print("breaker")
 
     return pypsa_network
 
@@ -1736,7 +1737,7 @@ def calculate_curtailment(
 
         grid_results_dir = Path(os.path.join( # TODO
             grid_dir,
-            "weekly_curtailment_v2",
+            "test",
         ))
 
         os.makedirs(
