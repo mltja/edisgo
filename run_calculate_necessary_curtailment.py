@@ -84,7 +84,7 @@ def run_calculate_curtailment(
         else:
             days = [None]
 
-        for day in [days[8]]: # TODO
+        for day in [days[1]]: # TODO
             stepwise_curtailment(
                 directory,
                 day,
