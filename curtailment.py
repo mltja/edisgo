@@ -2082,7 +2082,7 @@ def calculate_curtailment(
         edisgo.timeseries.residual_load.to_csv(
             os.path.join(grid_results_dir, "{}_{}_{}_residual_load_after_curtailment.csv".format(
                 scenario, strategy, day.strftime("%Y-%m-%d")))
-        )   
+        )
 
     except Exception as e:
         mv_grid_id = int(grid_dir.parts[-2])
