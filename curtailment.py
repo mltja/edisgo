@@ -1,4 +1,3 @@
-import gc
 import os
 import numpy as np
 import pandas as pd
@@ -2083,9 +2082,7 @@ def calculate_curtailment(
         edisgo.timeseries.residual_load.to_csv(
             os.path.join(grid_results_dir, "{}_{}_{}_residual_load_after_curtailment.csv".format(
                 scenario, strategy, day.strftime("%Y-%m-%d")))
-        )
-
-        gc.collect()
+        )   
 
     except Exception as e:
         mv_grid_id = int(grid_dir.parts[-2])
