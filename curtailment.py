@@ -166,8 +166,7 @@ def _curtail(pypsa_network, gens, loads, time_steps, curtailment_step=0.05): # T
             tmp - curtailment_step * tmp)
 
     if ts_curtail_loads.empty and ts_curtail_gens.empty:
-        print("Nothing to curtail. I'm stuck in a while loop.")
-        print("breaker")
+        print("Nothing to curtail.")
 
     return pypsa_network
 

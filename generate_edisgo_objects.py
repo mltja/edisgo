@@ -122,7 +122,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_object_files_no_reinforcement", # TODO
+                    "eDisGo_object_files_only_lv_reinforcement", # TODO
                     scenario,
                     grid_id,
                     strategy,
