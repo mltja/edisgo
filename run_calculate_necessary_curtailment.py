@@ -67,7 +67,7 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        mode = "days" # TODO
+        mode = "weeks" # TODO
 
         if mode == "days":
             ts_count = 96
