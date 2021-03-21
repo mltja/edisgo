@@ -49,7 +49,7 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["1690"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual", "no_charging"] # TODO
 
@@ -122,7 +122,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_object_files_only_lv_reinforcement", # TODO
+                    "eDisGo_object_files_20_percent_reinforcement", # TODO
                     scenario,
                     grid_id,
                     strategy,
