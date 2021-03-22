@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 20 # TODO
+num_threads = 24 # TODO
 
 rng = default_rng(seed=5)
 
@@ -49,7 +49,7 @@ scenarios = [ # TODO
 
 sub_dir = r"eDisGo_charging_time_series"
 
-grid_ids = ["176", "177", "1690", "1811", "2534"]#["176", "177", "1056", "1690", "1811", "2534"] # TODO
+grid_ids = ["176", "177", "1056", "1690", "1811", "2534"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual", "no_charging"] # TODO
 
@@ -189,11 +189,18 @@ def generate_edisgo_objects(
 
                 edisgo.aggregate_components()
 
-                edisgo = cc.reinforce_transformers_and_lines(
-                    edisgo,
-                    by=0.3,  # TODO
-                    mode="mvlv",  # TODO
-                )
+                if grid_id == "1056":
+                    edisgo = cc.reinforce_transformers_and_lines(
+                        edisgo,
+                        by=0.3,  # TODO
+                        mode="lv",  # TODO
+                    )
+                else:
+                    edisgo = cc.reinforce_transformers_and_lines(
+                        edisgo,
+                        by=0.3,  # TODO
+                        mode="mvlv",  # TODO
+                    )
 
                 gc.collect()
 

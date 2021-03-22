@@ -1064,18 +1064,26 @@ def integrate_public_charging(
             freq='H',
         )
 
+        # https://www.bmwi.de/Redaktion/DE/Publikationen/Energie/erneuerbare-energien-in-zahlen-2019.pdf?__blob=publicationFile&v=6#page=16
+
         p_bio = 9983  # MW
         e_bio = 50009  # GWh
 
         vls_bio = e_bio / (p_bio / 1000)
 
-        share = vls_bio / 8760
+        share_bio = vls_bio / 8760
+
+        p_hydro = 5595  # MW
+        e_hydro = 20058  # GWh
+
+        vls_hydro = e_hydro / (p_hydro / 1000)
+
+        share_hydro = vls_hydro / 8760
 
         timeseries_generation_dispatchable = pd.DataFrame(
             {
-                "biomass": [share] * len_timeindex,
-                "coal": [1] * len_timeindex,
-                "other": [1] * len_timeindex,
+                "biomass": [share_bio] * len_timeindex,
+                "other": [share_hydro] * len_timeindex,
             },
             index=timeindex,
         )
