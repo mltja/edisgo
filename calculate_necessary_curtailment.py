@@ -1444,7 +1444,7 @@ def integrate_private_charging(
         edisgo = reinforce_transformers_and_lines(
             edisgo,
             by=0.3,  # TODO
-            mode="mvlv",  # TODO
+            mode="lv",  # TODO
         )
 
         # grid_results_dir = Path(
