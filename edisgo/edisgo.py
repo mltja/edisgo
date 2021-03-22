@@ -559,52 +559,52 @@ class EDisGo:
             :attr:`~.network.topology.Topology.charging_points_df`.
 
         """
-        # aggregate generators at the same bus
-        if mode is "by_component_type" or "by_load_and_generation":
-            if not self.topology.generators_df.empty:
-                gens_groupby = self.topology.generators_df.groupby(
-                    aggregate_generators_by_cols)
-                naming = "Generators_{}"
-                # set up new generators_df
-                gens_df_grouped = gens_groupby.sum().reset_index()
-                gens_df_grouped["name"] = gens_df_grouped.apply(
-                    lambda _: naming.format(
-                        "_".join(_.loc[aggregate_generators_by_cols])),
-                    axis=1)
-                gens_df_grouped["control"] = "PQ"
-                gens_df_grouped["control"] = "misc"
-                if "weather_cell_id" in gens_df_grouped.columns:
-                    gens_df_grouped.drop(
-                        columns=["weather_cell_id"], inplace=True)
-                self.topology.generators_df = gens_df_grouped.set_index("name")
-                # set up new generator time series
-                groups = gens_groupby.groups
-                if isinstance(list(groups.keys())[0], tuple):
-                    self.timeseries.generators_active_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format("_".join(k)):
-                                 self.timeseries.generators_active_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
-                    self.timeseries.generators_reactive_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format("_".join(k)):
-                                 self.timeseries.generators_reactive_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
-                else:
-                    self.timeseries.generators_active_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format(k):
-                                 self.timeseries.generators_active_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
-                    self.timeseries.generators_reactive_power = pd.concat(
-                        [pd.DataFrame(
-                            {naming.format(k):
-                                 self.timeseries.generators_reactive_power.loc[
-                                 :, v].sum(axis=1)})
-                            for k, v in groups.items()], axis=1)
+        # # aggregate generators at the same bus
+        # if mode is "by_component_type" or "by_load_and_generation":
+        #     if not self.topology.generators_df.empty:
+        #         gens_groupby = self.topology.generators_df.groupby(
+        #             aggregate_generators_by_cols)
+        #         naming = "Generators_{}"
+        #         # set up new generators_df
+        #         gens_df_grouped = gens_groupby.sum().reset_index()
+        #         gens_df_grouped["name"] = gens_df_grouped.apply(
+        #             lambda _: naming.format(
+        #                 "_".join(_.loc[aggregate_generators_by_cols])),
+        #             axis=1)
+        #         gens_df_grouped["control"] = "PQ"
+        #         gens_df_grouped["control"] = "misc"
+        #         if "weather_cell_id" in gens_df_grouped.columns:
+        #             gens_df_grouped.drop(
+        #                 columns=["weather_cell_id"], inplace=True)
+        #         self.topology.generators_df = gens_df_grouped.set_index("name")
+        #         # set up new generator time series
+        #         groups = gens_groupby.groups
+        #         if isinstance(list(groups.keys())[0], tuple):
+        #             self.timeseries.generators_active_power = pd.concat(
+        #                 [pd.DataFrame(
+        #                     {naming.format("_".join(k)):
+        #                          self.timeseries.generators_active_power.loc[
+        #                          :, v].sum(axis=1)})
+        #                     for k, v in groups.items()], axis=1)
+        #             self.timeseries.generators_reactive_power = pd.concat(
+        #                 [pd.DataFrame(
+        #                     {naming.format("_".join(k)):
+        #                          self.timeseries.generators_reactive_power.loc[
+        #                          :, v].sum(axis=1)})
+        #                     for k, v in groups.items()], axis=1)
+        #         else:
+        #             self.timeseries.generators_active_power = pd.concat(
+        #                 [pd.DataFrame(
+        #                     {naming.format(k):
+        #                          self.timeseries.generators_active_power.loc[
+        #                          :, v].sum(axis=1)})
+        #                     for k, v in groups.items()], axis=1)
+        #             self.timeseries.generators_reactive_power = pd.concat(
+        #                 [pd.DataFrame(
+        #                     {naming.format(k):
+        #                          self.timeseries.generators_reactive_power.loc[
+        #                          :, v].sum(axis=1)})
+        #                     for k, v in groups.items()], axis=1)
 
         # aggregate conventional loads at the same bus and charging points
         # at the same bus separately
