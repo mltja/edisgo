@@ -1443,7 +1443,7 @@ def integrate_private_charging(
 
         edisgo = reinforce_transformers_and_lines(
             edisgo,
-            by=0.2,  # TODO
+            by=0.3,  # TODO
             mode="mvlv",  # TODO
         )
 
