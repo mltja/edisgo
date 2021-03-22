@@ -20,13 +20,16 @@ from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
 from edisgo.edisgo import import_edisgo_from_files
+from numpy.random import default_rng
 
 
 gc.collect()
 
 os.sched_setaffinity(0,range(1000)) # TODO
 
-num_threads = 16 # TODO
+rng = default_rng(seed=5)
+
+num_threads = 8 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -45,7 +48,7 @@ scenarios = [ # TODO
 # "Szenarette_Kleinwagen_2050",
 # "Mobility_Transition_2050",
 
-grid_ids = ["1056"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["177", "1690", "1811", "176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
@@ -53,6 +56,8 @@ data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
+
+rng.shuffle(data_dirs)
 
 
 def run_calculate_curtailment(
