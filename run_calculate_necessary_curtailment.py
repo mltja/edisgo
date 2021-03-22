@@ -33,7 +33,7 @@ data_dir = Path( # TODO: set dir
     r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
-sub_dir = r"eDisGo_object_files_only_lv_reinforcement" # TODO
+sub_dir = r"eDisGo_object_files" # TODO
 
 scenarios = [ # TODO
     # "NEP_C_2035",
