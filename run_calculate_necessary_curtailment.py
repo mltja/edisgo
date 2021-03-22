@@ -36,9 +36,9 @@ data_dir = Path( # TODO: set dir
 sub_dir = r"eDisGo_object_files" # TODO
 
 scenarios = [ # TODO
-    # "NEP_C_2035",
+    "NEP_C_2035",
     # "Reference_2050",
-    "Electrification_2050",
+    # "Electrification_2050",
     # "Electrification_2050_sensitivity_low_work",
 ]
 
