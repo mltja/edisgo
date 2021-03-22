@@ -189,6 +189,12 @@ def generate_edisgo_objects(
 
                 edisgo.aggregate_components()
 
+                edisgo = cc.reinforce_transformers_and_lines(
+                    edisgo,
+                    by=0.3,  # TODO
+                    mode="lv",  # TODO
+                )
+
                 gc.collect()
 
                 print(
