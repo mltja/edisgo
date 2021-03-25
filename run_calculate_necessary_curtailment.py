@@ -25,24 +25,24 @@ from numpy.random import default_rng
 
 gc.collect()
 
-os.sched_setaffinity(0,range(1000)) # TODO
+# os.sched_setaffinity(0,range(1000)) # TODO
 
 rng = default_rng(seed=5)
 
-num_threads = 3 # TODO
+num_threads = 1 # TODO
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_object_files_final" # TODO
 
 scenarios = [ # TODO
     "NEP_C_2035",
-    "Reference_2050",
-    "Electrification_2050",
-    "Electrification_2050_sensitivity_low_work",
+    # "Reference_2050",
+    # "Electrification_2050",
+    # "Electrification_2050_sensitivity_low_work",
 ]
 
 # "Szenarette_Kleinwagen_2050",
@@ -57,7 +57,7 @@ data_dirs = [
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
-rng.shuffle(data_dirs)
+# rng.shuffle(data_dirs) # TODO
 
 
 def run_calculate_curtailment(
