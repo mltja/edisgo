@@ -29,7 +29,7 @@ gc.collect()
 
 rng = default_rng(seed=5)
 
-num_threads = 3 # TODO
+num_threads = 16 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -39,8 +39,8 @@ data_dir = Path( # TODO: set dir
 sub_dir = r"eDisGo_object_files_final" # TODO
 
 scenarios = [ # TODO
-    # "NEP_C_2035",
-    # "Reference_2050",
+    "NEP_C_2035",
+    "Reference_2050",
     "Electrification_2050",
     "Electrification_2050_sensitivity_low_work",
 ]
@@ -48,7 +48,7 @@ scenarios = [ # TODO
 # "Szenarette_Kleinwagen_2050",
 # "Mobility_Transition_2050",
 
-grid_ids = ["176"]#["2534", "177", "1056", "1690", "1811", "176"] # TODO
+grid_ids = ["177", "1056", "1690", "1811", "2534"]#, "176"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
