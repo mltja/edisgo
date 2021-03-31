@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 24 # TODO
+num_threads = 6 # TODO
 
 rng = default_rng(seed=5)
 
@@ -39,9 +39,9 @@ ding0_dir = Path( # TODO: set dir
 
 scenarios = [ # TODO
     "Electrification_2050_simbev_run",
-    "Electrification_2050_sensitivity_low_work_simbev_run",
-    "Reference_2050_simbev_run",
-    "NEP_C_2035_simbev_run",
+    # "Electrification_2050_sensitivity_low_work_simbev_run",
+    # "Reference_2050_simbev_run",
+    # "NEP_C_2035_simbev_run",
 ]
 
 # "Mobility_Transition_2050_simbev_run",
@@ -122,7 +122,7 @@ def generate_edisgo_objects(
             export_dir = Path(
                 os.path.join(
                     data_dir,
-                    "eDisGo_object_files_final", # TODO
+                    "eDisGo_object_files_full", # TODO
                     scenario,
                     grid_id,
                     strategy,
@@ -143,6 +143,7 @@ def generate_edisgo_objects(
                     date=start_date,
                     generator_scenario="ego100",
                     days=days,
+                    mode="full", # TODO
                 )
 
                 gc.collect()
@@ -273,6 +274,8 @@ def generate_edisgo_objects(
             edisgo.save(
                 directory=export_dir,
             )
+
+            edisgo.timeseries.residual_load.to_csv(os.path.join(export_dir, "residual_load.csv"))
 
             print(
                 "Scenario {} in grid {} with strategy {} has been saved.".format(
