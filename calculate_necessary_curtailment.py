@@ -1054,6 +1054,7 @@ def integrate_public_charging(
         date="2011-01-01",
         generator_scenario="ego100",
         days=None,
+        mode="full",
 ):
     try:
         len_timeindex = 8760
@@ -1141,24 +1142,36 @@ def integrate_public_charging(
             edisgo.timeseries._loads_active_power[col].max() for col in edisgo.topology.loads_df.index.tolist()
         ]
 
-        # timeindex = pd.date_range(
-        #     date,
-        #     periods=len_timeindex * 4,
-        #     freq="15min",
-        # )
-
-        timeindeces = [0] * 2
-
-        len_week = 96 * 7
-
-        for count, day in enumerate(days):
-            timeindeces[count] = pd.date_range(
-                day,
-                periods=len_week,
+        if mode == "full":
+            timeindex = pd.date_range(
+                date,
+                periods=len_timeindex * 4,
                 freq="15min",
             )
+        elif mode == "weeks":
+            timeindeces = [0] * 2
 
-        timeindex = pd.DatetimeIndex(np.sort(np.concatenate((timeindeces[0], timeindeces[1]), axis=None), axis=0))
+            len_week = 96 * 7
+
+            for count, day in enumerate(days):
+                timeindeces[count] = pd.date_range(
+                    day,
+                    periods=len_week,
+                    freq="15min",
+                )
+
+            timeindex = pd.DatetimeIndex(
+                np.sort(
+                    np.concatenate(
+                        (
+                            timeindeces[0],
+                            timeindeces[1],
+                        ),
+                        axis=None,
+                    ),
+                    axis=0,
+                )
+            )
 
         edisgo.timeseries.timeindex = timeindex
 
