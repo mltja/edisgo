@@ -92,5 +92,5 @@ for idx, ags_list in list(zip(df_ags_in_grid.index.tolist(), df_ags_in_grid.ags_
         print(scenario, "in", idx, "is done")
     print(idx, "is done")
 
-df_total_demand.to_csv(os.path.join(base_dir, "total_charging_demand_per_grid_per_week.csv")
-df_flex_demand.to_csv(os.path.join(base_dir, "flex_charging_demand_per_grid_per_week.csv")
+df_total_demand.to_csv(os.path.join(base_dir, "total_charging_demand_per_grid_per_week.csv"))
+df_flex_demand.to_csv(os.path.join(base_dir, "flex_charging_demand_per_grid_per_week.csv"))
