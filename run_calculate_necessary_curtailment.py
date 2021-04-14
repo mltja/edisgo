@@ -29,7 +29,7 @@ gc.collect()
 
 rng = default_rng(seed=5)
 
-num_threads = 2 # TODO
+num_threads = 5 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -50,7 +50,7 @@ scenarios = [ # TODO
 
 grid_ids = ["176"]#["177", "1056", "1690", "1811", "2534", "176"] # TODO
 
-strategies = ["dumb"]#, "grouped", "reduced", "residual"] # TODO
+strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
 data_dirs = [
     Path(os.path.join(data_dir, sub_dir, scenario, grid_id, strategy))
