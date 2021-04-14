@@ -32,8 +32,8 @@ rng = default_rng(seed=5)
 num_threads = 1 # TODO
 
 data_dir = Path( # TODO: set dir
-    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 sub_dir = r"eDisGo_object_files_final" # TODO
