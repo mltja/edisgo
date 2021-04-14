@@ -29,7 +29,7 @@ gc.collect()
 
 rng = default_rng(seed=5)
 
-num_threads = 1 # TODO
+num_threads = 2 # TODO
 
 data_dir = Path( # TODO: set dir
     # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
@@ -42,7 +42,7 @@ scenarios = [ # TODO
     # "NEP_C_2035",
     # "Reference_2050",
     "Electrification_2050",
-    # "Electrification_2050_sensitivity_low_work",
+    "Electrification_2050_sensitivity_low_work",
 ]
 
 # "Szenarette_Kleinwagen_2050",
