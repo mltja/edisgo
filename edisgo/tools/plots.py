@@ -820,7 +820,7 @@ def mv_grid_topology(
                 [],
                 c="c",
                 s=100,
-                label="MS-NS-USW",
+                label="Ortsnetzstation",
             ),
             plt.scatter(
                 [],
