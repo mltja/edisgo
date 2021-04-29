@@ -18,16 +18,16 @@ warnings.filterwarnings("ignore")
 
 gc.collect()
 
-num_threads = 6
+num_threads = 1
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
 )
 
 ding0_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
+    r"\\192.168.10.221\Daten_flexibel_01\ding0\20200812180021_merge",
+    # r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_daten_flexibel_01/ding0/20200812180021_merge",
 )
 
 scenarios = [
@@ -53,7 +53,7 @@ data_tuples = [
 if __name__ == "__main__":
     if num_threads == 1:
         for data_dir in data_dirs:
-            cEV.charging(
+            cEV.charging_existing_edisgo_object(
                 data_dir,
                 ding0_dir,
             )

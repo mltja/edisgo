@@ -7,6 +7,7 @@ import gc
 import timeseries_import
 
 from edisgo import EDisGo
+from edisgo.edisgo import import_edisgo_from_files
 from edisgo.io.simBEV_import import get_grid_data, hasNumbers
 from pathlib import Path
 from time import perf_counter
@@ -14,9 +15,49 @@ from itertools import cycle
 from datetime import timedelta
 
 
+def charging_existing_edisgo_object(data_dir, edisgo_dir, strategies=["optimize"]):
+
+    setup_dict = get_setup(data_dir)
+
+    df_grid_data = get_grid_data()
+    grid_idx = 0
+    grid_id = 1056
+
+    print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
+
+    ags_list = df_grid_data.ags.at[grid_idx]
+
+    ags_list.sort()
+
+    ags_dirs = [
+        Path(os.path.join(data_dir, ags)) for ags in ags_list
+    ]
+
+    t1 = perf_counter()
+
+    gdf_cps_total, df_standing_total = get_grid_cps_and_charging_processes(
+        ags_dirs,
+        setup_dict["eta_CP"],
+    )
+
+    # FIXME
+    df_standing_total.netto_charging_capacity = df_standing_total.netto_charging_capacity.astype(float) \
+        .divide(setup_dict["eta_CP"]).round(1).multiply(setup_dict["eta_CP"])
+
+    print("It took {} seconds to read in the data for grid {} for scenario {}.".format(
+        round(perf_counter() - t1, 1), grid_id, data_dir.parts[-2]
+    ))
+
+    t1 = perf_counter()
+
+    #edisgo = import_edisgo_from_files(edisgo_dir)
+    return gdf_cps_total, df_standing_total
+
+
 def charging(
         data_dir,
         ding0_dir,
+        strategies
 ):
     try:
         setup_dict = get_setup(data_dir)
@@ -81,7 +122,7 @@ def charging(
                     data_dir,
                 )
 
-                for strategy in ["dumb", "reduced", "grouped"]:
+                for strategy in strategies:
                     if strategy == "dumb" or (strategy == "reduced" and (use_case == 3 or use_case == 4)):
                         t1 = perf_counter()
                         grid_independent_charging(
@@ -123,38 +164,40 @@ def charging(
 
             del edisgo
 
-            df_residual_load = get_residual_load_with_evs(
-                s_residual_load,
-                setup_dict,
-                data_dir,
-                grid_id,
-            )
-
             gc.collect()
 
-            strategy = "residual"
+            if "residual" in strategies:
 
-            use_cases = [3, 4]
-
-            df_standing_data = df_standing_total.copy()[df_standing_total.use_case.isin(use_cases)]
-            gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case.isin(use_cases)]
-
-            t1 = perf_counter()
-            residual_load_charging(
-                df_standing_data,
-                df_residual_load,
-                gdf_cp_data,
-                setup_dict,
-                grid_id,
-                data_dir,
-                strategy=strategy,
-            )
-            print(
-                "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
-                "grid {} for scenario {} with charging strategy {}.".format(
-                    grid_id, data_dir.parts[-2], strategy,
+                df_residual_load = get_residual_load_with_evs(
+                    s_residual_load,
+                    setup_dict,
+                    data_dir,
+                    grid_id,
                 )
-            )
+
+                strategy = "residual"
+
+                use_cases = [3, 4]
+
+                df_standing_data = df_standing_total.copy()[df_standing_total.use_case.isin(use_cases)]
+                gdf_cp_data = gdf_cps_total.copy()[gdf_cps_total.use_case.isin(use_cases)]
+
+                t1 = perf_counter()
+                residual_load_charging(
+                    df_standing_data,
+                    df_residual_load,
+                    gdf_cp_data,
+                    setup_dict,
+                    grid_id,
+                    data_dir,
+                    strategy=strategy,
+                )
+                print(
+                    "It took {} seconds to generate the time series for".format(round(perf_counter() - t1, 1)),
+                    "grid {} for scenario {} with charging strategy {}.".format(
+                        grid_id, data_dir.parts[-2], strategy,
+                    )
+                )
             gc.collect()
 
     except:
@@ -1098,7 +1141,7 @@ def get_grid_cps_and_charging_processes(
                     raise ValueError("Use case {} is not valid.".format(use_case))
 
                 gdf_cps = gpd.read_file(
-                    cp_paths[count_use_cases],
+                    str(cp_paths[count_use_cases]),
                 )
 
                 if "index" in gdf_cps.columns:
@@ -1391,3 +1434,88 @@ def get_connection_rating_factor(
             return - (0.55 / 700) * p + (173 / 140) # f_upper=0.45
             # return - (0.5 / 700) * p + (17 / 14) # f_upper=0.5
 
+
+def get_ev_data(ev_data):
+    """
+    Method to extract flexibility energy bands for ev charging processes. It
+    can be chosen for which charging events the flexibility should be determined.
+    Therefore it is necessary to specify the location one wants to look at.
+
+    :param data_dir:
+    :return:
+    """
+    name = 'test'
+    ev_tech_data = pd.DataFrame(columns=[
+        'charging_power', 'charging_efficiency'],
+                                index=[name])
+    ev_tech_data.loc[name, 'charging_efficiency'] = 0.9
+    ev_tech_data.loc[name, 'charging_power'] = \
+        ev_data['netto_charging_capacity'].iloc[0]/\
+        ev_tech_data.loc[name, 'charging_efficiency']
+
+    ev_data['charging_time_full_load'] = \
+        ev_data['chargingdemand'] / ev_data[
+            'netto_charging_capacity'] * 4
+
+    return get_ev_flexibility_bands(ev_data, ev_tech_data)
+
+
+def get_ev_flexibility_bands(charging_events, ev_tech_data):
+    energy_level = 0
+    time_step = 0
+    week_pre = 0
+    time_steps_per_week = 24 * 7 * 4
+    energy_band = \
+        pd.DataFrame(index=[i for i in range(5*time_steps_per_week + 1)],
+                     columns=['lower', 'upper', 'power'])
+    for _, charging_event in charging_events.iterrows():
+        week = np.floor(charging_event['charge_start'] / time_steps_per_week)
+        if week > 3:
+            break
+        if week - week_pre > 0:
+            week_pre = week
+            energy_level = 0
+        energy_band.loc[time_step:charging_event['charge_start'] - 1, ['lower',
+                                                                       'upper']] = \
+            energy_level
+        charging_time = int(np.ceil(charging_event['charging_time_full_load']))
+        charging_fraction = charging_event['charging_time_full_load'] % 1
+        # lower band
+        energy_band.loc[charging_event['charge_start']:
+                        charging_event['charge_end'] - charging_time,
+        'lower'] = \
+            energy_level
+        if charging_fraction != 0:
+            energy_level_tmp = [
+                energy_level + (i + charging_fraction) * charging_event[
+                    'netto_charging_capacity'] / 4
+                for i in range(charging_time)]
+        else:
+            energy_level_tmp = [energy_level + (i + 1) * charging_event[
+                'netto_charging_capacity'] / 4
+                                for i in range(charging_time)]
+        energy_band.loc[
+            charging_event['charge_end'] - charging_time + 1:charging_event[
+                'charge_end'], 'lower'] = energy_level_tmp
+        # upper band
+        energy_band.loc[charging_event['charge_start']:
+                        charging_event['charge_start'] + charging_time - 2,
+        'upper'] \
+            = [energy_level + (i + 1) * charging_event[
+            'netto_charging_capacity'] / 4
+               for i in range(charging_time - 1)]
+
+        energy_level += charging_event['chargingdemand']
+        energy_band.loc[charging_event['charge_start'] + charging_time - 1:
+                        charging_event['charge_end'], 'upper'] = energy_level
+        # move to next event
+        time_step = charging_event['charge_end'] + 1
+        energy_band.loc[charging_event['charge_start']:
+                        charging_event['charge_end'], 'power'] = \
+            ev_tech_data.loc['test', 'charging_power']
+    energy_band_week = \
+        energy_band.loc[time_steps_per_week:2*time_steps_per_week+1].reset_index().drop(columns=['index'])
+    energy_band_week = energy_band_week.fillna(0).astype(float)
+    energy_band_week.loc[energy_band_week.lower.idxmax():, ['upper', 'lower']] = \
+        energy_band_week.lower.max()
+    return energy_band_week

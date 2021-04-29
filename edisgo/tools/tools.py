@@ -496,3 +496,61 @@ def assign_voltage_level_to_component(edisgo_obj, df):
         axis=1,
     )
     return df
+
+
+def get_timeseries_per_node(edisgo, component):
+    """
+    Helper function to get nodal active and reactive timeseries of the given
+    component
+
+    :param edisgo:
+    :param component: str
+            type of component for which the nodal timeseries are obtained,
+            e.g. 'load'
+    :return: pandas.DataFrame
+    """
+    nodal_active_power_all_buses = \
+        pd.DataFrame(columns=edisgo.topology.buses_df.index)
+    nodal_reactive_power_all_buses = pd.DataFrame(
+        columns=edisgo.topology.buses_df.index)
+    bus_component_dict = \
+        getattr(edisgo.topology, component + 's_df')['bus'].to_dict()
+    nodal_active_power = \
+        getattr(edisgo.timeseries, component + 's_active_power').rename(
+            columns=bus_component_dict)
+    nodal_reactive_power = \
+        getattr(edisgo.timeseries, component + 's_reactive_power').rename(
+            columns=bus_component_dict)
+    nodal_active_power = nodal_active_power.groupby(nodal_active_power.columns,
+                                                    axis=1).sum()
+    nodal_reactive_power = nodal_reactive_power.groupby(
+        nodal_reactive_power.columns, axis=1).sum()
+    nodal_active_power_all_buses[nodal_active_power.columns] = \
+        nodal_active_power
+    nodal_reactive_power_all_buses[nodal_reactive_power.columns] = \
+        nodal_reactive_power
+    nodal_active_power_all_buses.fillna(0, inplace=True)
+    nodal_reactive_power_all_buses.fillna(0, inplace=True)
+    return nodal_active_power_all_buses, nodal_reactive_power_all_buses
+
+
+def get_nodal_residual_load(edisgo):
+    """
+    Method to get nodal residual load being the sum of all supply and demand
+    units at that specific bus.
+
+    :param edisgo:
+    :return: pd.DataFrame() with indices being timesteps and column names
+    being the bus names
+    """
+    nodal_active_load, nodal_reactive_load = \
+        get_timeseries_per_node(edisgo, 'load')
+    nodal_active_generation, nodal_reactive_generation = \
+        get_timeseries_per_node(edisgo, 'generator')
+    nodal_active_storage, nodal_reactive_storage = \
+        get_timeseries_per_node(edisgo, 'storage_unit')
+    nodal_active_power = \
+        nodal_active_generation + nodal_active_storage - nodal_active_load
+    nodal_reactive_power = \
+        nodal_reactive_generation + nodal_reactive_storage - nodal_reactive_load
+    return nodal_active_power, nodal_reactive_power
