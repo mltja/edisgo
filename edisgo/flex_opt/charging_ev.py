@@ -1435,13 +1435,15 @@ def get_connection_rating_factor(
             # return - (0.5 / 700) * p + (17 / 14) # f_upper=0.5
 
 
-def get_ev_data(ev_data):
+def get_ev_timeseries(ev_data, mode='annual', **kwargs):
     """
     Method to extract flexibility energy bands for ev charging processes. It
     can be chosen for which charging events the flexibility should be determined.
     Therefore it is necessary to specify the location one wants to look at.
 
-    :param data_dir:
+    :param ev_data:
+    :param mode: str
+            so far 'annual', 'single_week' and 'manual' are specified
     :return:
     """
     name = 'test'
@@ -1457,20 +1459,37 @@ def get_ev_data(ev_data):
         ev_data['chargingdemand'] / ev_data[
             'netto_charging_capacity'] * 4
 
-    return get_ev_flexibility_bands(ev_data, ev_tech_data)
+    return get_ev_flexibility_bands(ev_data, ev_tech_data, mode, **kwargs)
 
 
-def get_ev_flexibility_bands(charging_events, ev_tech_data):
+def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
+                             **kwargs):
     energy_level = 0
     time_step = 0
     week_pre = 0
     time_steps_per_week = 24 * 7 * 4
-    energy_band = \
-        pd.DataFrame(index=[i for i in range(5*time_steps_per_week + 1)],
-                     columns=['lower', 'upper', 'power'])
+    if mode == 'annual':
+        energy_band = \
+            pd.DataFrame(index=[i for i in range(5*time_steps_per_week + 1)],
+                         columns=['lower', 'upper', 'power'])
+        last_week = 3
+        start_week = 1
+    elif mode == 'single_week':
+        last_week = 1
+        energy_band = \
+            pd.DataFrame(index=[i for i in range(time_steps_per_week + 1)],
+                         columns=['lower', 'upper', 'power'])
+        start_week = 0
+    else:
+        number_of_weeks = kwargs.get('number_of_weeks')
+        last_week = kwargs.get('last_week')
+        start_week = kwargs.het('start_week')
+        energy_band = \
+            pd.DataFrame(index=[i for i in range(number_of_weeks * time_steps_per_week + 1)],
+                         columns=['lower', 'upper', 'power'])
     for _, charging_event in charging_events.iterrows():
         week = np.floor(charging_event['charge_start'] / time_steps_per_week)
-        if week > 3:
+        if week > last_week:
             break
         if week - week_pre > 0:
             week_pre = week
@@ -1514,7 +1533,9 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data):
                         charging_event['charge_end'], 'power'] = \
             ev_tech_data.loc['test', 'charging_power']
     energy_band_week = \
-        energy_band.loc[time_steps_per_week:2*time_steps_per_week+1].reset_index().drop(columns=['index'])
+        energy_band.loc[
+            start_week*time_steps_per_week:(start_week+1)*
+            time_steps_per_week].reset_index().drop(columns=['index'])
     energy_band_week = energy_band_week.fillna(0).astype(float)
     energy_band_week.loc[energy_band_week.lower.idxmax():, ['upper', 'lower']] = \
         energy_band_week.lower.max()

@@ -23,7 +23,7 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
     # DEFINE SETS AND FIX PARAMETERS
     model.bus_set = pm.Set(initialize=edisgo.topology.buses_df.index)
     model.slack_bus = pm.Set(initialize=edisgo.topology.slack_df.bus)
-    if timesteps:
+    if timesteps is not None:
         model.time_set = pm.Set(initialize=timesteps)
     else:
         model.time_set = pm.Set(initialize=edisgo.timeseries.timeindex)
@@ -79,12 +79,12 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
         model.charging_ev = \
             pm.Var(model.charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
-                   (0, m.charging_point_data.loc[t, 'charging_power_' + b]))
+                   (0, m.energy_band_charging_points.loc[t, 'power_' + b]))
         model.energy_level_ev = \
             pm.Var(model.charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
-                   (m.energy_band_charging_point.loc[t, 'lower_' + b],
-                    m.energy_band_charging_point.loc[t, 'upper_' + b]))
+                   (m.energy_band_charging_points.loc[t, 'lower_' + b],
+                    m.energy_band_charging_points.loc[t, 'upper_' + b]))
 
     # DEFINE CONSTRAINTS
     model.LoadFactorMin = pm.Constraint(model.time_set, rule=load_factor_min)
@@ -283,8 +283,7 @@ def charging_ev(model, charging_point, time):
     """
     return model.energy_level_ev[charging_point, time] == \
            model.energy_level_ev[charging_point, time - 1] + \
-           model.charging_point_data.loc[time, 'charging_efficiency_' +
-                                         charging_point ] * \
+           model.charging_efficiency * \
            model.charging_ev[charging_point, time - 1]
 
 

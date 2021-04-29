@@ -13,6 +13,10 @@ sns.set()
 
 edisgo_dir = r'\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_object_files_full\Electrification_2050\1056\reduced'
 edisgo_obj = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
+flexibility_bands_home = \
+    pd.read_csv('grid_data/ev_flexibility_bands.csv', index_col=0)
+flexibility_bands_work = \
+    pd.read_csv('grid_data/ev_flexibility_bands.csv', index_col=0)
 
 timesteps = edisgo_obj.timeseries.timeindex[0:7*24*4]
 

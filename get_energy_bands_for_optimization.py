@@ -1,4 +1,4 @@
-from edisgo.flex_opt.charging_ev import get_ev_data
+from edisgo.flex_opt.charging_ev import get_ev_timeseries
 from pathlib import Path
 import edisgo.flex_opt.charging_ev as cEV
 import pandas as pd
@@ -24,7 +24,7 @@ for idx in cp_indices:
     weekly_bands_cp = pd.DataFrame()
     for sub_index in cp_sub_indices:
         charging_events = charging.loc[charging.cp_sub_idx == sub_index]
-        weekly_energy_band = get_ev_data(charging_events)
+        weekly_energy_band = get_ev_timeseries(charging_events)
         weekly_bands_cp = pd.concat([weekly_bands_cp, weekly_energy_band], axis=1)
     if len(cp_sub_indices) > 1:
         weekly_bands['upper_' + str(idx)] = weekly_bands_cp['upper'].sum(axis=1)
