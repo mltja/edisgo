@@ -498,7 +498,7 @@ def assign_voltage_level_to_component(edisgo_obj, df):
     return df
 
 
-def get_timeseries_per_node(edisgo, component):
+def get_timeseries_per_node(edisgo, component, component_names=None):
     """
     Helper function to get nodal active and reactive timeseries of the given
     component
@@ -507,6 +507,9 @@ def get_timeseries_per_node(edisgo, component):
     :param component: str
             type of component for which the nodal timeseries are obtained,
             e.g. 'load'
+    :param component_names: list of str
+            names of component that should be taken into account. For
+            optimisation only use inflexible units.
     :return: pandas.DataFrame
     """
     nodal_active_power_all_buses = \
@@ -515,12 +518,14 @@ def get_timeseries_per_node(edisgo, component):
         columns=edisgo.topology.buses_df.index)
     bus_component_dict = \
         getattr(edisgo.topology, component + 's_df')['bus'].to_dict()
+    if component_names is None:
+        component_names = getattr(edisgo.topology, component + 's_df').index
     nodal_active_power = \
-        getattr(edisgo.timeseries, component + 's_active_power').rename(
-            columns=bus_component_dict)
+        getattr(edisgo.timeseries, component + 's_active_power').loc[
+            component_names].rename(columns=bus_component_dict)
     nodal_reactive_power = \
-        getattr(edisgo.timeseries, component + 's_reactive_power').rename(
-            columns=bus_component_dict)
+        getattr(edisgo.timeseries, component + 's_reactive_power').loc[
+            component_names].rename(columns=bus_component_dict)
     nodal_active_power = nodal_active_power.groupby(nodal_active_power.columns,
                                                     axis=1).sum()
     nodal_reactive_power = nodal_reactive_power.groupby(
@@ -534,7 +539,7 @@ def get_timeseries_per_node(edisgo, component):
     return nodal_active_power_all_buses, nodal_reactive_power_all_buses
 
 
-def get_nodal_residual_load(edisgo):
+def get_nodal_residual_load(edisgo, **kwargs):
     """
     Method to get nodal residual load being the sum of all supply and demand
     units at that specific bus.
@@ -543,14 +548,22 @@ def get_nodal_residual_load(edisgo):
     :return: pd.DataFrame() with indices being timesteps and column names
     being the bus names
     """
+    considered_loads = kwargs.get('considered_loads', None)
+    considered_generators = kwargs.get('considered_generators', None)
+    considered_storage = kwargs.get('considered_storage', None)
+    considered_charging_points = kwargs.get('considered_charging_points', None)
     nodal_active_load, nodal_reactive_load = \
-        get_timeseries_per_node(edisgo, 'load')
+        get_timeseries_per_node(edisgo, 'load', considered_loads)
     nodal_active_generation, nodal_reactive_generation = \
-        get_timeseries_per_node(edisgo, 'generator')
+        get_timeseries_per_node(edisgo, 'generator', considered_generators)
     nodal_active_storage, nodal_reactive_storage = \
-        get_timeseries_per_node(edisgo, 'storage_unit')
+        get_timeseries_per_node(edisgo, 'storage_unit', considered_storage)
+    nodal_active_charging_points, nodal_reactive_charging_points = \
+        get_timeseries_per_node(edisgo, 'charging_point', considered_charging_points)
     nodal_active_power = \
-        nodal_active_generation + nodal_active_storage - nodal_active_load
+        nodal_active_generation + nodal_active_storage - nodal_active_load - \
+        nodal_active_charging_points
     nodal_reactive_power = \
-        nodal_reactive_generation + nodal_reactive_storage - nodal_reactive_load
+        nodal_reactive_generation + nodal_reactive_storage - nodal_reactive_load - \
+        nodal_reactive_charging_points
     return nodal_active_power, nodal_reactive_power

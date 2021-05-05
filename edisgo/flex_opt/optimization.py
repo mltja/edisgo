@@ -33,19 +33,39 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
     model.line_set = pm.Set(initialize=edisgo.topology.lines_df.index)
     if optimize_storage:
         model.storage_set = pm.Set(initialize=edisgo.topology.storage_units_df.index)
+        optimized_storage_units = \
+            kwargs.get('flexible_storage_units',
+                       edisgo.topology.storage_units_df.index)
+        model.optimized_storage_set = \
+            pm.Set(initialize=optimized_storage_units)
+        model.fixed_storage_set = model.storage_set - \
+                                        model.optimized_storage_set
         model.fix_relative_soc = kwargs.get('fix_relative_soc', 0.5)
+        inflexible_storage_units = model.fixed_storage_set
+    else:
+        inflexible_storage_units = None
     if optimize_ev_charging:
-        # Todo: have two sets with flexible and inflexible charging points
+        model.energy_band_charging_points = kwargs.get('energy_band_charging_points')
+        model.mapping_cp = kwargs.get('mapping_cp')
         model.charging_points_set = \
             pm.Set(initialize=edisgo.topology.charging_points_df.index)
-        model.energy_band_charging_points = kwargs.get('energy_band_charging_points')
+        model.flexible_charging_points_set = \
+            pm.Set(initialize=model.mapping_cp.index)
+        model.inflexible_charging_points_set = \
+            model.charging_points_set - model.flexible_charging_points_set
         model.charging_efficiency = kwargs.get("charging_efficiency", 0.9)
-    model.residual_load = edisgo.timeseries.residual_load
+        inflexible_charging_points = model.flexible_charging_points_set
+    else:
+        inflexible_charging_points = None
+    model.residual_load = \
+        get_residual_load_of_not_optimized_components(edisgo, model)
     model.grid = edisgo.topology
     model.delta_min = kwargs.get('delta_min', 0.9)
     model.delta_max = kwargs.get('delta_max', 0.1)
     model.downstream_nodes_matrix = get_downstream_nodes_matrix(edisgo)
-    nodal_active_power, nodal_reactive_power = get_nodal_residual_load(edisgo)
+    nodal_active_power, nodal_reactive_power = get_nodal_residual_load(
+        edisgo, considered_storage=inflexible_storage_units,
+        considered_charging_points=inflexible_charging_points)
     model.nodal_active_power = nodal_active_power.T
     model.nodal_reactive_power = nodal_reactive_power.T
     model.v_min = kwargs.get("v_min", 0.9)
@@ -67,11 +87,11 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
                                                                  model.v_nom)))
     if optimize_storage:
         model.soc = \
-            pm.Var(model.storage_set, model.time_set,
+            pm.Var(model.optimized_storage_set, model.time_set,
                    bounds=lambda m, b, t: (
                    0, m.grid.storage_units_df.loc[b, 'capacity']))
         model.charging = \
-            pm.Var(model.storage_set, model.time_set,
+            pm.Var(model.optimized_storage_set, model.time_set,
                    bounds=lambda m, b, t: (
                    -m.grid.storage_units_df.loc[b, 'p_nom'],
                    m.grid.storage_units_df.loc[b, 'p_nom']))
@@ -116,6 +136,23 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
 
     if kwargs.get('print_model', False):
         model.pprint()
+    return model
+
+
+def update_model(model, timeindex, energy_band_charging_points):
+    """
+    Method to update model parameter where necessary if rolling horizon
+    optimization is chosen.
+    :param model:
+    :param timeindex:
+    :return:
+    """
+    model.time_set = pm.Set(initialize=timeindex)
+    model.time_zero = [model.time_set[1]]
+    model.time_non_zero = model.time_set - [model.time_set[1]]
+    model.times_fixed_soc = pm.Set(
+        initialize=[model.time_set[1], model.time_set[-1]])
+    model.energy_band_charging_points = energy_band_charging_points
     return model
 
 
@@ -180,6 +217,42 @@ def optimize(model, solver, save_dir=None):
         return
 
 
+def get_residual_load_of_not_optimized_components(edisgo, model):
+    """
+    Method to get residual load of fixed components.
+
+    :param edisgo:
+    :param model:
+    :return:
+    """
+    if hasattr(model, 'fixed_storage_set'):
+        relevant_storage_units = model.fixed_storage_set
+    else:
+        relevant_storage_units = edisgo.topology.storage_units_df.index
+
+    if hasattr(model, 'inflexible_charging_points_set'):
+        relevant_charging_points = model.inflexible_charging_points_set
+    else:
+        relevant_charging_points = edisgo.topology.charging_points_df.index
+
+    if edisgo.timeseries.charging_points_active_power.empty:
+        return (
+                edisgo.timeseries.generators_active_power.sum(axis=1)
+                + edisgo.timeseries.storage_units_active_power[
+                    relevant_storage_units].sum(axis=1)
+                - edisgo.timeseries.loads_active_power.sum(axis=1)
+        ).loc[edisgo.timeseries.timeindex]
+    else:
+        return (
+                edisgo.timeseries.generators_active_power.sum(axis=1)
+                + edisgo.timeseries.storage_units_active_power[
+                    relevant_storage_units].sum(axis=1)
+                - edisgo.timeseries.loads_active_power.sum(axis=1)
+                - edisgo.timeseries.charging_points_active_power[
+                    relevant_charging_points].sum(axis=1)
+        ).loc[edisgo.timeseries.timeindex]
+
+
 def minimize_max_residual_load(model):
     """
     Objective minimizing extreme load factors
@@ -198,6 +271,7 @@ def active_power(model, line, time):
     :param time:
     :return:
     '''
+    # Todo: adapt if storage units and evs are optimised or not
     bus0 = model.grid.lines_df.loc[line, 'bus0']
     bus1 = model.grid.lines_df.loc[line, 'bus1']
     relevant_buses_bus0 = \
