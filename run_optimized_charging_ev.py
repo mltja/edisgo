@@ -17,6 +17,8 @@ grid_id = 1056
 edisgo_dir = r'\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_object_files_final\Electrification_2050\{}\reduced'.format(grid_id)#Todo: change back to final in the end
 edisgo_obj = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
 
+print('eDisGo object imported.')
+
 downstream_nodes_matrix = get_downstream_nodes_matrix(edisgo_obj)
 downstream_nodes_matrix.to_csv('grid_data/downstream_node_matrix.csv')
 

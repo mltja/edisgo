@@ -46,12 +46,17 @@ def get_downstream_nodes_matrix(edisgo):
     :return:
     """
     buses = edisgo.topology.buses_df.index.values
+    print('Matrix for {} buses is extracted.'.format(len(buses)))
     tree = \
         nx.bfs_tree(edisgo.to_graph(), edisgo.topology.slack_df.bus.values[0])
     downstream_node_matrix = pd.DataFrame(columns=buses, index=buses)
     downstream_node_matrix.fillna(0, inplace=True)
+    i = 0
     for bus in buses:
         ancestors = list(nx.ancestors(tree, bus))
         downstream_node_matrix.loc[ancestors, bus] = 1
         downstream_node_matrix.loc[bus, bus] = 1
+        i += 1
+        if (i % 10) == 0:
+            print('{} % of the buses have been checked'.format(i/len(buses*100)))
     return downstream_node_matrix
