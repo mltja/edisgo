@@ -58,5 +58,59 @@ def get_downstream_nodes_matrix(edisgo):
         downstream_node_matrix.loc[bus, bus] = 1
         i += 1
         if (i % 10) == 0:
-            print('{} % of the buses have been checked'.format(i/len(buses*100)))
+            print('{} % of the buses have been checked'.format(i/len(buses)*100))
     return downstream_node_matrix
+
+
+def get_downstream_nodes_matrix_iterative(edisgo):
+    """
+    Method that returns matrix M with 0 and 1 entries describing the relation
+    of buses within the network. If bus b is descendant of a (assuming the
+    station is the root of the radial network) M[a,b] = 1, otherwise M[a,b] = 0.
+    The matrix is later used to determine the power flow at the different buses
+    by multiplying with the nodal power flow. S_sum = M * s, where s is the
+    nodal power vector.
+
+    Note: only works for radial networks.
+
+    :param edisgo_obj:
+    :return:
+    Todo: Check version with networkx successor
+    """
+
+    def recursive_downstream_node_matrix_filling(current_bus, current_feeder,
+                                                 downstream_node_matrix,
+                                                 edisgo,
+                                                 visited_buses):
+        current_feeder.append(current_bus)
+        for neighbor in edisgo.topology.get_neighbours(current_bus):
+            if neighbor not in visited_buses and neighbor not in current_feeder:
+                recursive_downstream_node_matrix_filling(
+                    neighbor, current_feeder, downstream_node_matrix, edisgo,
+                    visited_buses)
+        # current_bus = current_feeder.pop()
+        downstream_node_matrix.loc[current_feeder, current_bus] = 1
+        visited_buses.append(current_bus)
+        if len(visited_buses)%10==0:
+            print('{} % of the buses have been checked'.format(
+                len(visited_buses)/len(buses)*100))
+        current_feeder.pop()
+
+    buses = edisgo.topology.buses_df.index.values
+
+    print('Matrix for {} buses is extracted.'.format(len(buses)))
+    downstream_node_matrix = pd.DataFrame(columns=buses, index=buses)
+    downstream_node_matrix.fillna(0, inplace=True)
+
+    print('Starting iteration.')
+    visited_buses = []
+    current_feeder = []
+    current_bus = edisgo.topology.slack_df.bus.values[0]
+
+    recursive_downstream_node_matrix_filling(current_bus, current_feeder,
+                                             downstream_node_matrix, edisgo,
+                                             visited_buses)
+
+    return downstream_node_matrix
+
+
