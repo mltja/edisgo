@@ -83,7 +83,7 @@ def get_downstream_nodes_matrix_iterative(edisgo):
                                                  edisgo,
                                                  visited_buses):
         current_feeder.append(current_bus)
-        for neighbor in edisgo.topology.get_neighbours(current_bus):
+        for neighbor in tree.successors(current_bus):
             if neighbor not in visited_buses and neighbor not in current_feeder:
                 recursive_downstream_node_matrix_filling(
                     neighbor, current_feeder, downstream_node_matrix, edisgo,
@@ -97,6 +97,8 @@ def get_downstream_nodes_matrix_iterative(edisgo):
         current_feeder.pop()
 
     buses = edisgo.topology.buses_df.index.values
+    tree = \
+        nx.bfs_tree(edisgo.to_graph(), edisgo.topology.slack_df.bus.values[0])
 
     print('Matrix for {} buses is extracted.'.format(len(buses)))
     downstream_node_matrix = pd.DataFrame(columns=buses, index=buses)

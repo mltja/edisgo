@@ -18,9 +18,6 @@ sns.set()
 # edisgo = import_edisgo_from_files(grid_dir)
 # get_downstream_nodes_matrix_iterative(edisgo)
 
-downstream_nodes_matrix = pd.read_csv('grid_data/downstream_node_matrix.csv',
-                                      index_col=0)
-
 grid_id = 1056
 
 edisgo_dir = r'\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_object_files_final\Electrification_2050\{}\reduced'.format(grid_id)#Todo: change back to final in the end
