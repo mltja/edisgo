@@ -161,6 +161,11 @@ def update_model(model, timeindex, energy_band_charging_points):
     :param timeindex:
     :return:
     """
+    model.del_component(model.time_set)
+    model.del_component(model.time_zero)
+    model.del_component(model.time_non_zero)
+    model.del_component(model.times_fixed_soc)
+    model.del_component(model.energy_band_charging_points)
     model.time_set = pm.Set(initialize=timeindex)
     model.time_zero = [model.time_set[1]]
     model.time_non_zero = model.time_set - [model.time_set[1]]
@@ -407,9 +412,17 @@ def load_factor_min(model, time):
     :param time:
     :return:
     '''
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = model.optimized_storage_set
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+    else:
+        relevant_charging_points = []
     return model.min_load_factor <= model.residual_load.loc[time] + \
-        sum(model.charging[storage, time] for storage in model.storage_set) - \
-        sum(model.charging_ev[cp, time] for cp in model.charging_points_set)
+        sum(model.charging[storage, time] for storage in relevant_storage_units) - \
+        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
 
 
 def load_factor_max(model, time):
@@ -419,9 +432,17 @@ def load_factor_max(model, time):
     :param time:
     :return:
     '''
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = model.optimized_storage_set
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+    else:
+        relevant_charging_points = []
     return model.max_load_factor >= model.residual_load.loc[time] + \
-        sum(model.charging[storage, time] for storage in model.storage_set)- \
-        sum(model.charging_ev[cp, time] for cp in model.charging_points_set)
+        sum(model.charging[storage, time] for storage in relevant_storage_units)- \
+        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
 
 
 def slack_voltage(model, bus, time):
