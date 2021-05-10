@@ -54,7 +54,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.inflexible_charging_points_set = \
             model.charging_points_set - model.flexible_charging_points_set
         model.charging_efficiency = kwargs.get("charging_efficiency", 0.9)
-        inflexible_charging_points = list(model.flexible_charging_points_set.data())
+        inflexible_charging_points = list(model.inflexible_charging_points_set.data())
     else:
         inflexible_charging_points = None
     model.residual_load = \
