@@ -19,7 +19,7 @@ edisgo_obj = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
 print('eDisGo object imported.')
 
 # downstream_nodes_matrix = get_downstream_nodes_matrix_iterative(edisgo_obj)
-# downstream_nodes_matrix.to_csv('grid_data/downstream_node_matrix.csv')
+# downstream_nodes_matrix.to_csv('grid_data/downstream_node_matrix.csv', dtype=uint8)
 downstream_nodes_matrix = pd.read_csv('grid_data/downstream_node_matrix.csv',
                                       index_col=0)
 downstream_nodes_matrix = downstream_nodes_matrix.astype(np.uint8)
@@ -48,7 +48,7 @@ mapping_work = \
 #     gpd.read_file(cp_mapping_dir + '\cp_data_public_within_grid_{}.geojson'.
 #                   format(grid_id)).set_index('edisgo_id')
 
-mapping = pd.concat([mapping_work, mapping_home])#, mapping_hpc, mapping_public
+mapping = pd.concat([mapping_work, mapping_home], sort=False)#, mapping_hpc, mapping_public
 print('Mapping imported.')
 
 check_mapping(mapping, edisgo_obj, flexibility_bands)
@@ -56,6 +56,7 @@ print('Data checked. Please pay attention to warnings.')
 
 timesteps_per_week = 672
 for week in range(int(len(edisgo_obj.timeseries.timeindex)/timesteps_per_week)-1):#edisgo_obj.timeseries.timeindex.week.unique()
+    print('Starting optimisation for week {}.'.format(week))
     timesteps = edisgo_obj.timeseries.timeindex[week*timesteps_per_week:(week+1)*timesteps_per_week]
     # timesteps = edisgo_obj.timeseries.timeindex[
     #     edisgo_obj.timeseries.timeindex.week == week] # Todo: adapt
@@ -66,7 +67,9 @@ for week in range(int(len(edisgo_obj.timeseries.timeindex)/timesteps_per_week)-1
                             energy_band_charging_points=flexibility_bands)
     else:
         model = update_model(model, timesteps, flexibility_bands)
+    print('Set up model for week {}.'.format(week))
     x_charge, soc, x_charge_ev, energy_band_cp = optimize(model, 'glpk')
+    print('Finished optimisation for week {}.'.format(week))
     x_charge.astype(np.float16).to_csv(
         result_dir+'/x_charge_{}.csv'.format(week))
     soc.astype(np.float16).to_csv(result_dir + '/soc_{}.csv'.format(week))
@@ -74,3 +77,6 @@ for week in range(int(len(edisgo_obj.timeseries.timeindex)/timesteps_per_week)-1
         result_dir + '/x_charge_ev_{}.csv'.format(week))
     energy_band_cp.astype(np.float16).to_csv(
         result_dir + '/energy_band_cp_{}.csv'.format(week))
+    print('Saved results for week {}.'.format(week))
+
+print('SUCCESS')
