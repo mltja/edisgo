@@ -498,21 +498,21 @@ class TimeSeries:
             )
         logger.debug("Timeseries exported.")
 
-    def from_csv(self, ts_dir):
+    def from_csv(self, ts_dir, dtype=np.float16):
         # Todo: change to_csv resetting index and removing rename part
         # Todo: overthink if setting timeindex can be handled in a nicer way
         timeindex = None
         if os.path.exists(os.path.join(ts_dir, "loads_active_power.csv")):
             self.loads_active_power = pd.read_csv(
                 os.path.join(ts_dir, "loads_active_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._loads_active_power.index
         if os.path.exists(os.path.join(ts_dir, "loads_reactive_power.csv")):
             self.loads_reactive_power = pd.read_csv(
                 os.path.join(ts_dir, "loads_reactive_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._loads_reactive_power.index
@@ -521,7 +521,7 @@ class TimeSeries:
                 os.path.join(ts_dir, "charging_points_active_power.csv")):
             self.charging_points_active_power = pd.read_csv(
                 os.path.join(ts_dir, "charging_points_active_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._charging_points_active_power.index
@@ -529,7 +529,7 @@ class TimeSeries:
                 os.path.join(ts_dir, "charging_points_reactive_power.csv")):
             self.charging_points_reactive_power = pd.read_csv(
                 os.path.join(ts_dir, "charging_points_reactive_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._charging_points_reactive_power.index
@@ -538,14 +538,14 @@ class TimeSeries:
                 os.path.join(ts_dir, "generators_active_power.csv")):
             self.generators_active_power = pd.read_csv(
                 os.path.join(ts_dir, "generators_active_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._generators_active_power.index
         if os.path.exists(os.path.join(ts_dir, "generators_reactive_power.csv")):
             self.generators_reactive_power = pd.read_csv(
                 os.path.join(ts_dir, "generators_reactive_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._generators_reactive_power.index
@@ -554,7 +554,7 @@ class TimeSeries:
                 os.path.join(ts_dir, "storage_units_active_power.csv")):
             self.storage_units_active_power = pd.read_csv(
                 os.path.join(ts_dir, "storage_units_active_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._storage_units_active_power.index
@@ -562,7 +562,7 @@ class TimeSeries:
                 os.path.join(ts_dir, "storage_units_reactive_power.csv")):
             self.storage_units_reactive_power = pd.read_csv(
                 os.path.join(ts_dir, "storage_units_reactive_power.csv"),
-                index_col=[0],
+                index_col=[0], dtype=dtype,
                 parse_dates=True)
             if timeindex is None:
                 timeindex = self._storage_units_reactive_power.index

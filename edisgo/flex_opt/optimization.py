@@ -3,10 +3,9 @@ import pandas as pd
 import pyomo.environ as pm
 from pyomo.opt import SolverStatus, TerminationCondition
 from edisgo.tools.tools import get_nodal_residual_load
-from edisgo.tools.networkx_helper import get_downstream_nodes_matrix
 
 
-def setup_model(edisgo, timesteps=None, optimize_storage=True,
+def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,
                 optimize_ev_charging=True, **kwargs):
     """
     Method to set up pyomo model for optimisation of storage procurement
@@ -41,7 +40,7 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
         model.fixed_storage_set = model.storage_set - \
                                         model.optimized_storage_set
         model.fix_relative_soc = kwargs.get('fix_relative_soc', 0.5)
-        inflexible_storage_units = model.fixed_storage_set
+        inflexible_storage_units = list(model.fixed_storage_set.data())
     else:
         inflexible_storage_units = None
     if optimize_ev_charging:
@@ -54,7 +53,7 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
         model.inflexible_charging_points_set = \
             model.charging_points_set - model.flexible_charging_points_set
         model.charging_efficiency = kwargs.get("charging_efficiency", 0.9)
-        inflexible_charging_points = model.flexible_charging_points_set
+        inflexible_charging_points = list(model.flexible_charging_points_set.data())
     else:
         inflexible_charging_points = None
     model.residual_load = \
@@ -62,7 +61,7 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
     model.grid = edisgo.topology
     model.delta_min = kwargs.get('delta_min', 0.9)
     model.delta_max = kwargs.get('delta_max', 0.1)
-    model.downstream_nodes_matrix = get_downstream_nodes_matrix(edisgo)
+    model.downstream_nodes_matrix = downstream_node_matrix
     nodal_active_power, nodal_reactive_power = get_nodal_residual_load(
         edisgo, considered_storage=inflexible_storage_units,
         considered_charging_points=inflexible_charging_points)
@@ -85,6 +84,10 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
                  bounds=(
                  np.square(model.v_min * model.v_nom), np.square(model.v_max *
                                                                  model.v_nom)))
+    model.curtailment_load = pm.Var(model.bus_set, model.time_set,
+                                    bounds=(0, None))
+    model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
+                                      bounds=(0, None))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -97,14 +100,20 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
                    m.grid.storage_units_df.loc[b, 'p_nom']))
     if optimize_ev_charging:
         model.charging_ev = \
-            pm.Var(model.charging_points_set, model.time_set,
+            pm.Var(model.flexible_charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
-                   (0, m.energy_band_charging_points.loc[t, 'power_' + b]))
+                   (0, m.energy_band_charging_points.loc[
+                       t, '_'.join(['power', str(m.mapping_cp.loc[b, 'ags']),
+                                    str(m.mapping_cp.loc[b, 'cp_idx'])])]))
         model.energy_level_ev = \
-            pm.Var(model.charging_points_set, model.time_set,
+            pm.Var(model.flexible_charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
-                   (m.energy_band_charging_points.loc[t, 'lower_' + b],
-                    m.energy_band_charging_points.loc[t, 'upper_' + b]))
+                   (m.energy_band_charging_points.loc[
+                        t, '_'.join(['lower', str(m.mapping_cp.loc[b, 'ags']),
+                                     str(m.mapping_cp.loc[b, 'cp_idx'])])],
+                    m.energy_band_charging_points.loc[
+                        t, '_'.join(['upper', str(m.mapping_cp.loc[b, 'ags']),
+                                     str(m.mapping_cp.loc[b, 'cp_idx'])])]))
 
     # DEFINE CONSTRAINTS
     model.LoadFactorMin = pm.Constraint(model.time_set, rule=load_factor_min)
@@ -131,8 +140,8 @@ def setup_model(edisgo, timesteps=None, optimize_storage=True,
 
     # DEFINE OBJECTIVE
     model.objective = pm.Objective(rule=minimize_max_residual_load,
-                               sense=pm.minimize,
-                               doc='Define objective function')
+                                   sense=pm.minimize,
+                                   doc='Define objective function')
 
     if kwargs.get('print_model', False):
         model.pprint()
@@ -260,7 +269,10 @@ def minimize_max_residual_load(model):
     :return:
     """
     return -model.delta_min * model.min_load_factor + \
-           model.delta_max * model.max_load_factor
+           model.delta_max * model.max_load_factor + \
+           sum(model.curtailment_load[bus, time] +
+               model.curtailment_feedin[bus, time] for bus in model.bus_set
+               for time in model.time_set)
 
 
 def active_power(model, line, time):
@@ -282,18 +294,28 @@ def active_power(model, line, time):
             model.downstream_nodes_matrix.loc[bus1] == 1].index.values
     relevant_buses = list(set(relevant_buses_bus0).intersection(
         relevant_buses_bus1))
-    relevant_storage_units = \
-        model.grid.storage_units_df.loc[
-            model.grid.storage_units_df.bus.isin(relevant_buses)].index.values
-    relevant_charging_points = \
-        model.grid.charging_points_df.loc[
-            model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = \
+            model.grid.storage_units_df.loc[
+                model.grid.storage_units_df.index.isin(
+                    model.optimized_storage_set) &
+                model.grid.storage_units_df.bus.isin(relevant_buses)].index.values
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = \
+            model.grid.charging_points_df.loc[
+                model.grid.charging_points_df.index.isin(
+                    model.flexible_charging_points_set) &
+                model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
     load_flow_on_line = \
         model.nodal_active_power.loc[relevant_buses, time].sum()
     return model.p_cum[line, time] == load_flow_on_line + \
         sum(model.charging[storage, time]
             for storage in relevant_storage_units) - \
-        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
+        sum(model.charging_ev[cp, time] for cp in relevant_charging_points) + \
+        sum(model.curtailment_load[bus, time] -
+            model.curtailment_feedin[bus, time] for bus in relevant_buses)
 
 
 def reactive_power(model, line, time):
@@ -430,3 +452,29 @@ def voltage_drop(model, line, time):
     return model.v[downstream_bus, time] == model.v[upstream_bus, time] + \
         2 * (model.p_cum[line, time]*model.grid.lines_df.loc[line, 'r'] +
              model.q_cum[line, time]*model.grid.lines_df.loc[line, 'x'])
+
+
+def check_mapping(mapping_cp, edisgo, energy_bands):
+    """
+    Method to make sure the mapping is valid. Checks the existence of the
+    indices in the edisgo object and the existence of entries in the e
+    nergy_bands dataframe.
+
+    :param mapping_cp:
+    :param edisgo:
+    :param energy_bands:
+    :return:
+    """
+    non_existing_cp = mapping_cp.index[~mapping_cp.index.isin(
+        edisgo.topology.charging_points_df.index)]
+    if len(non_existing_cp) > 0:
+        raise Warning('The following charging points of the mapping are not '
+                      'existent in the passed edisgo object: {}.'.format(
+            non_existing_cp))
+    cp_identifier = ['_'.join(['power', str(mapping_cp.loc[cp, 'ags']), str(mapping_cp.loc[cp, 'cp_idx'])]) for cp in mapping_cp.index]
+    non_existing_energy_bands = [identifier for identifier in cp_identifier if identifier not in (energy_bands.columns)]
+    if len(non_existing_energy_bands):
+        raise Warning('The following identifiers do not have respective '
+                      'entries inside the energy bands dataframe: {}. This '
+                      'might cause problems in the optimization process.'
+                      .format(non_existing_energy_bands))

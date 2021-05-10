@@ -15,13 +15,12 @@ from itertools import cycle
 from datetime import timedelta
 
 
-def charging_existing_edisgo_object(data_dir, edisgo_dir, strategies=["optimize"]):
+def charging_existing_edisgo_object(data_dir, grid_id, edisgo_dir, strategies=["optimize"]):
 
     setup_dict = get_setup(data_dir)
 
     df_grid_data = get_grid_data()
-    grid_idx = 0
-    grid_id = 1056
+    grid_idx = df_grid_data.loc[df_grid_data.grid_id==grid_id].index[0]
 
     print("Grid Nr. {} in scenario {} is being processed.".format(grid_id, data_dir.parts[-2]))
 

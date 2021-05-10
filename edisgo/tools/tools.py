@@ -521,10 +521,10 @@ def get_timeseries_per_node(edisgo, component, component_names=None):
     if component_names is None:
         component_names = getattr(edisgo.topology, component + 's_df').index
     nodal_active_power = \
-        getattr(edisgo.timeseries, component + 's_active_power').loc[
+        getattr(edisgo.timeseries, component + 's_active_power')[
             component_names].rename(columns=bus_component_dict)
     nodal_reactive_power = \
-        getattr(edisgo.timeseries, component + 's_reactive_power').loc[
+        getattr(edisgo.timeseries, component + 's_reactive_power')[
             component_names].rename(columns=bus_component_dict)
     nodal_active_power = nodal_active_power.groupby(nodal_active_power.columns,
                                                     axis=1).sum()
