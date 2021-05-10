@@ -33,12 +33,11 @@ flexibility_bands_work = \
 flexibility_bands = pd.concat([flexibility_bands_work, flexibility_bands_home],
                               axis=1)
 print('Flexibility bands imported.')
-cp_mapping_dir = r'\\192.168.10.221\Daten_flexibel_02\simbev_results\Electrification_2050_simbev_run\eDisGo_charging_time_series\{}'.format(grid_id)
 mapping_home = \
-    gpd.read_file(cp_mapping_dir + '\cp_data_home_within_grid_{}.geojson'.
+    gpd.read_file('grid_data/cp_data_home_within_grid_{}.geojson'.
                   format(grid_id)).set_index('edisgo_id')
 mapping_work = \
-    gpd.read_file(cp_mapping_dir + '\cp_data_work_within_grid_{}.geojson'.
+    gpd.read_file('grid_data/cp_data_work_within_grid_{}.geojson'.
                   format(grid_id)).set_index('edisgo_id')
 
 # mapping_hpc = \
