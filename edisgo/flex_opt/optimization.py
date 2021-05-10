@@ -20,6 +20,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     # Todo: Extract kwargs values from cfg?
 
     # DEFINE SETS AND FIX PARAMETERS
+    print('Setup model: Defining sets and parameters.')
     model.bus_set = pm.Set(initialize=edisgo.topology.buses_df.index)
     model.slack_bus = pm.Set(initialize=edisgo.topology.slack_df.bus)
     if timesteps is not None:
@@ -73,6 +74,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.v_nom = edisgo.topology.buses_df.v_nom.iloc[0]
 
     # DEFINE VARIABLES
+    print('Setup model: Defining variables.')
     model.min_load_factor = pm.Var()
     model.max_load_factor = pm.Var()
     model.p_cum = pm.Var(model.line_set, model.time_set,
@@ -116,6 +118,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                      str(m.mapping_cp.loc[b, 'cp_idx'])])]))
 
     # DEFINE CONSTRAINTS
+    print('Setup model: Setting constraints.')
     model.LoadFactorMin = pm.Constraint(model.time_set, rule=load_factor_min)
     model.LoadFactorMax = pm.Constraint(model.time_set, rule=load_factor_max)
     model.ActivePower = pm.Constraint(model.line_set, model.time_set,
@@ -139,12 +142,14 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                           rule=initial_energy_level)
 
     # DEFINE OBJECTIVE
+    print('Setup model: Setting objective.')
     model.objective = pm.Objective(rule=minimize_max_residual_load,
                                    sense=pm.minimize,
                                    doc='Define objective function')
 
     if kwargs.get('print_model', False):
         model.pprint()
+    print('Successfully set up optimisation model.')
     return model
 
 
