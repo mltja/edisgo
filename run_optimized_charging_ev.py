@@ -67,7 +67,7 @@ for week in range(int(len(edisgo_obj.timeseries.timeindex)/timesteps_per_week)-1
     else:
         model = update_model(model, timesteps, flexibility_bands)
     print('Set up model for week {}.'.format(week))
-    x_charge, soc, x_charge_ev, energy_band_cp = optimize(model, 'glpk')
+    x_charge, soc, x_charge_ev, energy_band_cp, curtailment_feedin, curtailment_load = optimize(model, 'glpk')
     print('Finished optimisation for week {}.'.format(week))
     x_charge.astype(np.float16).to_csv(
         result_dir+'/x_charge_{}.csv'.format(week))
@@ -76,6 +76,10 @@ for week in range(int(len(edisgo_obj.timeseries.timeindex)/timesteps_per_week)-1
         result_dir + '/x_charge_ev_{}.csv'.format(week))
     energy_band_cp.astype(np.float16).to_csv(
         result_dir + '/energy_band_cp_{}.csv'.format(week))
+    curtailment_feedin.astype(np.float16).to_csv(
+        result_dir + '/curtailment_feedin_{}.csv'.format(week))
+    curtailment_load.astype(np.float16).to_csv(
+        result_dir + '/curtailment_load_{}.csv'.format(week))
     print('Saved results for week {}.'.format(week))
 
 print('SUCCESS')

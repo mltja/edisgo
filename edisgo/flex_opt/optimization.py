@@ -24,9 +24,11 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.bus_set = pm.Set(initialize=edisgo.topology.buses_df.index)
     model.slack_bus = pm.Set(initialize=edisgo.topology.slack_df.bus)
     if timesteps is not None:
-        model.time_set = pm.Set(initialize=timesteps)
+        model.timeindex = timesteps
     else:
-        model.time_set = pm.Set(initialize=edisgo.timeseries.timeindex)
+        model.timeindex = edisgo.timeseries.timeindex
+    model.time_set = pm.RangeSet(0, len(timesteps)-1)
+    print('First timestep: {}, last timestep: {}.'.format(model.time_set[1], model.time_set[-1]))
     model.time_zero = [model.time_set[1]]
     model.time_non_zero = model.time_set - [model.time_set[1]]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set[1], model.time_set[-1]])
@@ -105,16 +107,16 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
             pm.Var(model.flexible_charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
                    (0, m.energy_band_charging_points.loc[
-                       t, '_'.join(['power', str(m.mapping_cp.loc[b, 'ags']),
+                       m.timeindex[t], '_'.join(['power', str(m.mapping_cp.loc[b, 'ags']),
                                     str(m.mapping_cp.loc[b, 'cp_idx'])])]))
         model.energy_level_ev = \
             pm.Var(model.flexible_charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
                    (m.energy_band_charging_points.loc[
-                        t, '_'.join(['lower', str(m.mapping_cp.loc[b, 'ags']),
+                        m.timeindex[t], '_'.join(['lower', str(m.mapping_cp.loc[b, 'ags']),
                                      str(m.mapping_cp.loc[b, 'cp_idx'])])],
                     m.energy_band_charging_points.loc[
-                        t, '_'.join(['upper', str(m.mapping_cp.loc[b, 'ags']),
+                        m.timeindex[t], '_'.join(['upper', str(m.mapping_cp.loc[b, 'ags']),
                                      str(m.mapping_cp.loc[b, 'cp_idx'])])]))
 
     # DEFINE CONSTRAINTS
@@ -153,7 +155,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     return model
 
 
-def update_model(model, timeindex, energy_band_charging_points):
+def update_model(model, timeindex, energy_band_charging_points, **kwargs):
     """
     Method to update model parameter where necessary if rolling horizon
     optimization is chosen.
@@ -161,21 +163,15 @@ def update_model(model, timeindex, energy_band_charging_points):
     :param timeindex:
     :return:
     """
-    model.del_component(model.time_set)
-    model.del_component(model.time_zero)
-    model.del_component(model.time_non_zero)
-    model.del_component(model.times_fixed_soc)
-    model.del_component(model.energy_band_charging_points)
-    model.time_set = pm.Set(initialize=timeindex)
-    model.time_zero = [model.time_set[1]]
-    model.time_non_zero = model.time_set - [model.time_set[1]]
-    model.times_fixed_soc = pm.Set(
-        initialize=[model.time_set[1], model.time_set[-1]])
+    model.del_component(model.timeindex)
+    model.timeindex = timeindex
     model.energy_band_charging_points = energy_band_charging_points
+    if kwargs.get('print_model', False):
+        model.pprint()
     return model
 
 
-def optimize(model, solver, save_dir=None):
+def optimize(model, solver, save_dir=None, load_solutions=True):
     """
     Method to run the optimization and extract the results.
 
@@ -190,41 +186,45 @@ def optimize(model, solver, save_dir=None):
     opt = pm.SolverFactory(solver)
 
     # Optimize
-    results = opt.solve(model, tee=True)
+    results = opt.solve(model, tee=True, load_solutions=load_solutions)
 
     # Extract results
     x_charge = pd.DataFrame()
     soc = pd.DataFrame()
     x_charge_ev = pd.DataFrame()
     energy_band_cp = pd.DataFrame()
+    curtailment_load = pd.DataFrame()
+    curtailment_feedin = pd.DataFrame()
 
     if (results.solver.status == SolverStatus.ok) and \
             (
                     results.solver.termination_condition == TerminationCondition.optimal):
         print('Model Solved to Optimality')
         for time in model.time_set:
+            timeindex = model.timeindex[time]
             if hasattr(model, 'storage_set'):
                 for bus in model.storage_set:
-                    x_charge.loc[time, bus] = model.charging[bus, time].value
-                    soc.loc[time, bus] = model.soc[bus, time].value
+                    x_charge.loc[timeindex, bus] = model.charging[bus, time].value
+                    soc.loc[timeindex, bus] = model.soc[bus, time].value
             if hasattr(model, 'charging_points_set'):
                 for cp in model.charging_points_set:
-                    x_charge_ev.loc[time, cp] = model.charging_ev[cp, time].value
-                    energy_band_cp.loc[time, cp] = \
+                    x_charge_ev.loc[timeindex, cp] = model.charging_ev[cp, time].value
+                    energy_band_cp.loc[timeindex, cp] = \
                         model.energy_level_ev[cp, time].value
-
-        res_load_before_storage = model.residual_load.loc[model.time_set]
-        res_after_storage = model.residual_load.loc[model.time_set] + x_charge[
-            'Storage 1']
-        res_load_ev_and_storage = \
-            model.residual_load.loc[model.time_set] + x_charge['Storage 1'] + \
-            x_charge_ev['ChargingPoint']
+            for bus in model.bus_set:
+                curtailment_feedin.loc[timeindex, bus] = \
+                    model.curtailment_feedin[bus, time].value
+                curtailment_load.loc[timeindex, bus] = \
+                    model.curtailment_load[bus, time].value
         if save_dir:
             x_charge.to_csv(save_dir+'/x_charge_storage.csv')
             soc.to_csv(save_dir+'/soc_storage.csv')
             x_charge_ev.to_csv(save_dir+'/x_charge_ev.csv')
             energy_band_cp.to_csv(save_dir+'/energy_level_ev.csv')
-        return x_charge, soc, x_charge_ev, energy_band_cp
+            curtailment_feedin.to_csv(save_dir + '/curtailment_feedin.csv')
+            curtailment_load.to_csv(save_dir + '/curtailment_load.csv')
+        return x_charge, soc, x_charge_ev, energy_band_cp, curtailment_feedin, \
+               curtailment_load
     # Do something when the solution in optimal and feasible
     elif (
             results.solver.termination_condition == TerminationCondition.infeasible):
@@ -293,7 +293,7 @@ def active_power(model, line, time):
     :param time:
     :return:
     '''
-    # Todo: adapt if storage units and evs are optimised or not
+    timeindex = model.timeindex[time]
     bus0 = model.grid.lines_df.loc[line, 'bus0']
     bus1 = model.grid.lines_df.loc[line, 'bus1']
     relevant_buses_bus0 = \
@@ -319,7 +319,7 @@ def active_power(model, line, time):
                     model.flexible_charging_points_set) &
                 model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
     load_flow_on_line = \
-        model.nodal_active_power.loc[relevant_buses, time].sum()
+        model.nodal_active_power.loc[relevant_buses, timeindex].sum()
     return model.p_cum[line, time] == load_flow_on_line + \
         sum(model.charging[storage, time]
             for storage in relevant_storage_units) - \
@@ -336,6 +336,7 @@ def reactive_power(model, line, time):
     :param time:
     :return:
     '''
+    timeindex = model.timeindex[time]
     bus0 = model.grid.lines_df.loc[line, 'bus0']
     bus1 = model.grid.lines_df.loc[line, 'bus1']
     relevant_buses_bus0 = \
@@ -347,7 +348,7 @@ def reactive_power(model, line, time):
     relevant_buses = list(set(relevant_buses_bus0).intersection(
         relevant_buses_bus1))
     load_flow_on_line = \
-        model.nodal_reactive_power.loc[relevant_buses, time].sum()
+        model.nodal_reactive_power.loc[relevant_buses, timeindex].sum()
     return model.q_cum[line, time] == load_flow_on_line
 
 
@@ -420,7 +421,8 @@ def load_factor_min(model, time):
         relevant_charging_points = model.flexible_charging_points_set
     else:
         relevant_charging_points = []
-    return model.min_load_factor <= model.residual_load.loc[time] + \
+    timeindex = model.timeindex[time]
+    return model.min_load_factor <= model.residual_load.loc[timeindex] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units) - \
         sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
 
@@ -440,7 +442,8 @@ def load_factor_max(model, time):
         relevant_charging_points = model.flexible_charging_points_set
     else:
         relevant_charging_points = []
-    return model.max_load_factor >= model.residual_load.loc[time] + \
+    timeindex = model.timeindex[time]
+    return model.max_load_factor >= model.residual_load.loc[timeindex] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units)- \
         sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
 
