@@ -137,10 +137,10 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.FixedSOC = pm.Constraint(model.storage_set,
                                        model.times_fixed_soc, rule=fix_soc)
     if optimize_ev_charging:
-        model.EVCharging = pm.Constraint(model.charging_points_set,
+        model.EVCharging = pm.Constraint(model.flexible_charging_points_set,
                                          model.time_non_zero, rule=charging_ev)
         model.InitialEVEnergyLevel = \
-            pm.Constraint(model.charging_points_set, model.time_zero,
+            pm.Constraint(model.flexible_charging_points_set, model.time_zero,
                           rule=initial_energy_level)
 
     # DEFINE OBJECTIVE
