@@ -92,6 +92,10 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                     bounds=(0, None))
     model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
                                       bounds=(0, None))
+    model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
+                                             bounds=(0, None))
+    model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
+                                               bounds=(0, None))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -281,7 +285,10 @@ def minimize_max_residual_load(model):
     return -model.delta_min * model.min_load_factor + \
            model.delta_max * model.max_load_factor + \
            sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time] for bus in model.bus_set
+               model.curtailment_feedin[bus, time] +
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
+               for bus in model.bus_set
                for time in model.time_set)
 
 
@@ -349,7 +356,9 @@ def reactive_power(model, line, time):
         relevant_buses_bus1))
     load_flow_on_line = \
         model.nodal_reactive_power.loc[relevant_buses, timeindex].sum()
-    return model.q_cum[line, time] == load_flow_on_line
+    return model.q_cum[line, time] == load_flow_on_line + \
+        sum(model.curtailment_reactive_load[bus, time] -
+            model.curtailment_reactive_feedin[bus, time] for bus in relevant_buses)
 
 
 def soc(model, storage, time):
@@ -424,7 +433,9 @@ def load_factor_min(model, time):
     timeindex = model.timeindex[time]
     return model.min_load_factor <= model.residual_load.loc[timeindex] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units) - \
-        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
+        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  + \
+        sum(model.curtailment_load[bus, time] -
+            model.curtailment_feedin[bus, time] for bus in model.bus_set)
 
 
 def load_factor_max(model, time):
@@ -445,7 +456,9 @@ def load_factor_max(model, time):
     timeindex = model.timeindex[time]
     return model.max_load_factor >= model.residual_load.loc[timeindex] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units)- \
-        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
+        sum(model.charging_ev[cp, time] for cp in relevant_charging_points) + \
+        sum(model.curtailment_load[bus, time] -
+            model.curtailment_feedin[bus, time] for bus in model.bus_set)
 
 
 def slack_voltage(model, bus, time):
