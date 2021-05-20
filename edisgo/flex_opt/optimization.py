@@ -6,16 +6,26 @@ from edisgo.tools.tools import get_nodal_residual_load
 
 
 def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,
-                optimize_ev_charging=True, **kwargs):
+                optimize_ev_charging=True, objective='curtailment', **kwargs):
     """
     Method to set up pyomo model for optimisation of storage procurement
     and/or ev charging with linear approximation of power flow from
     eDisGo-object.
 
     :param edisgo:
+    :param downstream_node_matrix:
+    :param timesteps:
+    :param optimize_storage:
+    :param optimize_ev_charging:
+    :param objective: choose the objective that should be minimized, so far
+            'curtailment' and 'peak_load' are implemented
+    :param kwargs:
     :return:
     """
     model = pm.ConcreteModel()
+    # check if correct value of objective is inserted
+    if objective not in ['curtailment', 'peak_load']:
+        raise ValueError('The objective you inserted is not implemented yet.')
 
     # Todo: Extract kwargs values from cfg?
 
@@ -62,8 +72,6 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.residual_load = \
         get_residual_load_of_not_optimized_components(edisgo, model)
     model.grid = edisgo.topology
-    model.delta_min = kwargs.get('delta_min', 0.9)
-    model.delta_max = kwargs.get('delta_max', 0.1)
     model.downstream_nodes_matrix = downstream_node_matrix
     nodal_active_power, nodal_reactive_power = get_nodal_residual_load(
         edisgo, considered_storage=inflexible_storage_units,
@@ -75,15 +83,19 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.power_factor = kwargs.get("pf", 0.9)
     model.v_nom = edisgo.topology.buses_df.v_nom.iloc[0]
 
+    if objective == 'peak_load':
+        model.delta_min = kwargs.get('delta_min', 0.9)
+        model.delta_max = kwargs.get('delta_max', 0.1)
+        model.min_load_factor = pm.Var()
+        model.max_load_factor = pm.Var()
+
     # DEFINE VARIABLES
     print('Setup model: Defining variables.')
-    model.min_load_factor = pm.Var()
-    model.max_load_factor = pm.Var()
     model.p_cum = pm.Var(model.line_set, model.time_set,
                      bounds=lambda m, l, t:
                      (-m.power_factor * m.grid.lines_df.loc[l, 's_nom'],
                       m.power_factor * m.grid.lines_df.loc[l, 's_nom']))
-    model.q_cum = pm.Var(model.line_set, model.time_set)
+    model.q_cum = pm.Var(model.line_set, model.time_set) # Todo: remove? Not necessary at current configuration
     model.v = pm.Var(model.bus_set, model.time_set,
                  bounds=(
                  np.square(model.v_min * model.v_nom), np.square(model.v_max *
@@ -125,8 +137,6 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
 
     # DEFINE CONSTRAINTS
     print('Setup model: Setting constraints.')
-    model.LoadFactorMin = pm.Constraint(model.time_set, rule=load_factor_min)
-    model.LoadFactorMax = pm.Constraint(model.time_set, rule=load_factor_max)
     model.ActivePower = pm.Constraint(model.line_set, model.time_set,
                                       rule=active_power)
     model.ReactivePower = pm.Constraint(model.line_set, model.time_set,
@@ -149,9 +159,18 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
 
     # DEFINE OBJECTIVE
     print('Setup model: Setting objective.')
-    model.objective = pm.Objective(rule=minimize_max_residual_load,
-                                   sense=pm.minimize,
-                                   doc='Define objective function')
+    if objective == 'peak_load':
+        model.LoadFactorMin = pm.Constraint(model.time_set, rule=load_factor_min)
+        model.LoadFactorMax = pm.Constraint(model.time_set, rule=load_factor_max)
+        model.objective = pm.Objective(rule=minimize_max_residual_load,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif objective == 'curtailment':
+        model.objective = pm.Objective(rule=minimize_curtailment,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    else:
+        raise Exception('Unknown objective.')
 
     if kwargs.get('print_model', False):
         model.pprint()
@@ -196,9 +215,14 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
     x_charge = pd.DataFrame()
     soc = pd.DataFrame()
     x_charge_ev = pd.DataFrame()
-    energy_band_cp = pd.DataFrame()
+    energy_level_cp = pd.DataFrame()
     curtailment_load = pd.DataFrame()
     curtailment_feedin = pd.DataFrame()
+    curtailment_reactive_load = pd.DataFrame()
+    curtailment_reactive_feedin = pd.DataFrame()
+    p_line = pd.DataFrame()
+    q_line = pd.DataFrame()
+    v_bus = pd.DataFrame()
 
     if (results.solver.status == SolverStatus.ok) and \
             (
@@ -213,25 +237,38 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
             if hasattr(model, 'charging_points_set'):
                 for cp in model.charging_points_set:
                     x_charge_ev.loc[timeindex, cp] = model.charging_ev[cp, time].value
-                    energy_band_cp.loc[timeindex, cp] = \
+                    energy_level_cp.loc[timeindex, cp] = \
                         model.energy_level_ev[cp, time].value
             for bus in model.bus_set:
                 curtailment_feedin.loc[timeindex, bus] = \
                     model.curtailment_feedin[bus, time].value
                 curtailment_load.loc[timeindex, bus] = \
                     model.curtailment_load[bus, time].value
+                curtailment_reactive_feedin.loc[timeindex, bus] = \
+                    model.curtailment_reactive_feedin[bus, time].value
+                curtailment_reactive_load.loc[timeindex, bus] = \
+                    model.curtailment_reactive_load[bus, time].value
+                v_bus.loc[timeindex, bus] = np.sqrt(model.v[bus, time].value)
+            for line in model.line_set:
+                p_line.loc[timeindex, line] = model.p_cum[line, time].value
+                q_line.loc[timeindex, line] = model.q_cum[line, time].value
         if save_dir:
             x_charge.to_csv(save_dir+'/x_charge_storage.csv')
             soc.to_csv(save_dir+'/soc_storage.csv')
             x_charge_ev.to_csv(save_dir+'/x_charge_ev.csv')
-            energy_band_cp.to_csv(save_dir+'/energy_level_ev.csv')
+            energy_level_cp.to_csv(save_dir+'/energy_level_ev.csv')
             curtailment_feedin.to_csv(save_dir + '/curtailment_feedin.csv')
             curtailment_load.to_csv(save_dir + '/curtailment_load.csv')
-        return x_charge, soc, x_charge_ev, energy_band_cp, curtailment_feedin, \
-               curtailment_load
-    # Do something when the solution in optimal and feasible
-    elif (
-            results.solver.termination_condition == TerminationCondition.infeasible):
+            curtailment_reactive_feedin.to_csv(save_dir + '/curtailment_reactive_feedin.csv')
+            curtailment_reactive_load.to_csv(save_dir + '/curtailment_reactive_load.csv')
+
+            v_bus.to_csv(save_dir + '/voltage_buses.csv')
+            p_line.to_csv(save_dir + '/active_power_lines.csv')
+            q_line.to_csv(save_dir + '/reactive_power_lines.csv')
+        return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
+               curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+               v_bus, p_line, q_line
+    elif results.solver.termination_condition == TerminationCondition.infeasible:
         print('Model is infeasible')
         return
         # Do something when model in infeasible
@@ -285,6 +322,20 @@ def minimize_max_residual_load(model):
     return -model.delta_min * model.min_load_factor + \
            model.delta_max * model.max_load_factor + \
            sum(model.curtailment_load[bus, time] +
+               model.curtailment_feedin[bus, time] +
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
+               for bus in model.bus_set
+               for time in model.time_set)
+
+
+def minimize_curtailment(model):
+    """
+    Objective minimizing extreme load factors
+    :param model:
+    :return:
+    """
+    return sum(model.curtailment_load[bus, time] +
                model.curtailment_feedin[bus, time] +
                model.curtailment_reactive_load[bus, time] +
                model.curtailment_reactive_feedin[bus, time]
