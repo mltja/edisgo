@@ -513,27 +513,30 @@ def get_timeseries_per_node(edisgo, component, component_names=None):
     :return: pandas.DataFrame
     """
     nodal_active_power_all_buses = \
-        pd.DataFrame(columns=edisgo.topology.buses_df.index)
+        pd.DataFrame(columns=edisgo.topology.buses_df.index,
+                     index=edisgo.timeseries.timeindex)
     nodal_reactive_power_all_buses = pd.DataFrame(
-        columns=edisgo.topology.buses_df.index)
-    bus_component_dict = \
-        getattr(edisgo.topology, component + 's_df')['bus'].to_dict()
-    if component_names is None:
-        component_names = getattr(edisgo.topology, component + 's_df').index
-    nodal_active_power = \
-        getattr(edisgo.timeseries, component + 's_active_power')[
-            component_names].rename(columns=bus_component_dict)
-    nodal_reactive_power = \
-        getattr(edisgo.timeseries, component + 's_reactive_power')[
-            component_names].rename(columns=bus_component_dict)
-    nodal_active_power = nodal_active_power.groupby(nodal_active_power.columns,
-                                                    axis=1).sum()
-    nodal_reactive_power = nodal_reactive_power.groupby(
-        nodal_reactive_power.columns, axis=1).sum()
-    nodal_active_power_all_buses[nodal_active_power.columns] = \
-        nodal_active_power
-    nodal_reactive_power_all_buses[nodal_reactive_power.columns] = \
-        nodal_reactive_power
+        columns=edisgo.topology.buses_df.index,
+                     index=edisgo.timeseries.timeindex)
+    if component_names is None or len(component_names)>0:
+        bus_component_dict = \
+            getattr(edisgo.topology, component + 's_df')['bus'].to_dict()
+        if component_names is None:
+            component_names = getattr(edisgo.topology, component + 's_df').index
+        nodal_active_power = \
+            getattr(edisgo.timeseries, component + 's_active_power')[
+                component_names].rename(columns=bus_component_dict)
+        nodal_reactive_power = \
+            getattr(edisgo.timeseries, component + 's_reactive_power')[
+                component_names].rename(columns=bus_component_dict)
+        nodal_active_power = nodal_active_power.groupby(nodal_active_power.columns,
+                                                        axis=1).sum()
+        nodal_reactive_power = nodal_reactive_power.groupby(
+            nodal_reactive_power.columns, axis=1).sum()
+        nodal_active_power_all_buses[nodal_active_power.columns] = \
+            nodal_active_power
+        nodal_reactive_power_all_buses[nodal_reactive_power.columns] = \
+            nodal_reactive_power
     nodal_active_power_all_buses.fillna(0, inplace=True)
     nodal_reactive_power_all_buses.fillna(0, inplace=True)
     return nodal_active_power_all_buses, nodal_reactive_power_all_buses
