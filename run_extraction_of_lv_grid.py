@@ -2,9 +2,10 @@ from edisgo import EDisGo
 import numpy as np
 import pandas as pd
 import edisgo.flex_opt.optimization as opt
-from edisgo.tools.pypsa_io import to_pypsa
+from edisgo.edisgo import import_edisgo_from_files
 
 from edisgo.tools.networkx_helper import get_downstream_nodes_matrix_iterative
+
 
 def convert_to_pu_system(grid, s_base=1, convert_timeseries=True,
                          timeseries_inplace=False):
@@ -69,24 +70,6 @@ def convert_to_pu_system(grid, s_base=1, convert_timeseries=True,
         if grid.base_power == 1:
             if timeseries_inplace:
                 return
-            else:
-                ts = grid.edisgo_obj.timeseries
-                if hasattr(ts, 'charging_points_active_power'):
-                    cp_active_power = ts.charging_points_active_power
-                    cp_reactive_power = ts.charging_points_reactive_power
-                # else:
-                #     cp_active_power = pd.DataFrame()
-                #     cp_reactive_power = pd.DataFrame()
-                # return {
-                #     'generators_active_power_pu': ts.generators_active_power,
-                #     'generators_reactive_power_pu': ts.generators_reactive_power,
-                #     'loads_active_power_pu': ts.loads_active_power,
-                #     'loads_reactive_power_pu': ts.loads_reactive_power,
-                #     'storage_units_active_power_pu': ts.storage_units_active_power,
-                #     'storage_units_reactive_power_pu': ts.storage_units_reactive_power,
-                #     'charging_points_active_power_pu': cp_active_power,
-                #     'charging_points_reactive_power_pu': cp_reactive_power
-                # }
         for component in ['generators', 'loads',
                           'storage_units', 'charging_points']:
             if hasattr(grid.edisgo_obj.timeseries,
@@ -107,25 +90,44 @@ def convert_to_pu_system(grid, s_base=1, convert_timeseries=True,
         return timeseries
 
 
-ding0_grid_dir = r'C:\Users\Anya.Heider\DistFlex\eDisGo_mirror\tests\ding0_test_network_1'
+result_dir = r'\\192.168.10.221\Daten_flexibel_02\Anyas_Daten\EV_Optimisation\1056'
 
-edisgo = EDisGo(ding0_grid=ding0_grid_dir, worst_case_analysis='worst-case')
+# grid_dir = 'C:/Users/Anya.Heider/DistFlex/AllgaeuNetz/data'
+# edisgo = import_edisgo_from_files(grid_dir)
+# get_downstream_nodes_matrix_iterative(edisgo)
+
+grid_id = 1056
+
+edisgo_dir = r'\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_object_files_final\Electrification_2050\{}\reduced'.format(grid_id)#Todo: change back to final in the end
+edisgo = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
+
+print('eDisGo object imported.')
+
+# downstream_nodes_matrix = get_downstream_nodes_matrix_iterative(edisgo_obj)
+# downstream_nodes_matrix.to_csv('grid_data/downstream_node_matrix.csv', dtype=uint8)
+downstream_nodes_matrix = pd.read_csv('grid_data/downstream_node_matrix.csv',
+                                      index_col=0)
+downstream_nodes_matrix = downstream_nodes_matrix.astype(np.uint8)
+print('Downstream node matrix imported.')
 
 lv_grids = [grid for grid in edisgo.topology.mv_grid.lv_grids]
 
 lv_grid = lv_grids[0]
 timeseries = convert_to_pu_system(lv_grid)
-downstream_node_matrix = get_downstream_nodes_matrix_iterative(lv_grid)
-model = opt.setup_model(lv_grid, downstream_node_matrix, optimize_storage=False, optimize_ev_charging=False)
+downstream_node_matrix = downstream_nodes_matrix.loc[lv_grid.buses_df.index,
+                                                     lv_grid.buses_df.index]
+model = opt.setup_model(lv_grid, downstream_node_matrix,
+                        optimize_storage=False, optimize_ev_charging=False)
 x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
    curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
    v_bus, p_line, q_line = opt.optimize(model, 'glpk')
 
-pypsa_network = edisgo.to_pypsa(mode='lv', lv_grid_name='LVGrid_1')
+pypsa_network = edisgo.to_pypsa(mode='lv',
+                                lv_grid_name='LVGrid_{}'.format(lv_grid.id))
 pypsa_network.pf()
-voltage=pypsa_network.buses_t.v_mag_pu
+voltage = pypsa_network.buses_t.v_mag_pu
 # compare results
-diff=voltage-v_bus/lv_grid.nominal_voltage
-max_diff=diff.abs().max().max()
+diff = voltage-v_bus/lv_grid.nominal_voltage
+max_diff = diff.abs().max().max()
 print('Maximum deviation voltage: {}%'.format(max_diff*100))
 print('SUCCESS')
