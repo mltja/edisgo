@@ -6,7 +6,7 @@ from edisgo.tools.tools import get_nodal_residual_load
 
 
 def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,
-                optimize_ev_charging=True, objective='curtailment', **kwargs):
+                optimize_ev_charging=True, objective='curtailment', pu=True, **kwargs):
     """
     Method to set up pyomo model for optimisation of storage procurement
     and/or ev charging with linear approximation of power flow from
@@ -23,6 +23,14 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     :return:
     """
     model = pm.ConcreteModel()
+    if hasattr(edisgo, 'topology'):
+        grid_object = edisgo.topology
+        edisgo_object = edisgo
+        slack = grid_object.slack_df.bus
+    else:
+        grid_object = edisgo
+        edisgo_object = edisgo.edisgo_obj
+        slack = [grid_object.transformers_df.bus1.iloc[0]]
     # check if correct value of objective is inserted
     if objective not in ['curtailment', 'peak_load']:
         raise ValueError('The objective you inserted is not implemented yet.')
@@ -31,23 +39,23 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
 
     # DEFINE SETS AND FIX PARAMETERS
     print('Setup model: Defining sets and parameters.')
-    model.bus_set = pm.Set(initialize=edisgo.topology.buses_df.index)
-    model.slack_bus = pm.Set(initialize=edisgo.topology.slack_df.bus)
+    model.bus_set = pm.Set(initialize=grid_object.buses_df.index)
+    model.slack_bus = pm.Set(initialize=slack)
     if timesteps is not None:
         model.timeindex = timesteps
     else:
-        model.timeindex = edisgo.timeseries.timeindex
-    model.time_set = pm.RangeSet(0, len(timesteps)-1)
+        model.timeindex = edisgo_object.timeseries.timeindex
+    model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
     print('First timestep: {}, last timestep: {}.'.format(model.time_set[1], model.time_set[-1]))
     model.time_zero = [model.time_set[1]]
     model.time_non_zero = model.time_set - [model.time_set[1]]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set[1], model.time_set[-1]])
-    model.line_set = pm.Set(initialize=edisgo.topology.lines_df.index)
+    model.line_set = pm.Set(initialize=grid_object.lines_df.index)
     if optimize_storage:
-        model.storage_set = pm.Set(initialize=edisgo.topology.storage_units_df.index)
+        model.storage_set = pm.Set(initialize=grid_object.storage_units_df.index)
         optimized_storage_units = \
             kwargs.get('flexible_storage_units',
-                       edisgo.topology.storage_units_df.index)
+                       grid_object.storage_units_df.index)
         model.optimized_storage_set = \
             pm.Set(initialize=optimized_storage_units)
         model.fixed_storage_set = model.storage_set - \
@@ -60,7 +68,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.energy_band_charging_points = kwargs.get('energy_band_charging_points')
         model.mapping_cp = kwargs.get('mapping_cp')
         model.charging_points_set = \
-            pm.Set(initialize=edisgo.topology.charging_points_df.index)
+            pm.Set(initialize=grid_object.charging_points_df.index)
         model.flexible_charging_points_set = \
             pm.Set(initialize=model.mapping_cp.index)
         model.inflexible_charging_points_set = \
@@ -70,18 +78,19 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     else:
         inflexible_charging_points = None
     model.residual_load = \
-        get_residual_load_of_not_optimized_components(edisgo, model)
-    model.grid = edisgo.topology
+        get_residual_load_of_not_optimized_components(grid_object, edisgo_object, model)
+    model.grid = grid_object
     model.downstream_nodes_matrix = downstream_node_matrix
     nodal_active_power, nodal_reactive_power = get_nodal_residual_load(
-        edisgo, considered_storage=inflexible_storage_units,
+        grid_object, edisgo_object, considered_storage=inflexible_storage_units,
         considered_charging_points=inflexible_charging_points)
     model.nodal_active_power = nodal_active_power.T
     model.nodal_reactive_power = nodal_reactive_power.T
     model.v_min = kwargs.get("v_min", 0.9)
     model.v_max = kwargs.get("v_max", 1.1)
     model.power_factor = kwargs.get("pf", 0.9)
-    model.v_nom = edisgo.topology.buses_df.v_nom.iloc[0]
+    model.v_nom = grid_object.buses_df.v_nom.iloc[0]
+    model.v_slack = kwargs.get('v_slack', model.v_nom)
 
     if objective == 'peak_load':
         model.delta_min = kwargs.get('delta_min', 0.9)
@@ -207,9 +216,11 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
     :return:
     """
     opt = pm.SolverFactory(solver)
+    #opt.options['preprocessing presolve'] = 0
 
     # Optimize
-    results = opt.solve(model, tee=True, load_solutions=load_solutions)
+    results = opt.solve(model, tee=True, #options={"threads":4},
+                        load_solutions=load_solutions)
 
     # Extract results
     x_charge = pd.DataFrame()
@@ -277,7 +288,7 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
         return
 
 
-def get_residual_load_of_not_optimized_components(edisgo, model):
+def get_residual_load_of_not_optimized_components(grid, edisgo, model):
     """
     Method to get residual load of fixed components.
 
@@ -285,29 +296,35 @@ def get_residual_load_of_not_optimized_components(edisgo, model):
     :param model:
     :return:
     """
+    relevant_generators = grid.generators_df.index
+    relevant_loads = grid.loads_df.index
     if hasattr(model, 'fixed_storage_set'):
         relevant_storage_units = model.fixed_storage_set
     else:
-        relevant_storage_units = edisgo.topology.storage_units_df.index
+        relevant_storage_units = grid.storage_units_df.index
 
     if hasattr(model, 'inflexible_charging_points_set'):
         relevant_charging_points = model.inflexible_charging_points_set
     else:
-        relevant_charging_points = edisgo.topology.charging_points_df.index
+        relevant_charging_points = grid.charging_points_df.index
 
     if edisgo.timeseries.charging_points_active_power.empty:
         return (
-                edisgo.timeseries.generators_active_power.sum(axis=1)
+                edisgo.timeseries.generators_active_power[
+                    relevant_generators].sum(axis=1)
                 + edisgo.timeseries.storage_units_active_power[
                     relevant_storage_units].sum(axis=1)
-                - edisgo.timeseries.loads_active_power.sum(axis=1)
+                - edisgo.timeseries.loads_active_power[relevant_loads
+                ].sum(axis=1)
         ).loc[edisgo.timeseries.timeindex]
     else:
         return (
-                edisgo.timeseries.generators_active_power.sum(axis=1)
+                edisgo.timeseries.generators_active_power[
+                    relevant_generators].sum(axis=1)
                 + edisgo.timeseries.storage_units_active_power[
                     relevant_storage_units].sum(axis=1)
-                - edisgo.timeseries.loads_active_power.sum(axis=1)
+                - edisgo.timeseries.loads_active_power[relevant_loads
+                ].sum(axis=1)
                 - edisgo.timeseries.charging_points_active_power[
                     relevant_charging_points].sum(axis=1)
         ).loc[edisgo.timeseries.timeindex]
@@ -376,6 +393,8 @@ def active_power(model, line, time):
                 model.grid.charging_points_df.index.isin(
                     model.flexible_charging_points_set) &
                 model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
+    else:
+        relevant_charging_points = []
     load_flow_on_line = \
         model.nodal_active_power.loc[relevant_buses, timeindex].sum()
     return model.p_cum[line, time] == load_flow_on_line + \
@@ -520,7 +539,7 @@ def slack_voltage(model, bus, time):
     :param time:
     :return:
     """
-    return model.v[bus, time] == np.square(model.v_nom)
+    return model.v[bus, time] == np.square(model.v_slack)
 
 
 def voltage_drop(model, line, time):
@@ -547,19 +566,19 @@ def voltage_drop(model, line, time):
              model.q_cum[line, time]*model.grid.lines_df.loc[line, 'x'])
 
 
-def check_mapping(mapping_cp, edisgo, energy_bands):
+def check_mapping(mapping_cp, grid, energy_bands):
     """
     Method to make sure the mapping is valid. Checks the existence of the
     indices in the edisgo object and the existence of entries in the e
     nergy_bands dataframe.
 
     :param mapping_cp:
-    :param edisgo:
+    :param grid:
     :param energy_bands:
     :return:
     """
     non_existing_cp = mapping_cp.index[~mapping_cp.index.isin(
-        edisgo.topology.charging_points_df.index)]
+        grid.charging_points_df.index)]
     if len(non_existing_cp) > 0:
         raise Warning('The following charging points of the mapping are not '
                       'existent in the passed edisgo object: {}.'.format(

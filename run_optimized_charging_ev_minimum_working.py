@@ -33,7 +33,7 @@ energy_band_ev = energy_band_ev.resample('h').min()
 
 cp_ags_idx = [[0, 0]]
 mapping = pd.DataFrame(index=edisgo.topology.charging_points_df.index, columns=['ags', 'cp_idx'], data=cp_ags_idx)
-downstream_node_matrix = get_downstream_nodes_matrix_iterative(edisgo)
+downstream_node_matrix = get_downstream_nodes_matrix_iterative(edisgo.topology)
 energy_band_charging_point = energy_band_ev.rename(columns=({
     'lower': 'lower_{}_{}'.format(cp_ags_idx[0][0], cp_ags_idx[0][1]),
     'upper': 'upper_{}_{}'.format(cp_ags_idx[0][0], cp_ags_idx[0][1]),

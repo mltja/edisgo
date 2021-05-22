@@ -498,7 +498,7 @@ def assign_voltage_level_to_component(edisgo_obj, df):
     return df
 
 
-def get_timeseries_per_node(edisgo, component, component_names=None):
+def get_timeseries_per_node(grid, edisgo, component, component_names=None):
     """
     Helper function to get nodal active and reactive timeseries of the given
     component
@@ -513,16 +513,16 @@ def get_timeseries_per_node(edisgo, component, component_names=None):
     :return: pandas.DataFrame
     """
     nodal_active_power_all_buses = \
-        pd.DataFrame(columns=edisgo.topology.buses_df.index,
+        pd.DataFrame(columns=grid.buses_df.index,
                      index=edisgo.timeseries.timeindex)
     nodal_reactive_power_all_buses = pd.DataFrame(
-        columns=edisgo.topology.buses_df.index,
-                     index=edisgo.timeseries.timeindex)
+        columns=grid.buses_df.index,
+        index=edisgo.timeseries.timeindex)
     if component_names is None or len(component_names)>0:
         bus_component_dict = \
-            getattr(edisgo.topology, component + 's_df')['bus'].to_dict()
+            getattr(grid, component + 's_df')['bus'].to_dict()
         if component_names is None:
-            component_names = getattr(edisgo.topology, component + 's_df').index
+            component_names = getattr(grid, component + 's_df').index
         nodal_active_power = \
             getattr(edisgo.timeseries, component + 's_active_power')[
                 component_names].rename(columns=bus_component_dict)
@@ -542,7 +542,7 @@ def get_timeseries_per_node(edisgo, component, component_names=None):
     return nodal_active_power_all_buses, nodal_reactive_power_all_buses
 
 
-def get_nodal_residual_load(edisgo, **kwargs):
+def get_nodal_residual_load(grid, edisgo, **kwargs):
     """
     Method to get nodal residual load being the sum of all supply and demand
     units at that specific bus.
@@ -556,13 +556,16 @@ def get_nodal_residual_load(edisgo, **kwargs):
     considered_storage = kwargs.get('considered_storage', None)
     considered_charging_points = kwargs.get('considered_charging_points', None)
     nodal_active_load, nodal_reactive_load = \
-        get_timeseries_per_node(edisgo, 'load', considered_loads)
+        get_timeseries_per_node(grid, edisgo, 'load', considered_loads)
     nodal_active_generation, nodal_reactive_generation = \
-        get_timeseries_per_node(edisgo, 'generator', considered_generators)
+        get_timeseries_per_node(grid, edisgo, 'generator',
+                                considered_generators)
     nodal_active_storage, nodal_reactive_storage = \
-        get_timeseries_per_node(edisgo, 'storage_unit', considered_storage)
+        get_timeseries_per_node(grid, edisgo, 'storage_unit',
+                                considered_storage)
     nodal_active_charging_points, nodal_reactive_charging_points = \
-        get_timeseries_per_node(edisgo, 'charging_point', considered_charging_points)
+        get_timeseries_per_node(grid, edisgo, 'charging_point',
+                                considered_charging_points)
     nodal_active_power = \
         nodal_active_generation + nodal_active_storage - nodal_active_load - \
         nodal_active_charging_points

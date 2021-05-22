@@ -1,5 +1,6 @@
 import networkx as nx
 import pandas as pd
+import edisgo.network as nw
 
 
 def translate_df_to_graph(buses_df, lines_df, transformers_df=None):
@@ -62,7 +63,7 @@ def get_downstream_nodes_matrix(edisgo):
     return downstream_node_matrix
 
 
-def get_downstream_nodes_matrix_iterative(edisgo):
+def get_downstream_nodes_matrix_iterative(grid):
     """
     Method that returns matrix M with 0 and 1 entries describing the relation
     of buses within the network. If bus b is descendant of a (assuming the
@@ -73,20 +74,20 @@ def get_downstream_nodes_matrix_iterative(edisgo):
 
     Note: only works for radial networks.
 
-    :param edisgo_obj:
+    :param grid: either Topology, MVGrid or LVGrid
     :return:
     Todo: Check version with networkx successor
     """
 
     def recursive_downstream_node_matrix_filling(current_bus, current_feeder,
                                                  downstream_node_matrix,
-                                                 edisgo,
+                                                 grid,
                                                  visited_buses):
         current_feeder.append(current_bus)
         for neighbor in tree.successors(current_bus):
             if neighbor not in visited_buses and neighbor not in current_feeder:
                 recursive_downstream_node_matrix_filling(
-                    neighbor, current_feeder, downstream_node_matrix, edisgo,
+                    neighbor, current_feeder, downstream_node_matrix, grid,
                     visited_buses)
         # current_bus = current_feeder.pop()
         downstream_node_matrix.loc[current_feeder, current_bus] = 1
@@ -96,9 +97,15 @@ def get_downstream_nodes_matrix_iterative(edisgo):
                 len(visited_buses)/len(buses)*100))
         current_feeder.pop()
 
-    buses = edisgo.topology.buses_df.index.values
+    buses = grid.buses_df.index.values
+    if isinstance(grid, nw.topology.Topology):
+        graph = grid.to_graph()
+        slack = grid.slack_df.bus.values[0]
+    else:
+        graph = grid.graph
+        slack = grid.transformers_df.bus1.iloc[0]
     tree = \
-        nx.bfs_tree(edisgo.to_graph(), edisgo.topology.slack_df.bus.values[0])
+        nx.bfs_tree(graph, slack)
 
     print('Matrix for {} buses is extracted.'.format(len(buses)))
     downstream_node_matrix = pd.DataFrame(columns=buses, index=buses)
@@ -107,10 +114,9 @@ def get_downstream_nodes_matrix_iterative(edisgo):
     print('Starting iteration.')
     visited_buses = []
     current_feeder = []
-    current_bus = edisgo.topology.slack_df.bus.values[0]
 
-    recursive_downstream_node_matrix_filling(current_bus, current_feeder,
-                                             downstream_node_matrix, edisgo,
+    recursive_downstream_node_matrix_filling(slack, current_feeder,
+                                             downstream_node_matrix, grid,
                                              visited_buses)
 
     return downstream_node_matrix
