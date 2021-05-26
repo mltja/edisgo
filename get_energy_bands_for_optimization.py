@@ -44,7 +44,7 @@ for use_case in use_cases:
                 weekly_bands['_'.join(['upper',str(ag), str(idx)])] = weekly_bands_cp['upper']
                 weekly_bands['_'.join(['lower',str(ag), str(idx)])] = weekly_bands_cp['lower']
                 weekly_bands['_'.join(['power',str(ag), str(idx)])] = weekly_bands_cp['power']
-    weekly_bands.to_csv('grid_data/ev_flexibility_bands_{}.csv'.format(use_case))
+    (weekly_bands/1e3).to_csv('grid_data/ev_flexibility_bands_{}.csv'.format(use_case))
     print('Use case {} finished.'. format(use_case))
 
 print('SUCCESS')

@@ -1482,7 +1482,7 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
     else:
         number_of_weeks = kwargs.get('number_of_weeks')
         last_week = kwargs.get('last_week')
-        start_week = kwargs.het('start_week')
+        start_week = kwargs.get('start_week')
         energy_band = \
             pd.DataFrame(index=[i for i in range(number_of_weeks * time_steps_per_week + 1)],
                          columns=['lower', 'upper', 'power'])
@@ -1493,13 +1493,13 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
         if week - week_pre > 0:
             week_pre = week
             energy_level = 0
-        energy_band.loc[time_step:charging_event['charge_start'] - 1, ['lower',
+        energy_band.loc[time_step:charging_event['charge_start'], ['lower',
                                                                        'upper']] = \
             energy_level
         charging_time = int(np.ceil(charging_event['charging_time_full_load']))
         charging_fraction = charging_event['charging_time_full_load'] % 1
         # lower band
-        energy_band.loc[charging_event['charge_start']:
+        energy_band.loc[charging_event['charge_start']+1:
                         charging_event['charge_end'] - charging_time,
         'lower'] = \
             energy_level
@@ -1516,20 +1516,20 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
             charging_event['charge_end'] - charging_time + 1:charging_event[
                 'charge_end'], 'lower'] = energy_level_tmp
         # upper band
-        energy_band.loc[charging_event['charge_start']:
-                        charging_event['charge_start'] + charging_time - 2,
+        energy_band.loc[charging_event['charge_start']+1:
+                        charging_event['charge_start'] + charging_time - 1,
         'upper'] \
             = [energy_level + (i + 1) * charging_event[
             'netto_charging_capacity'] / 4
                for i in range(charging_time - 1)]
 
         energy_level += charging_event['chargingdemand']
-        energy_band.loc[charging_event['charge_start'] + charging_time - 1:
+        energy_band.loc[charging_event['charge_start'] + charging_time:
                         charging_event['charge_end'], 'upper'] = energy_level
         # move to next event
         time_step = charging_event['charge_end'] + 1
         energy_band.loc[charging_event['charge_start']:
-                        charging_event['charge_end'], 'power'] = \
+                        charging_event['charge_end']-1, 'power'] = \
             ev_tech_data.loc['test', 'charging_power']
     energy_band_week = \
         energy_band.loc[
