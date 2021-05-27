@@ -573,3 +573,34 @@ def get_nodal_residual_load(grid, edisgo, **kwargs):
         nodal_reactive_generation + nodal_reactive_storage - nodal_reactive_load - \
         nodal_reactive_charging_points
     return nodal_active_power, nodal_reactive_power
+
+
+def get_aggregated_bands(bands):
+    columns_upper = [col for col in bands.columns if 'upper' in col]
+    columns_lower = [col for col in bands.columns if 'lower' in col]
+    columns_power = [col for col in bands.columns if 'power' in col]
+    aggregated_bands = pd.DataFrame()
+    aggregated_bands['upper'] = bands[columns_upper].sum(axis=1)
+    aggregated_bands['lower'] = bands[columns_lower].sum(axis=1)
+    aggregated_bands['power'] = bands[columns_power].sum(axis=1)
+    return aggregated_bands
+
+
+def convert_impedances_to_mv(edisgo):
+    for lv_grid in edisgo.topology.mv_grid.lv_grids:
+        k = edisgo.topology.mv_grid.nominal_voltage / lv_grid.nominal_voltage
+        edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'r'] = \
+            edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'r'] * k**2
+        edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'x'] = \
+            edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'x'] * k ** 2
+    return edisgo
+
+
+def convert_impedances_back_to_lv(edisgo):
+    for lv_grid in edisgo.topology.mv_grid.lv_grids:
+        k = edisgo.topology.mv_grid.nominal_voltage / lv_grid.nominal_voltage
+        edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'r'] = \
+            edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'r'] / k**2
+        edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'x'] = \
+            edisgo.topology.lines_df.loc[lv_grid.lines_df.index, 'x'] / k ** 2
+    return edisgo

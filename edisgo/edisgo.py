@@ -350,6 +350,29 @@ class EDisGo:
 
         return self.topology.to_graph()
 
+    def convert_to_pu_system(self, s_base=10, t_base=1, convert_timeseries=True,
+                             timeseries_inplace=True):
+        """
+        Todo: add docstring
+        :param s_base:
+        :param t_base:
+        :param convert_timeseries:
+        :param timeseries_inplace:
+        :return:
+        """
+        ts = []
+        if convert_timeseries and not timeseries_inplace:
+            raise NotImplementedError
+        ts.append(self.topology.mv_grid.convert_to_pu_system(
+            s_base=s_base, t_base=t_base, convert_timeseries=convert_timeseries,
+            timeseries_inplace=timeseries_inplace))
+        for lv_grid in self.topology.mv_grid.lv_grids:
+            ts.append(lv_grid.convert_to_pu_system(
+                s_base=s_base, t_base=t_base,
+                convert_timeseries=convert_timeseries,
+                timeseries_inplace=timeseries_inplace))
+        return
+
     def curtail(self, methodology, curtailment_timeseries, **kwargs):
         """
         Sets up curtailment time series.

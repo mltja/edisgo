@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
+import numpy as np
 
 from edisgo.network.components import Generator, Load, Switch
 from edisgo.tools.networkx_helper import translate_df_to_graph
-
 
 class Grid(ABC):
     """
@@ -339,6 +339,110 @@ class Grid(ABC):
         """
         # ToDo: Should we implement this or move function from tools here?
         raise NotImplementedError
+
+    def convert_to_pu_system(self, s_base=1, t_base=1, convert_timeseries=True,
+                             timeseries_inplace=False):
+        """
+        Method to convert grid to pu-system. Can be used to run optimisation with
+        it.
+
+        :param self:
+        :param s_base: default 1MW
+        :param t_base: default 1h
+        :param convert_timeseries: boolean, determines whether timeseries data
+            should also be converted
+        :param timeseries_inplace: boolean, determines whether timeseries data is
+            changed directly inside the edisgo-object. Otherwise timeseries are
+            returned as DataFrame. Note: Be careful with this option and only use
+            when the whole object is converted or you only need one grid.
+        :return:
+        """
+        v_base = self.nominal_voltage
+        z_base = np.square(v_base) / s_base
+        self.base_power = s_base
+        self.base_impedance = z_base
+        self.base_time = t_base
+        # convert all components and add pu_columns
+        pu_cols = {'lines': ['r_pu', 'x_pu', 's_nom_pu'],
+                   'generators': ['p_nom_pu'],
+                   'loads': ['peak_load_pu'],
+                   'storage_units': ['p_nom_pu', 'capacity_pu']}
+        for comp, cols in pu_cols.items():
+            new_cols = [col for col in cols if col not in
+                        getattr(self.edisgo_obj.topology,
+                                comp + '_df').columns]
+            for col in new_cols:
+                getattr(self.edisgo_obj.topology, comp + '_df')[
+                    col] = np.NaN
+        self.edisgo_obj.topology.lines_df.loc[
+            self.lines_df.index, 'r_pu'] = \
+            self.lines_df.r / self.base_impedance
+        self.edisgo_obj.topology.lines_df.loc[
+            self.lines_df.index, 'x_pu'] = \
+            self.lines_df.x / self.base_impedance
+        self.edisgo_obj.topology.lines_df.loc[
+            self.lines_df.index, 's_nom_pu'] = \
+            self.lines_df.s_nom / self.base_power
+        self.edisgo_obj.topology.generators_df.loc[
+            self.generators_df.index,
+            'p_nom_pu'] = \
+            self.generators_df.p_nom / self.base_power
+        self.edisgo_obj.topology.loads_df.loc[
+            self.loads_df.index, 'peak_load_pu'] = \
+            self.loads_df.peak_load / self.base_power
+        self.edisgo_obj.topology.storage_units_df.loc[
+            self.storage_units_df.index,
+            'p_nom_pu'] = \
+            self.storage_units_df.p_nom / self.base_power
+        if not self.edisgo_obj.topology.storage_units_df.empty:
+            self.edisgo_obj.topology.storage_units_df.loc[
+                self.storage_units_df.index,
+                'capacity_pu'] = \
+                self.storage_units_df.capacity / (
+                        self.base_power * self.base_time)
+        if hasattr(self, 'charging_points_df') and \
+                not self.charging_points_df.empty:
+            if not 'p_nom_pu' in self.charging_points_df.columns:
+                self.edisgo_obj.topology.charging_points_df[
+                    'p_nom_pu'] = np.NaN
+            self.edisgo_obj.topology.charging_points_df.loc[
+                self.charging_points_df.index, 'p_nom_pu'] = \
+                self.charging_points_df.p_nom / self.base_power
+        # convert timeseries
+        if convert_timeseries:
+            if not hasattr(self.edisgo_obj.timeseries,
+                           'generators_active_power'):
+                print(
+                    'No data inside the timeseries object. Please provide '
+                    'timeseries to convert to the pu-system. Process is '
+                    'interrupted.')
+                return
+            timeseries = {}
+            # pass if values would not change
+            if self.base_power == 1:
+                if timeseries_inplace:
+                    return
+            for component in ['generators', 'loads',
+                              'storage_units', 'charging_points']:
+                if hasattr(self.edisgo_obj.timeseries,
+                           component + '_active_power'):
+                    active_power = getattr(self.edisgo_obj.timeseries,
+                                           component + '_active_power')
+                    reactive_power = getattr(self.edisgo_obj.timeseries,
+                                             component + '_reactive_power')
+                    comp_names = getattr(self, component + '_df').index
+                    active_power_pu = active_power[
+                                          comp_names] / self.base_power
+                    reactive_power_pu = reactive_power[comp_names]
+                    if timeseries_inplace:
+                        active_power[comp_names] = active_power_pu
+                        reactive_power[comp_names] = reactive_power_pu
+                    else:
+                        timeseries[
+                            component + '_active_power_pu'] = active_power_pu
+                        timeseries[
+                            component + '_reactive_power_pu'] = reactive_power_pu
+            return timeseries
 
 
 class MVGrid(Grid):
