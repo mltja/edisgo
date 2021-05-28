@@ -4,6 +4,7 @@ from edisgo.flex_opt.optimization import setup_model, update_model, optimize, ch
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+from edisgo.tools.tools import convert_impedances_to_mv
 
 result_dir = r'\\192.168.10.221\Daten_flexibel_02\Anyas_Daten\EV_Optimisation\1056'
 
@@ -17,6 +18,10 @@ edisgo_dir = r'\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_object_f
 edisgo_obj = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
 
 print('eDisGo object imported.')
+
+edisgo_obj = convert_impedances_to_mv(edisgo_obj)
+
+print('Converted impedances to mv.')
 
 # downstream_nodes_matrix = get_downstream_nodes_matrix_iterative(edisgo_obj)
 # downstream_nodes_matrix.to_csv('grid_data/downstream_node_matrix.csv', dtype=uint8)
@@ -63,7 +68,8 @@ for week in range(int(len(edisgo_obj.timeseries.timeindex)/timesteps_per_week)-1
     if week == 0:
         model = setup_model(edisgo_obj, downstream_nodes_matrix, timesteps,
                             optimize_storage=False, mapping_cp=mapping,
-                            energy_band_charging_points=flexibility_bands)
+                            energy_band_charging_points=flexibility_bands,
+                            pu=False)
     else:
         model = update_model(model, timesteps, flexibility_bands)
     print('Set up model for week {}.'.format(week))

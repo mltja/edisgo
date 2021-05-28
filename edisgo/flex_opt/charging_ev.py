@@ -1500,7 +1500,7 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
         charging_fraction = charging_event['charging_time_full_load'] % 1
         # lower band
         energy_band.loc[charging_event['charge_start']+1:
-                        charging_event['charge_end'] - charging_time,
+                        charging_event['charge_end']+1 - charging_time,
         'lower'] = \
             energy_level
         if charging_fraction != 0:
@@ -1513,8 +1513,8 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
                 'netto_charging_capacity'] / 4
                                 for i in range(charging_time)]
         energy_band.loc[
-            charging_event['charge_end'] - charging_time + 1:charging_event[
-                'charge_end'], 'lower'] = energy_level_tmp
+            charging_event['charge_end'] - charging_time + 2:charging_event[
+                'charge_end']+1, 'lower'] = energy_level_tmp
         # upper band
         energy_band.loc[charging_event['charge_start']+1:
                         charging_event['charge_start'] + charging_time - 1,
@@ -1525,11 +1525,11 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
 
         energy_level += charging_event['chargingdemand']
         energy_band.loc[charging_event['charge_start'] + charging_time:
-                        charging_event['charge_end'], 'upper'] = energy_level
+                        charging_event['charge_end']+1, 'upper'] = energy_level
         # move to next event
         time_step = charging_event['charge_end'] + 1
         energy_band.loc[charging_event['charge_start']:
-                        charging_event['charge_end']-1, 'power'] = \
+                        charging_event['charge_end'], 'power'] = \
             ev_tech_data.loc['test', 'charging_power']
     energy_band_week = \
         energy_band.loc[
@@ -1537,5 +1537,13 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
             time_steps_per_week].reset_index().drop(columns=['index'])
     energy_band_week = energy_band_week.fillna(0).astype(float)
     energy_band_week.loc[energy_band_week.lower.idxmax():, ['upper', 'lower']] = \
-        energy_band_week.lower.max()
+        energy_band_week.upper.max()
+    energy_band_week['lower'] = np.round(energy_band_week['lower'], 6)
+    energy_band_week['upper'] = np.round(energy_band_week['upper'], 6)
+    if (energy_band_week['lower']>energy_band_week['upper']).any():
+        raise ValueError('Lower band has higher value than upper. '
+                         'This should not happen. Please check code.')
+    if ((energy_band_week[['lower', 'upper']].diff()<0).any()).any():
+        raise ValueError('Energy bands are now allow to fall in between. '
+                         'Please check.')
     return energy_band_week
