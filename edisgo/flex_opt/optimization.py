@@ -53,8 +53,6 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.timeindex = edisgo_object.timeseries.timeindex
     model.time_increment = pd.infer_freq(model.timeindex)
     model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
-    print('First timestep: {}, last timestep: {}.'.format(model.time_set[1],
-                                                          model.time_set[-1]))
     model.time_zero = [model.time_set[1]]
     model.time_non_zero = model.time_set - [model.time_set[1]]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set[1],
@@ -96,7 +94,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     if pu:
         model.v_nom = 1.0
         s_base = kwargs.get("s_base", 1)
-        grid_object.convert_to_pu_system(s_base, timeseries_inplace=True)
+        edisgo_object.convert_to_pu_system(s_base, timeseries_inplace=True)
         model.pars = {'r': 'r_pu', 'x': 'x_pu', 's_nom': 's_nom_pu',
                       'p_nom': 'p_nom_pu', 'peak_load': 'peak_load_pu',
                       'capacity': 'capacity_pu'}
@@ -121,10 +119,9 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.delta_max = kwargs.get('delta_max', 0.1)
         model.min_load_factor = pm.Var()
         model.max_load_factor = pm.Var()
-    elif objective == 'minimize_energy_level':
-        model.grid_min_power_flexible = pm.Var(model.time_set)
-    elif objective == 'maximize_energy_level':
-        model.grid_max_power_flexible = pm.Var(model.time_set)
+    elif objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level':
+        model.grid_power_flexible = pm.Var(model.time_set)
 
     # DEFINE VARIABLES
     print('Setup model: Defining variables.')
@@ -137,16 +134,16 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.bus_set, model.time_set, bounds=(
             np.square(model.v_min * model.v_nom), np.square(model.v_max *
                                                             model.v_nom)))
-    if not objective == 'minimize_energy_level' and \
-            not objective == 'maximize_energy_level':
-        model.curtailment_load = pm.Var(model.bus_set, model.time_set,
-                                        bounds=(0, None))
-        model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
-                                          bounds=(0, None))
-        model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
-                                                 bounds=(0, None))
-        model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
-                                                   bounds=(0, None))
+    # if not objective == 'minimize_energy_level' and \
+    #         not objective == 'maximize_energy_level':
+    model.curtailment_load = pm.Var(model.bus_set, model.time_set,
+                                    bounds=(0, None))
+    model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
+                                      bounds=(0, None))
+    model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
+                                             bounds=(0, None))
+    model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
+                                               bounds=(0, None))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -167,15 +164,17 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                    (0, m.energy_band_charging_points.loc[
                        m.timeindex[t], '_'.join(['power', str(m.mapping_cp.loc[b, 'ags']),
                                     str(m.mapping_cp.loc[b, 'cp_idx'])])]))
-        model.energy_level_ev = \
-            pm.Var(model.flexible_charging_points_set, model.time_set,
-                   bounds=lambda m, b, t:
-                   (m.energy_band_charging_points.loc[
-                        m.timeindex[t], '_'.join(['lower', str(m.mapping_cp.loc[b, 'ags']),
-                                     str(m.mapping_cp.loc[b, 'cp_idx'])])],
-                    m.energy_band_charging_points.loc[
-                        m.timeindex[t], '_'.join(['upper', str(m.mapping_cp.loc[b, 'ags']),
-                                     str(m.mapping_cp.loc[b, 'cp_idx'])])]))
+        if not (objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level'):
+            model.energy_level_ev = \
+                pm.Var(model.flexible_charging_points_set, model.time_set,
+                       bounds=lambda m, b, t:
+                       (m.energy_band_charging_points.loc[
+                            m.timeindex[t], '_'.join(['lower', str(m.mapping_cp.loc[b, 'ags']),
+                                         str(m.mapping_cp.loc[b, 'cp_idx'])])],
+                        m.energy_band_charging_points.loc[
+                            m.timeindex[t], '_'.join(['upper', str(m.mapping_cp.loc[b, 'ags']),
+                                         str(m.mapping_cp.loc[b, 'cp_idx'])])]))
 
     # DEFINE CONSTRAINTS
     print('Setup model: Setting constraints.')
@@ -192,12 +191,16 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                               model.time_non_zero, rule=soc)
         model.FixedSOC = pm.Constraint(model.storage_set,
                                        model.times_fixed_soc, rule=fix_soc)
-    if optimize_ev_charging:
+    if optimize_ev_charging and not (objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level'):
         model.EVCharging = pm.Constraint(model.flexible_charging_points_set,
                                          model.time_non_zero, rule=charging_ev)
         model.InitialEVEnergyLevel = \
             pm.Constraint(model.flexible_charging_points_set, model.time_zero,
                           rule=initial_energy_level)
+    if objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level':
+        model.AggrGrid = pm.Constraint(model.time_set, rule=aggregated_power)
 
     # DEFINE OBJECTIVE
     print('Setup model: Setting objective.')
@@ -209,6 +212,14 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                        doc='Define objective function')
     elif objective == 'curtailment':
         model.objective = pm.Objective(rule=minimize_curtailment,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif objective == 'minimize_energy_level':
+        model.objective = pm.Objective(rule=minimize_energy_level,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif objective == 'maximize_energy_level':
+        model.objective = pm.Objective(rule=maximize_energy_level,
                                        sense=pm.minimize,
                                        doc='Define objective function')
     else:
@@ -236,7 +247,45 @@ def update_model(model, timeindex, energy_band_charging_points, **kwargs):
     return model
 
 
-def optimize(model, solver, save_dir=None, load_solutions=True):
+def setup_model_bands(aggregated_bands, power_bands, mode, **kwargs):
+    model = pm.ConcreteModel()
+    print('Setup Model: Defining Parameters and Sets')
+    model.timeindex = aggregated_bands.index
+    model.time_increment = pd.infer_freq(model.timeindex)
+    model.time_set = pm.RangeSet(0, len(model.timeindex) - 1)
+    model.time_non_zero = model.time_set - [model.time_set[1]]
+    model.energy_bands = aggregated_bands
+    model.power_bands = power_bands
+    model.charging_efficiency = kwargs.get("charging_efficiency", 0.9)
+    print('Setup Model: Defining Variables')
+    model.charging_power = \
+        pm.Var(model.time_set, bounds=lambda m, t:
+        (m.power_bands.loc[m.timeindex[t], 'lower'],
+         m.power_bands.loc[m.timeindex[t], 'upper']))
+    model.energy_level = \
+        pm.Var(model.time_set, bounds=lambda m, t:
+        (m.energy_bands.loc[m.timeindex[t], 'lower'],
+         m.energy_bands.loc[m.timeindex[t], 'upper']))
+    print('Setup Model: Defining Constraints')
+    model.charging = pm.Constraint(model.time_non_zero, rule=charging_flex)
+    print('Setup Model: Defining Objective')
+    if mode == 'minimize':
+        model.objective = pm.Objective(rule=maximize_energy_band,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif mode == 'maximize':
+        model.objective = pm.Objective(rule=maximize_energy_band,
+                                       sense=pm.maximize,
+                                       doc='Define objective function')
+    else:
+        raise ValueError('Only mode "minimize" and "maximize" are defined '
+                         'so far.')
+    if kwargs.get('print_model', False):
+        model.pprint()
+    return model
+
+
+def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
     """
     Method to run the optimization and extract the results.
 
@@ -267,6 +316,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
     p_line = pd.DataFrame()
     q_line = pd.DataFrame()
     v_bus = pd.DataFrame()
+    if mode == 'energy_band':
+        p_aggr = pd.DataFrame()
 
     if (results.solver.status == SolverStatus.ok) and \
             (
@@ -281,8 +332,9 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
             if hasattr(model, 'flexible_charging_points_set'):
                 for cp in model.flexible_charging_points_set:
                     x_charge_ev.loc[timeindex, cp] = model.charging_ev[cp, time].value
-                    energy_level_cp.loc[timeindex, cp] = \
-                        model.energy_level_ev[cp, time].value
+                    if hasattr(model, 'energy_level_ev'):
+                        energy_level_cp.loc[timeindex, cp] = \
+                            model.energy_level_ev[cp, time].value
             for bus in model.bus_set:
                 curtailment_feedin.loc[timeindex, bus] = \
                     model.curtailment_feedin[bus, time].value
@@ -296,6 +348,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
             for line in model.line_set:
                 p_line.loc[timeindex, line] = model.p_cum[line, time].value
                 q_line.loc[timeindex, line] = model.q_cum[line, time].value
+            if mode == 'energy_band':
+                p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
         if save_dir:
             x_charge.to_csv(save_dir+'/x_charge_storage.csv')
             soc.to_csv(save_dir+'/soc_storage.csv')
@@ -309,9 +363,56 @@ def optimize(model, solver, save_dir=None, load_solutions=True):
             v_bus.to_csv(save_dir + '/voltage_buses.csv')
             p_line.to_csv(save_dir + '/active_power_lines.csv')
             q_line.to_csv(save_dir + '/reactive_power_lines.csv')
-        return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-               curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
-               v_bus, p_line, q_line
+        if not mode=='energy_band':
+            return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
+                   curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+                   v_bus, p_line, q_line
+        else:
+            return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
+                   curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+                   v_bus, p_line, q_line, p_aggr
+    elif results.solver.termination_condition == TerminationCondition.infeasible:
+        print('Model is infeasible')
+        return
+        # Do something when model in infeasible
+    else:
+        print('Solver Status: ', results.solver.status)
+        return
+
+
+def optimize_bands(model, solver, mode):
+    """
+
+    :param model:
+    :param solver:
+    :param mode: either "minimize" or "maximize"
+    :return:
+    """
+    opt = pm.SolverFactory(solver)
+    # opt.options['preprocessing presolve'] = 0
+
+    # Optimize
+    results = opt.solve(model, tee=True)
+
+    # Extract results
+    energy_level = pd.DataFrame()
+    charging = pd.DataFrame()
+    if mode == "minimize":
+        label = 'lower'
+    elif mode == "maximize":
+        label = 'upper'
+    else:
+        raise ValueError('Only modes "minimize" and "maximize" are '
+                         'implemented so far.')
+
+    if (results.solver.status == SolverStatus.ok) and \
+            (results.solver.termination_condition == TerminationCondition.optimal):
+        print('Model Solved to Optimality')
+        for time in model.time_set:
+            timeindex = model.timeindex[time]
+            energy_level.loc[timeindex, label] = model.energy_level[time].value
+            charging.loc[timeindex, label] = model.charging_power[time].value
+        return energy_level, charging
     elif results.solver.termination_condition == TerminationCondition.infeasible:
         print('Model is infeasible')
         return
@@ -404,7 +505,30 @@ def minimize_energy_level(model):
                model.curtailment_reactive_load[bus, time] +
                model.curtailment_reactive_feedin[bus, time]
                for bus in model.bus_set
-               for time in model.time_set)
+               for time in model.time_set)*1e6 + \
+           sum(model.grid_power_flexible[time] for
+               time in model.time_set)
+
+
+def maximize_energy_level(model):
+    """
+    Objective minimizing extreme load factors
+    :param model:
+    :return:
+    """
+    return sum(model.curtailment_load[bus, time] +
+               model.curtailment_feedin[bus, time] +
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
+               for bus in model.bus_set
+               for time in model.time_set)*1e6 - \
+           sum(model.grid_power_flexible[time] for
+               time in model.time_set)
+
+
+def maximize_energy_band(model):
+    return sum(model.energy_level[t] for t in model.time_set)
+
 
 def active_power(model, line, time):
     '''
@@ -521,6 +645,23 @@ def charging_ev(model, charging_point, time):
            (pd.to_timedelta(model.time_increment)/pd.to_timedelta('1h'))
 
 
+def charging_flex(model, time):
+    """
+    Constraint for charging of EV that has to ly between the lower and upper
+    energy band.
+
+    :param model:
+    :param charging_point:
+    :param time:
+    :return:
+    """
+    return model.energy_level[time] == \
+           model.energy_level[time - 1] + \
+           model.charging_efficiency * \
+           model.charging_power[time - 1]*\
+           (pd.to_timedelta(model.time_increment)/pd.to_timedelta('1h'))
+
+
 def initial_energy_level(model, charging_point, time):
     '''
     Constraint for initial value pf energy
@@ -594,7 +735,12 @@ def slack_voltage(model, bus, time):
     :param time:
     :return:
     """
-    return model.v[bus, time] == np.square(model.v_slack)
+    timeindex = model.timeindex[time]
+    if isinstance(model.v_slack, pd.Series):
+        return model.v[bus, time] == np.square(model.v_slack[timeindex] *
+                                               model.v_nom)
+    else:
+        return model.v[bus, time] == np.square(model.v_slack)
 
 
 def voltage_drop(model, line, time):
@@ -620,6 +766,19 @@ def voltage_drop(model, line, time):
         2 * (model.p_cum[line, time]*model.grid.lines_df.loc[line, model.pars['r']] +
              model.q_cum[line, time]*model.grid.lines_df.loc[line, model.pars['x']])
 
+
+def aggregated_power(model, time):
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = model.optimized_storage_set
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+    else:
+        relevant_charging_points = []
+    return model.grid_power_flexible[time] == \
+           -sum(model.charging[storage, time] for storage in relevant_storage_units)+ \
+           sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
 
 def check_mapping(mapping_cp, grid, energy_bands):
     """
