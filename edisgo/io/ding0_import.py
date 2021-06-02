@@ -144,8 +144,87 @@ def import_ding0_grid(path, edisgo_obj):
         edisgo_obj.topology.mv_grid._lv_grids.append(lv_grid)
         edisgo_obj.topology._grids[str(lv_grid)] = lv_grid
 
-    # Check data integrity
-    _validate_ding0_grid_import(edisgo_obj.topology)
+def convert_pypsa_to_edisgo_tmp(edisgo_obj, grid, path, convert_timeseries=False):
+    def sort_transformer_buses(transformers_df):
+        """
+        Sort buses of inserted transformers in a way that bus1 always
+        represents secondary side of transformer.
+        """
+        voltage_bus0 = edisgo_obj.topology.buses_df.loc[
+            transformers_df.bus0
+        ].v_nom.values
+        voltage_bus1 = edisgo_obj.topology.buses_df.loc[
+            transformers_df.bus1
+        ].v_nom.values
+        transformers_df.loc[
+            voltage_bus1 > voltage_bus0, ["bus0", "bus1"]
+        ] = transformers_df.loc[
+            voltage_bus1 > voltage_bus0, ["bus1", "bus0"]
+        ].values
+        return transformers_df
+
+    def sort_hvmv_transformer_buses(transformers_df):
+        """
+        Sort buses of inserted HV/MV transformers in a way that bus1 always
+        represents secondary side of transformer.
+        """
+        for transformer in transformers_df.index:
+            if (
+                not transformers_df.loc[transformer, "bus1"]
+                in edisgo_obj.topology.buses_df.index
+            ):
+                transformers_df.loc[
+                    transformer, ["bus0", "bus1"]
+                ] = transformers_df.loc[transformer, ["bus1", "bus0"]].values
+        return transformers_df
+
+    # write dataframes to edisgo_obj
+    edisgo_obj.topology.buses_df = \
+        grid.buses[[col for col in COLUMNS['buses_df'] if col in
+                    grid.buses.columns]]
+    # drop slack generator from generators
+    slack = [_ for _ in grid.generators.index if "slack" in _.lower()][0]
+    grid.generators.drop(index=[slack], inplace=True)
+    edisgo_obj.topology.generators_df = grid.generators[
+        [col for col in COLUMNS["generators_df"] if col in grid.generators.columns]
+    ]
+    charging_points = grid.loads.index[grid.loads.index.str.contains('ChargingPoint')]
+    loads = grid.loads.index[~grid.loads.index.isin(charging_points)]
+    edisgo_obj.topology.charging_points_df = \
+        grid.loads.loc[charging_points, [col for col in COLUMNS["charging_points_df"] if col in grid.loads.columns]]
+    edisgo_obj.topology.loads_df = grid.loads.loc[loads, [col for col in COLUMNS["loads_df"] if col in grid.loads.columns]]
+    edisgo_obj.topology.transformers_df = sort_transformer_buses(
+        grid.transformers.drop(labels=["x_pu", "r_pu"], axis=1).rename(
+            columns={"r": "r_pu", "x": "x_pu"}
+        )[[col for col in COLUMNS["transformers_df"] if col in grid.transformers.columns]]
+    )
+    edisgo_obj.topology.transformers_hvmv_df = sort_hvmv_transformer_buses(
+        pd.read_csv(
+            os.path.join(path, "transformers_hvmv.csv"), index_col=[0]
+        ).rename(columns={"r": "r_pu", "x": "x_pu"})
+    )
+    edisgo_obj.topology.lines_df = grid.lines[[col for col in COLUMNS["lines_df"]if col in grid.lines.columns]]
+    edisgo_obj.topology.switches_df = pd.read_csv(
+        os.path.join(path, "switches.csv"), index_col=[0]
+    )
+    edisgo_obj.topology.storage_units_df = grid.storage_units
+    if convert_timeseries:
+        edisgo_obj.timeseries.generators_active_power = \
+            grid.generators_t.p_set
+        edisgo_obj.timeseries.generators_reactive_power = \
+            grid.generators_t.q_set
+        edisgo_obj.timeseries.loads_active_power = \
+            grid.loads_t.p_set.loc[:, edisgo_obj.topology.loads_df.index]
+        edisgo_obj.timeseries.loads_reactive_power = \
+            grid.loads_t.q_set.loc[:, edisgo_obj.topology.loads_df.index]
+        edisgo_obj.timeseries.charging_points_active_power = \
+            grid.loads_t.p_set.loc[:, edisgo_obj.topology.charging_points_df.index]
+        edisgo_obj.timeseries.charging_points_reactive_power = \
+            grid.loads_t.q_set.loc[:, edisgo_obj.topology.charging_points_df.index]
+        edisgo_obj.timeseries.storage_units_active_power = \
+            grid.storage_units_t.p_set
+        edisgo_obj.timeseries.storage_units_reactive_power = \
+            grid.storage_units_t.q_set
 
 
 def _validate_ding0_grid_import(topology):
