@@ -179,6 +179,7 @@ def convert_pypsa_to_edisgo_tmp(edisgo_obj, grid, path, convert_timeseries=False
         return transformers_df
 
     # write dataframes to edisgo_obj
+    grid.buses['in_building'] = False
     edisgo_obj.topology.buses_df = \
         grid.buses[[col for col in COLUMNS['buses_df'] if col in
                     grid.buses.columns]]
