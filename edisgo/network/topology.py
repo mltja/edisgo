@@ -2378,5 +2378,28 @@ class Topology:
         #self.grid_district = network.loc[0].drop('name').to_dict()
         logger.debug("Topology imported.")
 
+    def convert_to_pu_system(self, s_base=10, t_base=1, convert_timeseries=True,
+                             timeseries_inplace=True):
+        """
+        Todo: add docstring
+        :param s_base:
+        :param t_base:
+        :param convert_timeseries:
+        :param timeseries_inplace:
+        :return:
+        """
+        ts = []
+        if convert_timeseries and not timeseries_inplace:
+            raise NotImplementedError
+        ts.append(self.mv_grid.convert_to_pu_system(
+            s_base=s_base, t_base=t_base, convert_timeseries=convert_timeseries,
+            timeseries_inplace=timeseries_inplace))
+        for lv_grid in self.mv_grid.lv_grids:
+            ts.append(lv_grid.convert_to_pu_system(
+                s_base=s_base, t_base=t_base,
+                convert_timeseries=convert_timeseries,
+                timeseries_inplace=timeseries_inplace))
+        return
+
     def __repr__(self):
         return "Network topology " + str(self.id)

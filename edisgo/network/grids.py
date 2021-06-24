@@ -383,6 +383,12 @@ class Grid(ABC):
         self.edisgo_obj.topology.lines_df.loc[
             self.lines_df.index, 's_nom_pu'] = \
             self.lines_df.s_nom / self.base_power
+        # make sure that transformer is not hvmv transformer
+        if self.transformers_df.index.values in \
+                self.edisgo_obj.topology.transformers_df.index.values:
+            self.edisgo_obj.topology.transformers_df.loc[
+                self.transformers_df.index, 's_nom_pu'] = \
+                self.transformers_df.s_nom / self.base_power
         self.edisgo_obj.topology.generators_df.loc[
             self.generators_df.index,
             'p_nom_pu'] = \
