@@ -1512,9 +1512,19 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
             energy_level_tmp = [energy_level + (i + 1) * charging_event[
                 'netto_charging_capacity'] / 4
                                 for i in range(charging_time)]
-        energy_band.loc[
+        try:
+            energy_band.loc[
+                charging_event['charge_end'] - charging_time + 2:charging_event[
+                    'charge_end']+1, 'lower'] = energy_level_tmp
+        except:
+            # exception for charging events ending at last step, Todo: check if simbev changed handling of charging events and remove afterwards
+            charging_steps = energy_band.loc[
+                charging_event['charge_end'] - charging_time + 2:charging_event[
+                    'charge_end']+1, 'lower']
+            energy_band.loc[
             charging_event['charge_end'] - charging_time + 2:charging_event[
-                'charge_end']+1, 'lower'] = energy_level_tmp
+                                                                 'charge_end'] + 1,
+            'lower'] = energy_level_tmp[0:len(charging_steps)]
         # upper band
         energy_band.loc[charging_event['charge_start']+1:
                         charging_event['charge_start'] + charging_time - 1,
