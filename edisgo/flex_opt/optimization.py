@@ -120,7 +120,10 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.nodal_active_power = nodal_active_power.T
     model.nodal_reactive_power = nodal_reactive_power.T
     model.v_slack = kwargs.get('v_slack', model.v_nom)
-    model.branches = pd.concat([grid_object.lines_df, grid_object.transformers_df])
+    trafos = grid_object.transformers_df.loc[
+        grid_object.transformers_df.bus0.isin(grid_object.buses_df.index)].loc[
+        grid_object.transformers_df.bus1.isin(grid_object.buses_df.index)]
+    model.branches = pd.concat([grid_object.lines_df, trafos])
 
     model.branch_set = pm.Set(initialize=model.branches.index)
 
