@@ -1537,7 +1537,7 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
         energy_band.loc[charging_event['charge_start'] + charging_time:
                         charging_event['charge_end']+1, 'upper'] = energy_level
         # move to next event
-        time_step = charging_event['charge_end'] + 1
+        time_step = charging_event['charge_end'] + 2
         energy_band.loc[charging_event['charge_start']:
                         charging_event['charge_end'], 'power'] = \
             ev_tech_data.loc['test', 'charging_power']
@@ -1546,7 +1546,8 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
             start_week*time_steps_per_week:(start_week+1)*
             time_steps_per_week].reset_index().drop(columns=['index'])
     energy_band_week = energy_band_week.fillna(0).astype(float)
-    energy_band_week.loc[energy_band_week.lower.idxmax():, ['upper', 'lower']] = \
+    last_entry = energy_band_week[::-1].lower.idxmax()
+    energy_band_week.loc[last_entry:, ['upper', 'lower']] = \
         energy_band_week.upper.max()
     energy_band_week['lower'] = np.round(energy_band_week['lower'], 6)
     energy_band_week['upper'] = np.round(energy_band_week['upper'], 6)
@@ -1554,6 +1555,6 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
         raise ValueError('Lower band has higher value than upper. '
                          'This should not happen. Please check code.')
     if ((energy_band_week[['lower', 'upper']].diff()<0).any()).any():
-        raise ValueError('Energy bands are now allow to fall in between. '
+        raise ValueError('Energy bands are not allowed to fall in between. '
                          'Please check.')
     return energy_band_week
