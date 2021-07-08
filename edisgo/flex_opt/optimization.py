@@ -56,6 +56,10 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.time_increment = '1' + model.time_increment
     model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
     model.time_zero = [model.time_set[1]]
+    # fix end level
+    if objective != 'minimize_energy_level' and \
+            objective != 'maximize_energy_level':
+        model.time_zero = model.time_zero + [model.time_set[-1]]
     model.time_non_zero = model.time_set - [model.time_set[1]]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set[1],
                                                model.time_set[-1]])
