@@ -1551,10 +1551,21 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
         energy_band_week.upper.max()
     energy_band_week['lower'] = np.round(energy_band_week['lower'], 6)
     energy_band_week['upper'] = np.round(energy_band_week['upper'], 6)
+    energy_band_week['power'] = np.round(energy_band_week['power'], 6)
     if (energy_band_week['lower']>energy_band_week['upper']).any():
         raise ValueError('Lower band has higher value than upper. '
                          'This should not happen. Please check code.')
     if ((energy_band_week[['lower', 'upper']].diff()<0).any()).any():
         raise ValueError('Energy bands are not allowed to fall in between. '
                          'Please check.')
+    diff = energy_band_week['upper'].diff().iloc[1:].reset_index()['upper']-\
+           energy_band_week.power.iloc[:-1]*\
+           ev_tech_data.loc['test', 'charging_efficiency']/4
+    if (diff>1e-6).any():
+        raise ValueError('Upper band can not be followed. Please check.')
+    diff = energy_band_week['lower'].diff().iloc[1:].reset_index()['lower'] - \
+           energy_band_week.power.iloc[:-1] * \
+           ev_tech_data.loc['test', 'charging_efficiency'] / 4
+    if (diff>1e-6).any():
+        raise ValueError('Lower band can not be followed. Please check.')
     return energy_band_week
