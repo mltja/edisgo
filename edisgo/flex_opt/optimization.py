@@ -4,6 +4,7 @@ import pyomo.environ as pm
 from pyomo.opt import SolverStatus, TerminationCondition
 from edisgo.tools.tools import get_nodal_residual_load
 from copy import deepcopy
+import itertools
 
 
 def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,
@@ -140,12 +141,36 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
             objective == 'maximize_energy_level':
         model.grid_power_flexible = pm.Var(model.time_set)
 
+    # add n-1 security
+    # adapt i_lines_allowed for radial feeders
+    buses_in_cycles = list(
+        set(itertools.chain.from_iterable(edisgo_object.topology.rings)))
+
+    # Find lines in cycles
+    lines_in_cycles = list(
+        grid_object.lines_df.loc[grid_object.lines_df[[
+            'bus0', 'bus1']].isin(buses_in_cycles).all(
+            axis=1)].index.values)
+
+    model.branches_load_factors = pd.DataFrame(index=model.time_set,
+                                               columns=model.branch_set)
+    model.branches_load_factors.loc[:, :] = 1
+    tmp_residual_load = edisgo_object.timeseries.residual_load.loc[timesteps]
+    indices = pd.DataFrame(index=timesteps, columns=['index'])
+    indices['index'] = [i for i in range(len(timesteps))]
+    model.branches_load_factors.loc[
+        indices.loc[tmp_residual_load.loc[timesteps] < 0].values.T[0],
+        lines_in_cycles
+    ] = 0.5
+
     # DEFINE VARIABLES
     print('Setup model: Defining variables.')
     model.p_cum = pm.Var(model.branch_set, model.time_set,
                      bounds=lambda m, l, t:
-                     (-m.power_factor * m.branches.loc[l, model.pars['s_nom']],
-                      m.power_factor * m.branches.loc[l, model.pars['s_nom']]))
+                     (-m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
+                      m.branches_load_factors.loc[t, l],
+                      m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
+                      m.branches_load_factors.loc[t, l]))
     model.q_cum = pm.Var(model.branch_set, model.time_set) # Todo: remove? Not necessary at current configuration
     model.v = pm.Var(
         model.bus_set, model.time_set, bounds=(
