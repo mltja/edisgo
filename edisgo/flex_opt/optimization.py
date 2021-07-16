@@ -25,14 +25,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     :return:
     """
     model = pm.ConcreteModel()
-    if hasattr(edisgo, 'topology'):
-        grid_object = deepcopy(edisgo.topology)
-        edisgo_object = deepcopy(edisgo)
-        slack = grid_object.slack_df.bus
-    else:
-        grid_object = deepcopy(edisgo)
-        edisgo_object = deepcopy(edisgo.edisgo_obj)
-        slack = [grid_object.transformers_df.bus1.iloc[0]] # Todo: careful with MV grid, does not work with that right?
+    edisgo_object, grid_object, slack = setup_grid_object(edisgo)
     # check if correct value of objective is inserted
     if objective not in ['curtailment', 'peak_load', 'minimize_energy_level',
                          'maximize_energy_level']:
@@ -171,7 +164,6 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                       m.branches_load_factors.loc[t, l],
                       m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
                       m.branches_load_factors.loc[t, l]))
-    model.q_cum = pm.Var(model.branch_set, model.time_set) # Todo: remove? Not necessary at current configuration
     model.v = pm.Var(
         model.bus_set, model.time_set, bounds=(
             np.square(model.v_min * model.v_nom), np.square(model.v_max *
@@ -182,10 +174,6 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                     bounds=(0, None))
     model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
                                       bounds=(0, None))
-    model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
-                                             bounds=(0, None))
-    model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
-                                               bounds=(0, None))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -222,8 +210,6 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     print('Setup model: Setting constraints.')
     model.ActivePower = pm.Constraint(model.branch_set, model.time_set,
                                       rule=active_power)
-    model.ReactivePower = pm.Constraint(model.branch_set, model.time_set,
-                                        rule=reactive_power)
     model.SlackVoltage = pm.Constraint(model.slack_bus, model.time_set,
                                        rule=slack_voltage)
     model.VoltageDrop = pm.Constraint(model.branch_set, model.time_set,
@@ -271,6 +257,272 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.pprint()
     print('Successfully set up optimisation model.')
     return model
+
+
+def setup_model_wo_bands(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,
+                optimize_ev_charging=True, objective='curtailment', pu=True, **kwargs):
+    """
+    Method to set up pyomo model for optimisation of storage procurement
+    and/or ev charging with linear approximation of power flow from
+    eDisGo-object.
+
+    :param edisgo:
+    :param downstream_node_matrix:
+    :param timesteps:
+    :param optimize_storage:
+    :param optimize_ev_charging:
+    :param objective: choose the objective that should be minimized, so far
+            'curtailment' and 'peak_load' are implemented
+    :param kwargs:
+    :return:
+    """
+    model = pm.ConcreteModel()
+    edisgo_object, grid_object, slack = setup_grid_object(edisgo)
+    # check if correct value of objective is inserted
+    if objective not in ['curtailment', 'peak_load', 'minimize_energy_level',
+                         'maximize_energy_level']:
+        raise ValueError('The objective you inserted is not implemented yet.')
+    # check if multiple voltage levels are present
+    if len(grid_object.buses_df.v_nom.unique()) > 1 and not pu:
+        print('More than one voltage level included. Please make sure to '
+              'adapt all impedance values to one reference system.')
+
+    # Todo: Extract kwargs values from cfg?
+
+    # DEFINE SETS AND FIX PARAMETERS
+    print('Setup model: Defining sets and parameters.')
+    model.bus_set = pm.Set(initialize=grid_object.buses_df.index)
+    model.slack_bus = pm.Set(initialize=slack)
+    if timesteps is not None:
+        model.timeindex = timesteps
+    else:
+        model.timeindex = edisgo_object.timeseries.timeindex
+    model.time_increment = pd.infer_freq(model.timeindex)
+    if not any(char.isdigit() for char in model.time_increment):
+        model.time_increment = '1' + model.time_increment
+    model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
+    model.time_zero = [model.time_set[1]]
+    # fix end level
+    if objective != 'minimize_energy_level' and \
+            objective != 'maximize_energy_level':
+        model.time_zero = model.time_zero + [model.time_set[-1]]
+    model.time_non_zero = model.time_set - [model.time_set[1]]
+    model.times_fixed_soc = pm.Set(initialize=[model.time_set[1],
+                                               model.time_set[-1]])
+    if optimize_storage:
+        model.storage_set = \
+            pm.Set(initialize=grid_object.storage_units_df.index)
+        optimized_storage_units = \
+            kwargs.get('flexible_storage_units',
+                       grid_object.storage_units_df.index)
+        model.optimized_storage_set = \
+            pm.Set(initialize=optimized_storage_units)
+        model.fixed_storage_set = model.storage_set - \
+                                  model.optimized_storage_set
+        model.fix_relative_soc = kwargs.get('fix_relative_soc', 0.5)
+        inflexible_storage_units = list(model.fixed_storage_set.data())
+    else:
+        inflexible_storage_units = None
+    if optimize_ev_charging:
+        standing_times = kwargs.get('standing_times')
+        model.charging_events = standing_times.loc[standing_times.chargingdemand>0]
+        model.charging_events_set = pm.Set(initialize=standing_times.index)
+        model.mapping_cp = kwargs.get('mapping_cp')
+        model.charging_points_set = \
+            pm.Set(initialize=grid_object.charging_points_df.index)
+        model.flexible_charging_points_set = \
+            pm.Set(initialize=model.mapping_cp.index)
+        model.inflexible_charging_points_set = \
+            model.charging_points_set - model.flexible_charging_points_set
+        model.charging_efficiency = kwargs.get("charging_efficiency", 0.9)
+        inflexible_charging_points = \
+            list(model.inflexible_charging_points_set.data())
+    else:
+        inflexible_charging_points = None
+    model.v_min = kwargs.get("v_min", 0.9)
+    model.v_max = kwargs.get("v_max", 1.1)
+    model.power_factor = kwargs.get("pf", 0.9)
+    # handle pu conversion
+    if pu:
+        model.v_nom = 1.0
+        s_base = kwargs.get("s_base", 1)
+        grid_object.convert_to_pu_system(s_base, timeseries_inplace=True)
+        model.pars = {'r': 'r_pu', 'x': 'x_pu', 's_nom': 's_nom_pu',
+                      'p_nom': 'p_nom_pu', 'peak_load': 'peak_load_pu',
+                      'capacity': 'capacity_pu'}
+    else:
+        model.v_nom = grid_object.buses_df.v_nom.iloc[0]
+        model.pars = {'r': 'r', 'x': 'x', 's_nom': 's_nom',
+                      'p_nom': 'p_nom', 'peak_load': 'peak_load',
+                      'capacity': 'capacity'}
+        grid_object.transformers_df['r'] = grid_object.transformers_df[
+                                               'r_pu'] * np.square(
+            model.v_nom) / grid_object.transformers_df.s_nom
+        grid_object.transformers_df['x'] = grid_object.transformers_df[
+                                               'x_pu'] * np.square(
+            model.v_nom) / grid_object.transformers_df.s_nom
+    model.residual_load = get_residual_load_of_not_optimized_components(
+        grid_object, edisgo_object, model)
+    model.grid = grid_object
+    model.downstream_nodes_matrix = downstream_node_matrix
+    nodal_active_power, nodal_reactive_power = get_nodal_residual_load(
+        grid_object, edisgo_object, considered_storage=inflexible_storage_units,
+        considered_charging_points=inflexible_charging_points)
+    model.nodal_active_power = nodal_active_power.T
+    model.nodal_reactive_power = nodal_reactive_power.T
+    model.v_slack = kwargs.get('v_slack', model.v_nom)
+    trafos = grid_object.transformers_df.loc[
+        grid_object.transformers_df.bus0.isin(grid_object.buses_df.index)].loc[
+        grid_object.transformers_df.bus1.isin(grid_object.buses_df.index)]
+    model.branches = pd.concat([grid_object.lines_df, trafos])
+
+    model.branch_set = pm.Set(initialize=model.branches.index)
+
+    if objective == 'peak_load':
+        model.delta_min = kwargs.get('delta_min', 0.9)
+        model.delta_max = kwargs.get('delta_max', 0.1)
+        model.min_load_factor = pm.Var()
+        model.max_load_factor = pm.Var()
+    elif objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level':
+        model.grid_power_flexible = pm.Var(model.time_set)
+
+    # add n-1 security
+    # adapt i_lines_allowed for radial feeders
+    buses_in_cycles = list(
+        set(itertools.chain.from_iterable(edisgo_object.topology.rings)))
+
+    # Find lines in cycles
+    lines_in_cycles = list(
+        grid_object.lines_df.loc[grid_object.lines_df[[
+            'bus0', 'bus1']].isin(buses_in_cycles).all(
+            axis=1)].index.values)
+
+    model.branches_load_factors = pd.DataFrame(index=model.time_set,
+                                               columns=model.branch_set)
+    model.branches_load_factors.loc[:, :] = 1
+    tmp_residual_load = edisgo_object.timeseries.residual_load.loc[timesteps]
+    indices = pd.DataFrame(index=timesteps, columns=['index'])
+    indices['index'] = [i for i in range(len(timesteps))]
+    model.branches_load_factors.loc[
+        indices.loc[tmp_residual_load.loc[timesteps] < 0].values.T[0],
+        lines_in_cycles
+    ] = kwargs.get('load_factor_rings', 1.0) #0.5
+
+    # DEFINE VARIABLES
+    print('Setup model: Defining variables.')
+    model.p_cum = pm.Var(model.branch_set, model.time_set,
+                     bounds=lambda m, l, t:
+                     (-m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
+                      m.branches_load_factors.loc[t, l],
+                      m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
+                      m.branches_load_factors.loc[t, l]))
+    model.v = pm.Var(
+        model.bus_set, model.time_set, bounds=(
+            np.square(model.v_min * model.v_nom), np.square(model.v_max *
+                                                            model.v_nom)))
+    # if not objective == 'minimize_energy_level' and \
+    #         not objective == 'maximize_energy_level':
+    model.curtailment_load = pm.Var(model.bus_set, model.time_set,
+                                    bounds=(0, None))
+    model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
+                                      bounds=(0, None))
+    if optimize_storage:
+        model.soc = \
+            pm.Var(model.optimized_storage_set, model.time_set,
+                   bounds=lambda m, b, t: (
+                   0, m.grid.storage_units_df.loc[b, model.pars['capacity']]))
+        model.charging = \
+            pm.Var(model.optimized_storage_set, model.time_set,
+                   bounds=lambda m, b, t: (
+                   -m.grid.storage_units_df.loc[b, model.pars['p_nom']],
+                   m.grid.storage_units_df.loc[b, model.pars['p_nom']]))
+    if optimize_ev_charging:
+        if pu:
+            print('Optimisation in pu-system. Make sure the inserted energy '
+                  'bands are also converted to the same pu-system.')
+        model.charging_ev = \
+            pm.Var(model.flexible_charging_points_set, model.time_set,
+                   bounds=lambda m, b, t:
+                   (0, m.energy_band_charging_points.loc[
+                       m.timeindex[t], '_'.join(['power', str(m.mapping_cp.loc[b, 'ags']),
+                                    str(m.mapping_cp.loc[b, 'cp_idx'])])]))
+        if not (objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level'):
+            model.energy_level_ev = \
+                pm.Var(model.flexible_charging_points_set, model.time_set,
+                       bounds=lambda m, b, t:
+                       (m.energy_band_charging_points.loc[
+                            m.timeindex[t], '_'.join(['lower', str(m.mapping_cp.loc[b, 'ags']),
+                                         str(m.mapping_cp.loc[b, 'cp_idx'])])],
+                        m.energy_band_charging_points.loc[
+                            m.timeindex[t], '_'.join(['upper', str(m.mapping_cp.loc[b, 'ags']),
+                                         str(m.mapping_cp.loc[b, 'cp_idx'])])]))
+
+    # DEFINE CONSTRAINTS
+    print('Setup model: Setting constraints.')
+    model.ActivePower = pm.Constraint(model.branch_set, model.time_set,
+                                      rule=active_power)
+    model.SlackVoltage = pm.Constraint(model.slack_bus, model.time_set,
+                                       rule=slack_voltage)
+    model.VoltageDrop = pm.Constraint(model.branch_set, model.time_set,
+                                      rule=voltage_drop)
+    if optimize_storage:
+        model.BatteryCharging = pm.Constraint(model.storage_set,
+                                              model.time_non_zero, rule=soc)
+        model.FixedSOC = pm.Constraint(model.storage_set,
+                                       model.times_fixed_soc, rule=fix_soc)
+    if optimize_ev_charging and not (objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level'):
+        model.EVCharging = pm.Constraint(model.flexible_charging_points_set,
+                                         model.time_non_zero, rule=charging_ev)
+        model.InitialEVEnergyLevel = \
+            pm.Constraint(model.flexible_charging_points_set, model.time_zero,
+                          rule=initial_energy_level)
+    if objective == 'minimize_energy_level' or \
+            objective == 'maximize_energy_level':
+        model.AggrGrid = pm.Constraint(model.time_set, rule=aggregated_power)
+
+    # DEFINE OBJECTIVE
+    print('Setup model: Setting objective.')
+    if objective == 'peak_load':
+        model.LoadFactorMin = pm.Constraint(model.time_set, rule=load_factor_min)
+        model.LoadFactorMax = pm.Constraint(model.time_set, rule=load_factor_max)
+        model.objective = pm.Objective(rule=minimize_max_residual_load,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif objective == 'curtailment':
+        model.objective = pm.Objective(rule=minimize_curtailment,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif objective == 'minimize_energy_level':
+        model.objective = pm.Objective(rule=minimize_energy_level,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif objective == 'maximize_energy_level':
+        model.objective = pm.Objective(rule=maximize_energy_level,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    else:
+        raise Exception('Unknown objective.')
+
+    if kwargs.get('print_model', False):
+        model.pprint()
+    print('Successfully set up optimisation model.')
+    return model
+
+
+def setup_grid_object(edisgo):
+    if hasattr(edisgo, 'topology'):
+        grid_object = deepcopy(edisgo.topology)
+        edisgo_object = deepcopy(edisgo)
+        slack = grid_object.slack_df.bus
+    else:
+        grid_object = deepcopy(edisgo)
+        edisgo_object = deepcopy(edisgo.edisgo_obj)
+        slack = [grid_object.transformers_df.bus1.iloc[
+                     0]]  # Todo: careful with MV grid, does not work with that right?
+    return edisgo_object, grid_object, slack
 
 
 def update_model(model, timeindex, energy_band_charging_points, **kwargs):
@@ -353,8 +605,6 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
     energy_level_cp = pd.DataFrame()
     curtailment_load = pd.DataFrame()
     curtailment_feedin = pd.DataFrame()
-    curtailment_reactive_load = pd.DataFrame()
-    curtailment_reactive_feedin = pd.DataFrame()
     p_line = pd.DataFrame()
     q_line = pd.DataFrame()
     v_bus = pd.DataFrame()
@@ -382,14 +632,10 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                     model.curtailment_feedin[bus, time].value
                 curtailment_load.loc[timeindex, bus] = \
                     model.curtailment_load[bus, time].value
-                curtailment_reactive_feedin.loc[timeindex, bus] = \
-                    model.curtailment_reactive_feedin[bus, time].value
-                curtailment_reactive_load.loc[timeindex, bus] = \
-                    model.curtailment_reactive_load[bus, time].value
                 v_bus.loc[timeindex, bus] = np.sqrt(model.v[bus, time].value)
             for line in model.branch_set:
                 p_line.loc[timeindex, line] = model.p_cum[line, time].value
-                q_line.loc[timeindex, line] = model.q_cum[line, time].value
+                q_line.loc[timeindex, line] = get_q_line(model, line, time, get_results=True)
             if mode == 'energy_band':
                 p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
         if save_dir:
@@ -399,19 +645,16 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
             energy_level_cp.to_csv(save_dir+'/energy_level_ev.csv')
             curtailment_feedin.to_csv(save_dir + '/curtailment_feedin.csv')
             curtailment_load.to_csv(save_dir + '/curtailment_load.csv')
-            curtailment_reactive_feedin.to_csv(save_dir + '/curtailment_reactive_feedin.csv')
-            curtailment_reactive_load.to_csv(save_dir + '/curtailment_reactive_load.csv')
 
             v_bus.to_csv(save_dir + '/voltage_buses.csv')
             p_line.to_csv(save_dir + '/active_power_lines.csv')
             q_line.to_csv(save_dir + '/reactive_power_lines.csv')
         if not mode=='energy_band':
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-                   curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
-                   v_bus, p_line, q_line
+                   curtailment_load, v_bus, p_line, q_line
         else:
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-                   curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+                   curtailment_load, \
                    v_bus, p_line, q_line, p_aggr
     elif results.solver.termination_condition == TerminationCondition.infeasible:
         print('Model is infeasible')
@@ -515,9 +758,7 @@ def minimize_max_residual_load(model):
     return -model.delta_min * model.min_load_factor + \
            model.delta_max * model.max_load_factor + \
            sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time] +
-               model.curtailment_reactive_load[bus, time] +
-               model.curtailment_reactive_feedin[bus, time]
+               model.curtailment_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)
 
@@ -529,9 +770,7 @@ def minimize_curtailment(model):
     :return:
     """
     return sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time] +
-               model.curtailment_reactive_load[bus, time] +
-               model.curtailment_reactive_feedin[bus, time]
+               model.curtailment_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)
 
@@ -543,9 +782,7 @@ def minimize_energy_level(model):
     :return:
     """
     return sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time] +
-               model.curtailment_reactive_load[bus, time] +
-               model.curtailment_reactive_feedin[bus, time]
+               model.curtailment_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)*1e6 + \
            sum(model.grid_power_flexible[time] for
@@ -559,9 +796,7 @@ def maximize_energy_level(model):
     :return:
     """
     return sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time] +
-               model.curtailment_reactive_load[bus, time] +
-               model.curtailment_reactive_feedin[bus, time]
+               model.curtailment_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)*1e6 - \
            sum(model.grid_power_flexible[time] for
@@ -804,9 +1039,45 @@ def voltage_drop(model, branch, time):
     else:
         raise Exception('Something went wrong. Bus0 and bus1 of line {} are '
                         'not connected in downstream_nodes_matrix.'.format(branch))
+    q_cum = get_q_line(model, branch, time)
     return model.v[downstream_bus, time] == model.v[upstream_bus, time] + \
         2 * (model.p_cum[branch, time] * model.branches.loc[branch, model.pars['r']] +
-             model.q_cum[branch, time] * model.branches.loc[branch, model.pars['x']])
+             q_cum * model.branches.loc[branch, model.pars['x']])
+
+
+def get_q_line(model, branch, time, get_results=False):
+    """
+    Method to extract reactive power flow on line.
+
+    :param model:
+    :param branch:
+    :param time:
+    :return:
+    """
+    timeindex = model.timeindex[time]
+    bus0 = model.branches.loc[branch, 'bus0']
+    bus1 = model.branches.loc[branch, 'bus1']
+    relevant_buses_bus0 = \
+        model.downstream_nodes_matrix.loc[bus0][
+            model.downstream_nodes_matrix.loc[bus0] == 1].index.values
+    relevant_buses_bus1 = \
+        model.downstream_nodes_matrix.loc[bus1][
+            model.downstream_nodes_matrix.loc[bus1] == 1].index.values
+    relevant_buses = list(set(relevant_buses_bus0).intersection(
+        relevant_buses_bus1))
+    load_flow_on_line = \
+        model.nodal_reactive_power.loc[relevant_buses, timeindex].sum()
+    tan_phi = np.sqrt(1 - np.square(model.power_factor))
+    if get_results:
+        return (load_flow_on_line + sum(
+            model.curtailment_load[bus, time].value * tan_phi -
+            model.curtailment_feedin[bus, time].value * tan_phi for bus in
+            relevant_buses))
+    else:
+        return (load_flow_on_line + sum(
+                 model.curtailment_load[bus, time]*tan_phi -
+                 model.curtailment_feedin[bus, time]*tan_phi for bus in
+                 relevant_buses))
 
 
 def aggregated_power(model, time):
@@ -821,6 +1092,7 @@ def aggregated_power(model, time):
     return model.grid_power_flexible[time] == \
            -sum(model.charging[storage, time] for storage in relevant_storage_units)+ \
            sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
+
 
 def check_mapping(mapping_cp, grid, energy_bands):
     """
@@ -840,7 +1112,8 @@ def check_mapping(mapping_cp, grid, energy_bands):
                       'existent in the passed edisgo object: {}.'.format(
             non_existing_cp))
     cp_identifier = ['_'.join(['power', str(mapping_cp.loc[cp, 'ags']),
-                               str(mapping_cp.loc[cp, 'cp_idx'])])
+                               str(mapping_cp.loc[cp, 'cp_idx']),
+                               mapping_cp.loc[cp, 'use_case']])
                      for cp in mapping_cp.index]
     non_existing_energy_bands = \
         [identifier for identifier in cp_identifier if
