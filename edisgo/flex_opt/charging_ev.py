@@ -29,7 +29,8 @@ def charging_existing_edisgo_object(data_dir, grid_id, edisgo_dir, strategies=["
     ags_list.sort()
 
     ags_dirs = [
-        Path(os.path.join(data_dir, ags)) for ags in ags_list
+        Path(os.path.join(data_dir, ags)) if ags[0] != '0' else
+        Path(os.path.join(data_dir, ags[1:])) for ags in ags_list
     ]
 
     t1 = perf_counter()
@@ -1487,20 +1488,18 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
             pd.DataFrame(index=[i for i in range(number_of_weeks * time_steps_per_week + 1)],
                          columns=['lower', 'upper', 'power'])
     for _, charging_event in charging_events.iterrows():
-        week = np.floor(charging_event['charge_start'] / time_steps_per_week)
+        week = np.floor(charging_event['park_start'] / time_steps_per_week)
         if week > last_week:
             break
-        if week - week_pre > 0:
-            week_pre = week
-            energy_level = 0
-        energy_band.loc[time_step:charging_event['charge_start'], ['lower',
+
+        energy_band.loc[time_step:charging_event['park_start'], ['lower',
                                                                        'upper']] = \
             energy_level
         charging_time = int(np.ceil(charging_event['charging_time_full_load']))
         charging_fraction = charging_event['charging_time_full_load'] % 1
         # lower band
-        energy_band.loc[charging_event['charge_start']+1:
-                        charging_event['charge_end']+1 - charging_time,
+        energy_band.loc[charging_event['park_start']+1:
+                        charging_event['park_end']+1 - charging_time,
         'lower'] = \
             energy_level
         if charging_fraction != 0:
@@ -1514,45 +1513,56 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
                                 for i in range(charging_time)]
         try:
             energy_band.loc[
-                charging_event['charge_end'] - charging_time + 2:charging_event[
-                    'charge_end']+1, 'lower'] = energy_level_tmp
+                charging_event['park_end'] - charging_time + 2:charging_event[
+                    'park_end']+1, 'lower'] = energy_level_tmp
         except:
             # exception for charging events ending at last step, Todo: check if simbev changed handling of charging events and remove afterwards
             charging_steps = energy_band.loc[
-                charging_event['charge_end'] - charging_time + 2:charging_event[
-                    'charge_end']+1, 'lower']
+                charging_event['park_end'] - charging_time + 2:charging_event[
+                    'park_end']+1, 'lower']
             energy_band.loc[
-            charging_event['charge_end'] - charging_time + 2:charging_event[
+            charging_event['park_end'] - charging_time + 2:charging_event[
                                                                  'charge_end'] + 1,
             'lower'] = energy_level_tmp[0:len(charging_steps)]
         # upper band
-        energy_band.loc[charging_event['charge_start']+1:
-                        charging_event['charge_start'] + charging_time - 1,
+        energy_band.loc[charging_event['park_start']+1:
+                        charging_event['park_start'] + charging_time - 1,
         'upper'] \
             = [energy_level + (i + 1) * charging_event[
             'netto_charging_capacity'] / 4
                for i in range(charging_time - 1)]
 
         energy_level += charging_event['chargingdemand']
-        energy_band.loc[charging_event['charge_start'] + charging_time:
-                        charging_event['charge_end']+1, 'upper'] = energy_level
+        energy_band.loc[charging_event['park_start'] + charging_time:
+                        charging_event['park_end']+1, 'upper'] = energy_level
         # move to next event
-        time_step = charging_event['charge_end'] + 2
-        energy_band.loc[charging_event['charge_start']:
-                        charging_event['charge_end'], 'power'] = \
+        time_step = charging_event['park_end'] + 2
+        energy_band.loc[charging_event['park_start']:
+                        charging_event['park_end'], 'power'] = \
             ev_tech_data.loc['test', 'charging_power']
     energy_band_week = \
         energy_band.loc[
             start_week*time_steps_per_week:(start_week+1)*
             time_steps_per_week].reset_index().drop(columns=['index'])
-    energy_band_week = energy_band_week.fillna(0).astype(float)
-    last_entry = energy_band_week[::-1].lower.idxmax()
-    energy_band_week.loc[last_entry:, ['upper', 'lower']] = \
-        energy_band_week.upper.max()
+    # remove offset
+    offset = energy_band_week.loc[0, 'lower']
+    energy_band_week[['upper', 'lower']] = \
+        energy_band_week[['upper', 'lower']] - offset
+    # set end energy level if not already done
+    if energy_band_week[['upper', 'lower']].isnull().any().any():
+        energy_band_week = energy_band_week.fillna(0).astype(float)
+        last_entry_lower = energy_band_week[::-1].lower.idxmax()
+        last_entry_upper = energy_band_week[::-1].upper.idxmax()
+        energy_band_week.loc[last_entry_lower:, 'lower'] = \
+            energy_band_week.lower.max()
+        energy_band_week.loc[last_entry_upper:, 'upper'] = \
+            energy_band_week.upper.max()
+    else:
+        energy_band_week = energy_band_week.fillna(0).astype(float)
     energy_band_week['lower'] = np.round(energy_band_week['lower'], 6)
     energy_band_week['upper'] = np.round(energy_band_week['upper'], 6)
     energy_band_week['power'] = np.round(energy_band_week['power'], 6)
-    if (energy_band_week['lower']>energy_band_week['upper']).any():
+    if (energy_band_week['lower']>energy_band_week['upper']).any(): #Todo: change back to error
         raise ValueError('Lower band has higher value than upper. '
                          'This should not happen. Please check code.')
     if ((energy_band_week[['lower', 'upper']].diff()<0).any()).any():
