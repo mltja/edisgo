@@ -161,7 +161,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.branches_load_factors.loc[
         indices.loc[tmp_residual_load.loc[timesteps] < 0].values.T[0],
         lines_in_cycles
-    ] = 0.5
+    ] = kwargs.get('load_factor_rings', 1.0) #0.5
 
     # DEFINE VARIABLES
     print('Setup model: Defining variables.')
