@@ -192,19 +192,25 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
             pm.Var(model.flexible_charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
                    (0, m.energy_band_charging_points.loc[
-                       m.timeindex[t], '_'.join(['power', str(m.mapping_cp.loc[b, 'ags']),
-                                    str(m.mapping_cp.loc[b, 'cp_idx'])])]))
+                       m.timeindex[t], '_'.join(
+                           ['power', str(m.mapping_cp.loc[b, 'ags']),
+                            str(m.mapping_cp.loc[b, 'cp_idx']),
+                            m.mapping_cp.loc[b, 'use_case']])]))
         if not (objective == 'minimize_energy_level' or \
             objective == 'maximize_energy_level'):
             model.energy_level_ev = \
                 pm.Var(model.flexible_charging_points_set, model.time_set,
                        bounds=lambda m, b, t:
                        (m.energy_band_charging_points.loc[
-                            m.timeindex[t], '_'.join(['lower', str(m.mapping_cp.loc[b, 'ags']),
-                                         str(m.mapping_cp.loc[b, 'cp_idx'])])],
+                            m.timeindex[t], '_'.join(
+                                ['lower', str(m.mapping_cp.loc[b, 'ags']),
+                                 str(m.mapping_cp.loc[b, 'cp_idx']),
+                                 m.mapping_cp.loc[b, 'use_case']])],
                         m.energy_band_charging_points.loc[
-                            m.timeindex[t], '_'.join(['upper', str(m.mapping_cp.loc[b, 'ags']),
-                                         str(m.mapping_cp.loc[b, 'cp_idx'])])]))
+                            m.timeindex[t], '_'.join(
+                                ['upper', str(m.mapping_cp.loc[b, 'ags']),
+                                 str(m.mapping_cp.loc[b, 'cp_idx']),
+                                 m.mapping_cp.loc[b, 'use_case']])]))
 
     # DEFINE CONSTRAINTS
     print('Setup model: Setting constraints.')
@@ -949,7 +955,8 @@ def initial_energy_level(model, charging_point, time):
     '''
     timeindex = model.timeindex[time]
     cp = '_'.join([str(model.mapping_cp.loc[charging_point, 'ags']),
-                   str(model.mapping_cp.loc[charging_point, 'cp_idx'])])
+                   str(model.mapping_cp.loc[charging_point, 'cp_idx']),
+                   model.mapping_cp.loc[charging_point, 'use_case']])
     initial_lower_band = \
         model.energy_band_charging_points.loc[timeindex, 'lower_'+cp]
     initial_upper_band = \

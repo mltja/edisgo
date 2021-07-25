@@ -1522,7 +1522,7 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
                     'park_end']+1, 'lower']
             energy_band.loc[
             charging_event['park_end'] - charging_time + 2:charging_event[
-                                                                 'charge_end'] + 1,
+                                                                 'park_end'] + 1,
             'lower'] = energy_level_tmp[0:len(charging_steps)]
         # upper band
         energy_band.loc[charging_event['park_start']+1:
