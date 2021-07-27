@@ -28,7 +28,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     edisgo_object, grid_object, slack = setup_grid_object(edisgo)
     # check if correct value of objective is inserted
     if objective not in ['curtailment', 'peak_load', 'minimize_energy_level',
-                         'maximize_energy_level']:
+                         'residual_load', 'maximize_energy_level']:
         raise ValueError('The objective you inserted is not implemented yet.')
     # check if multiple voltage levels are present
     if len(grid_object.buses_df.v_nom.unique()) > 1 and not pu:
@@ -254,6 +254,10 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                        doc='Define objective function')
     elif objective == 'maximize_energy_level':
         model.objective = pm.Objective(rule=maximize_energy_level,
+                                       sense=pm.minimize,
+                                       doc='Define objective function')
+    elif objective == 'residual_load':
+        model.objective = pm.Objective(rule=minimize_residual_load,
                                        sense=pm.minimize,
                                        doc='Define objective function')
     else:
@@ -767,6 +771,30 @@ def minimize_max_residual_load(model):
                model.curtailment_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)
+
+
+def minimize_residual_load(model):
+    """
+    Objective minimizing extreme load factors
+    :param model:
+    :return:
+    """
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = model.optimized_storage_set
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+    else:
+        relevant_charging_points = []
+    return 1e-5*sum(np.square(model.residual_load.loc[model.timeindex[time]] + \
+        sum(model.charging[storage, time] for storage in relevant_storage_units) - \
+        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  + \
+        sum(model.curtailment_load[bus, time] -
+            model.curtailment_feedin[bus, time] for bus in model.bus_set)
+                         for time in model.time_set))+ \
+        sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]
+            for bus in model.bus_set for time in model.time_set)
 
 
 def minimize_curtailment(model):
