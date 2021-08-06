@@ -1251,3 +1251,22 @@ def check_mapping(mapping_cp, grid, energy_bands):
                       'entries inside the energy bands dataframe: {}. This '
                       'might cause problems in the optimization process.'
                       .format(non_existing_energy_bands))
+
+
+def import_flexibility_bands(dir, grid_id, use_cases):
+    flexibility_bands = pd.DataFrame()
+    for use_case in use_cases:
+        flexibility_bands_tmp = \
+            pd.read_csv(dir+'/ev_flexibility_bands_{}_{}.csv'.format(grid_id, use_case),
+                        index_col=0, dtype=np.float32)
+        rename_dict = {col: col + '_{}'.format(use_case) for col in
+                       flexibility_bands_tmp.columns}
+        flexibility_bands_tmp.rename(columns=rename_dict, inplace=True)
+        flexibility_bands = pd.concat([flexibility_bands, flexibility_bands_tmp],
+                                      axis=1)
+    # remove numeric problems
+    flexibility_bands.loc[:,
+    flexibility_bands.columns[flexibility_bands.columns.str.contains('power')]] = \
+        (flexibility_bands[flexibility_bands.columns[
+            flexibility_bands.columns.str.contains('power')]] + 1e-6).values
+    return flexibility_bands
