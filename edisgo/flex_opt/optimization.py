@@ -164,6 +164,8 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                       m.branches_load_factors.loc[t, l],
                       m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
                       m.branches_load_factors.loc[t, l]))
+
+    model.q_cum = pm.Var(model.branch_set, model.time_set)
     model.v = pm.Var(
         model.bus_set, model.time_set, bounds=(
             np.square(model.v_min * model.v_nom), np.square(model.v_max *
@@ -174,6 +176,10 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                     bounds=(0, None))
     model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
                                       bounds=(0, None))
+    model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
+                                             bounds=(0, None))
+    model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
+                                               bounds=(0, None))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -216,6 +222,8 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     print('Setup model: Setting constraints.')
     model.ActivePower = pm.Constraint(model.branch_set, model.time_set,
                                       rule=active_power)
+    model.ReactivePower = pm.Constraint(model.branch_set, model.time_set,
+                                        rule=reactive_power)
     model.SlackVoltage = pm.Constraint(model.slack_bus, model.time_set,
                                        rule=slack_voltage)
     model.VoltageDrop = pm.Constraint(model.branch_set, model.time_set,
@@ -615,6 +623,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
     energy_level_cp = pd.DataFrame()
     curtailment_load = pd.DataFrame()
     curtailment_feedin = pd.DataFrame()
+    curtailment_reactive_load = pd.DataFrame()
+    curtailment_reactive_feedin = pd.DataFrame()
     p_line = pd.DataFrame()
     q_line = pd.DataFrame()
     v_bus = pd.DataFrame()
@@ -642,10 +652,17 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                     model.curtailment_feedin[bus, time].value
                 curtailment_load.loc[timeindex, bus] = \
                     model.curtailment_load[bus, time].value
-                v_bus.loc[timeindex, bus] = np.sqrt(model.v[bus, time].value)
+                curtailment_reactive_feedin.loc[timeindex, bus] = \
+                    model.curtailment_reactive_feedin[bus, time].value
+                curtailment_reactive_load.loc[timeindex, bus] = \
+                    model.curtailment_reactive_load[bus, time].value
+                try:
+                    v_bus.loc[timeindex, bus] = np.sqrt(model.v[bus, time].value)
+                except:
+                    print('Error for bus {} at time {}'.format(bus, time))
             for line in model.branch_set:
                 p_line.loc[timeindex, line] = model.p_cum[line, time].value
-                q_line.loc[timeindex, line] = get_q_line(model, line, time, get_results=True)
+                q_line.loc[timeindex, line] = model.q_cum[line, time].value
             if mode == 'energy_band':
                 p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
         if save_dir:
@@ -655,16 +672,19 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
             energy_level_cp.to_csv(save_dir+'/energy_level_ev.csv')
             curtailment_feedin.to_csv(save_dir + '/curtailment_feedin.csv')
             curtailment_load.to_csv(save_dir + '/curtailment_load.csv')
+            curtailment_reactive_feedin.to_csv(save_dir + '/curtailment_reactive_feedin.csv')
+            curtailment_reactive_load.to_csv(save_dir + '/curtailment_reactive_load.csv')
 
             v_bus.to_csv(save_dir + '/voltage_buses.csv')
             p_line.to_csv(save_dir + '/active_power_lines.csv')
             q_line.to_csv(save_dir + '/reactive_power_lines.csv')
         if not mode=='energy_band':
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-                   curtailment_load, v_bus, p_line, q_line
+                   curtailment_load,  curtailment_reactive_feedin, curtailment_reactive_load, \
+                   v_bus, p_line, q_line
         else:
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-                   curtailment_load, \
+                   curtailment_load,  curtailment_reactive_feedin, curtailment_reactive_load, \
                    v_bus, p_line, q_line, p_aggr
     elif results.solver.termination_condition == TerminationCondition.infeasible:
         print('Model is infeasible')
@@ -768,7 +788,9 @@ def minimize_max_residual_load(model):
     return -model.delta_min * model.min_load_factor + \
            model.delta_max * model.max_load_factor + \
            sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time]
+               model.curtailment_feedin[bus, time]+
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)
 
@@ -787,13 +809,15 @@ def minimize_residual_load(model):
         relevant_charging_points = model.flexible_charging_points_set
     else:
         relevant_charging_points = []
-    return 1e-5*sum(np.square(model.residual_load.loc[model.timeindex[time]] + \
+    return sum([1e-5*np.square([model.residual_load.loc[model.timeindex[time]] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units) - \
         sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  + \
         sum(model.curtailment_load[bus, time] -
             model.curtailment_feedin[bus, time] for bus in model.bus_set)
-                         for time in model.time_set))+ \
-        sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]
+                         ]) for time in model.time_set])+ \
+        sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
             for bus in model.bus_set for time in model.time_set)
 
 
@@ -804,7 +828,9 @@ def minimize_curtailment(model):
     :return:
     """
     return sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time]
+               model.curtailment_feedin[bus, time]+
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)
 
@@ -816,7 +842,9 @@ def minimize_energy_level(model):
     :return:
     """
     return sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time]
+               model.curtailment_feedin[bus, time]+
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)*1e6 + \
            sum(model.grid_power_flexible[time] for
@@ -830,7 +858,9 @@ def maximize_energy_level(model):
     :return:
     """
     return sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time]
+               model.curtailment_feedin[bus, time]+
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
                for bus in model.bus_set
                for time in model.time_set)*1e6 - \
            sum(model.grid_power_flexible[time] for
@@ -912,6 +942,45 @@ def reactive_power(model, branch, time):
             model.curtailment_reactive_feedin[bus, time] for bus in relevant_buses)
 
 
+def ratio_active_reactive_power_load(model, bus, time):
+    """
+    Constraint connecting active and reactive power
+    Todo: change curtailment to EV and other load -> load factor stays constant
+    Parameters
+    ----------
+    model
+    bus
+    time
+
+    Returns
+    -------
+
+    """
+    relevant_buses = [bus]
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = \
+            model.grid.storage_units_df.loc[
+                model.grid.storage_units_df.index.isin(
+                    model.optimized_storage_set) &
+                model.grid.storage_units_df.bus.isin(relevant_buses)].index.values
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = \
+            model.grid.charging_points_df.loc[
+                model.grid.charging_points_df.index.isin(
+                    model.flexible_charging_points_set) &
+                model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
+    else:
+        relevant_charging_points = []
+    timeindex = model.timeindex[time]
+    return model.curtailment_reactive_load[bus, time] == model.nodal_reactive_power.loc[bus, timeindex]*\
+        model.curtailment_load[bus, time] / \
+           (-model.nodal_active_power.loc[bus, timeindex] -
+            sum(model.charging[storage, time] for storage in relevant_storage_units) + \
+            sum(model.charging_ev[cp, time] for cp in relevant_charging_points))
+
+
 def soc(model, storage, time):
     '''
     Constraint for battery charging
@@ -958,7 +1027,7 @@ def charging_ev(model, charging_point, time):
 
 def charging_flex(model, time):
     """
-    Constraint for charging of EV that has to ly between the lower and upper
+    Constraint for charging of EV that has to lie between the lower and upper
     energy band.
 
     :param model:
@@ -1056,6 +1125,30 @@ def slack_voltage(model, bus, time):
 
 
 def voltage_drop(model, branch, time):
+    """
+    Constraint that describes the voltage drop over one line
+    :param model:
+    :param branch:
+    :param time:
+    :return:
+    """
+    bus0 = model.branches.loc[branch, 'bus0']
+    bus1 = model.branches.loc[branch, 'bus1']
+    if model.downstream_nodes_matrix.loc[bus0, bus1] == 1:
+        upstream_bus = bus0
+        downstream_bus = bus1
+    elif model.downstream_nodes_matrix.loc[bus1, bus0] == 1:
+        upstream_bus = bus1
+        downstream_bus = bus0
+    else:
+        raise Exception('Something went wrong. Bus0 and bus1 of line {} are '
+                        'not connected in downstream_nodes_matrix.'.format(branch))
+    return model.v[downstream_bus, time] == model.v[upstream_bus, time] + \
+        2 * (model.p_cum[branch, time] * model.branches.loc[branch, model.pars['r']] +
+             model.q_cum[branch, time] *  model.branches.loc[branch, model.pars['x']])
+
+
+def voltage_drop_deprecated(model, branch, time):
     """
     Constraint that describes the voltage drop over one line
     :param model:
