@@ -50,10 +50,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.time_increment = '1' + model.time_increment
     model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
     model.time_zero = [model.time_set[1]]
-    # fix end level
-    if objective != 'minimize_energy_level' and \
-            objective != 'maximize_energy_level':
-        model.time_zero = model.time_zero + [model.time_set[-1]]
+    model.time_end = [model.time_set[-1]]
     model.time_non_zero = model.time_set - [model.time_set[1]]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set[1],
                                                model.time_set[-1]])
@@ -237,9 +234,41 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
             objective == 'maximize_energy_level'):
         model.EVCharging = pm.Constraint(model.flexible_charging_points_set,
                                          model.time_non_zero, rule=charging_ev)
-        model.InitialEVEnergyLevel = \
-            pm.Constraint(model.flexible_charging_points_set, model.time_zero,
-                          rule=initial_energy_level)
+        # set initial energy level
+        model.energy_level_start = kwargs.get('energy_level_start', None)
+        if model.energy_level_start is not None:
+            model.InitialEVEnergyLevel = \
+                pm.Constraint(model.flexible_charging_points_set, model.time_zero,
+                                  rule=initial_energy_level)
+        else:
+            model.InitialEVEnergyLevel = \
+                pm.Constraint(model.flexible_charging_points_set, model.time_zero,
+                              rule=fixed_energy_level)
+        # set final energy level and if necessary charging power
+        model.energy_level_end = kwargs.get('energy_level_end', None)
+        if model.energy_level_end is not None:
+            model.energy_level_beginning = kwargs.get('energy_level_beginning',
+                                                      None)
+            if model.energy_level_beginning is None:
+                model.energy_level_beginning = pd.Series(index=model.flexible_charging_points_set,
+                                                         data=[0]*len(model.flexible_charging_points_set))
+            model.FinalEVEnergyLevel = \
+                pm.Constraint(model.flexible_charging_points_set, model.time_end,
+                              rule=final_energy_level)
+            model.FinalEVChargingPower = \
+                pm.Constraint(model.flexible_charging_points_set, model.time_end,
+                              rule=final_charging_power)
+        else:
+            model.FinalEVEnergyLevel = \
+                pm.Constraint(model.flexible_charging_points_set, model.time_end,
+                              rule=fixed_energy_level)
+        # set initial charging power
+        model.charging_initial = kwargs.get('charging_start', None)
+        if model.charging_initial is not None:
+            model.InitialEVChargingPower = \
+                pm.Constraint(model.flexible_charging_points_set, model.time_zero,
+                              rule=initial_charging_power)
+
     if objective == 'minimize_energy_level' or \
             objective == 'maximize_energy_level':
         model.AggrGrid = pm.Constraint(model.time_set, rule=aggregated_power)
@@ -321,9 +350,6 @@ def setup_model_wo_bands(edisgo, downstream_node_matrix, timesteps=None, optimiz
     model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
     model.time_zero = [model.time_set[1]]
     # fix end level
-    if objective != 'minimize_energy_level' and \
-            objective != 'maximize_energy_level':
-        model.time_zero = model.time_zero + [model.time_set[-1]]
     model.time_non_zero = model.time_set - [model.time_set[1]]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set[1],
                                                model.time_set[-1]])
@@ -1060,6 +1086,53 @@ def initial_energy_level(model, charging_point, time):
         model.energy_band_charging_points.loc[timeindex, 'upper_'+cp]
     return model.energy_level_ev[charging_point, time] == \
            (initial_lower_band+initial_upper_band)/2
+
+
+def final_energy_level(model, charging_point, time):
+    '''
+    Constraint for initial value of energy
+    :param model:
+    :param charging_point:
+    :param time:
+    :return:
+    '''
+    return model.energy_level_ev[charging_point, time] == \
+           model.energy_level_beginning[charging_point] + model.energy_level_end[charging_point]
+
+
+def initial_energy_level(model, charging_point, time):
+    '''
+    Constraint for initial value of energy
+    :param model:
+    :param charging_point:
+    :param time:
+    :return:
+    '''
+    return model.energy_level_ev[charging_point, time] == \
+           model.energy_level_start[charging_point]
+
+
+def initial_charging_power(model, charging_point, time):
+    '''
+    Constraint for initial value of charging power
+    :param model:
+    :param charging_point:
+    :param time:
+    :return:
+    '''
+    return model.charging_ev[charging_point, time] == \
+            model.charging_initial[charging_point]
+
+
+def final_charging_power(model, charging_point, time):
+    '''
+    Constraint for final value of charging power, setting it to 0
+    :param model:
+    :param charging_point:
+    :param time:
+    :return:
+    '''
+    return model.charging_ev[charging_point, time] == 0
 
 
 def load_factor_min(model, time):
