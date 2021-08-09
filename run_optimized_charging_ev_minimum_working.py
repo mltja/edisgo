@@ -48,3 +48,58 @@ model = opt.setup_model(edisgo, downstream_node_matrix=downstream_node_matrix, m
 x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
                curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
                v_bus, p_line, q_line  = opt.optimize(model, 'glpk')
+
+edisgo_obj = edisgo
+flexibility_bands = energy_band_charging_point
+downstream_nodes_matrix = downstream_node_matrix
+timesteps_per_iteration = 3
+iterations_per_era = 3
+charging_start = None
+energy_level_start = None
+energy_level_beginning = None
+overlap_interations = 2
+energy_level = {}
+charging_ev = {}
+for iteration in range(
+        int(len(edisgo_obj.timeseries.timeindex) / timesteps_per_iteration)):  # edisgo_obj.timeseries.timeindex.week.unique()
+    if iteration >= 3:
+        break
+    print('Starting optimisation for week {}.'.format(iteration))
+    # timesteps = edisgo_obj.timeseries.timeindex[
+    #     edisgo_obj.timeseries.timeindex.week == week] # Todo: adapt
+    start_time = (iteration * timesteps_per_iteration) % 672
+    if iteration % iterations_per_era != iterations_per_era - 1:
+        timesteps = edisgo_obj.timeseries.timeindex[
+                    iteration * timesteps_per_iteration:(iteration + 1) * timesteps_per_iteration + overlap_interations]
+        flexibility_bands_week = flexibility_bands.iloc[
+                                 start_time:start_time + timesteps_per_iteration + overlap_interations].set_index(
+            timesteps)
+        energy_level_end = None
+    else:
+        timesteps = edisgo_obj.timeseries.timeindex[
+                    iteration * timesteps_per_iteration:(iteration + 1) * timesteps_per_iteration]
+        flexibility_bands_week = flexibility_bands.iloc[start_time:start_time + timesteps_per_iteration].set_index(
+            timesteps)
+        energy_level_end = pd.Series(index=['ChargingPoint'], data=[
+            3])  # edisgo_obj.timeseries.charging_points_active_power.loc[:, mapping.index].sum()
+    # if week == 0:
+    model = opt.setup_model(edisgo_obj, downstream_nodes_matrix, timesteps, objective='peak_load',
+                            optimize_storage=False, optimize_ev_charging=True,
+                            mapping_cp=mapping,
+                            energy_band_charging_points=flexibility_bands_week,
+                            pu=False, energy_level_end=energy_level_end, charging_start=charging_start,
+                            energy_level_start=energy_level_start, energy_level_beginning=energy_level_beginning)
+    print('Set up model for week {}.'.format(iteration))
+
+    x_charge, soc, charging_ev[iteration], energy_level[iteration], curtailment_feedin, \
+    curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+    v_bus, p_line, q_line = opt.optimize(model, 'gurobi')
+    if iteration % iterations_per_era != iterations_per_era - 1:
+        charging_start = charging_ev[iteration].iloc[-overlap_interations]
+        energy_level_start = energy_level[iteration].iloc[-overlap_interations]
+    else:
+        charging_start = None
+        energy_level_start = None
+
+    if iteration % iterations_per_era == 0:
+        energy_level_beginning = energy_level[iteration].iloc[0]
