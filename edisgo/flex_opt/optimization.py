@@ -1068,9 +1068,9 @@ def charging_flex(model, time):
            (pd.to_timedelta(model.time_increment)/pd.to_timedelta('1h'))
 
 
-def initial_energy_level(model, charging_point, time):
+def fixed_energy_level(model, charging_point, time):
     '''
-    Constraint for initial value pf energy
+    Constraint for initial value of energy
     :param model:
     :param charging_point:
     :param time:
