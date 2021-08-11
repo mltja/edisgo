@@ -296,6 +296,9 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                        sense=pm.minimize,
                                        doc='Define objective function')
     elif objective == 'residual_load':
+        model.grid_residual_load = pm.Var(model.time_set)
+        model.GridResidualLoad = pm.Constraint(model.time_set,
+                                               rule=grid_residual_load)
         model.objective = pm.Objective(rule=minimize_residual_load,
                                        sense=pm.minimize,
                                        doc='Define objective function')
@@ -848,6 +851,36 @@ def minimize_residual_load(model):
                model.curtailment_reactive_load[bus, time] +
                model.curtailment_reactive_feedin[bus, time]
             for bus in model.bus_set for time in model.time_set)
+
+
+def minimize_residual_load(model):
+    """
+    Objective minimizing extreme load factors
+    :param model:
+    :return:
+    """
+    return 1e-5*sum(model.grid_residual_load[time]**2 for time in model.time_set) + \
+        sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
+           model.curtailment_reactive_load[bus, time] +
+           model.curtailment_reactive_feedin[bus, time]
+        for bus in model.bus_set for time in model.time_set)
+
+
+def grid_residual_load(model, time):
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = model.optimized_storage_set
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+    else:
+        relevant_charging_points = []
+    return model.grid_residual_load[time] == \
+    model.residual_load.loc[model.timeindex[time]] + \
+        sum(model.charging[storage, time] for storage in relevant_storage_units) - \
+    sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  + \
+    sum(model.curtailment_load[bus, time] -
+        model.curtailment_feedin[bus, time] for bus in model.bus_set)
 
 
 def minimize_curtailment(model):
