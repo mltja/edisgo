@@ -109,7 +109,8 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         grid_object, edisgo_object, model)
     model.grid = grid_object
     model.downstream_nodes_matrix = downstream_node_matrix
-    nodal_active_power, nodal_reactive_power = get_nodal_residual_load(
+    nodal_active_power, nodal_reactive_power, nodal_active_load, nodal_reactive_load, \
+           nodal_active_generation, nodal_reactive_generation = get_nodal_residual_load(
         grid_object, edisgo_object, considered_storage=inflexible_storage_units,
         considered_charging_points=inflexible_charging_points)
     model.nodal_active_power = nodal_active_power.T
@@ -118,7 +119,8 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     trafos = grid_object.transformers_df.loc[
         grid_object.transformers_df.bus0.isin(grid_object.buses_df.index)].loc[
         grid_object.transformers_df.bus1.isin(grid_object.buses_df.index)]
-    model.branches = pd.concat([grid_object.lines_df, trafos])
+    model.branches = pd.concat([grid_object.lines_df, trafos], sort=False)
+    model.underlying_branch_elements, model.power_factors = get_underlying_elements(model)
 
     model.branch_set = pm.Set(initialize=model.branches.index)
 
@@ -157,9 +159,9 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     print('Setup model: Defining variables.')
     model.p_cum = pm.Var(model.branch_set, model.time_set,
                      bounds=lambda m, l, t:
-                     (-m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
+                     (-m.power_factors.loc[l, model.timeindex[t]] * m.branches.loc[l, model.pars['s_nom']] *
                       m.branches_load_factors.loc[t, l],
-                      m.power_factor * m.branches.loc[l, model.pars['s_nom']] *
+                      m.power_factors.loc[l, model.timeindex[t]] * m.branches.loc[l, model.pars['s_nom']] *
                       m.branches_load_factors.loc[t, l]))
 
     model.q_cum = pm.Var(model.branch_set, model.time_set)
@@ -409,7 +411,8 @@ def setup_model_wo_bands(edisgo, downstream_node_matrix, timesteps=None, optimiz
         grid_object, edisgo_object, model)
     model.grid = grid_object
     model.downstream_nodes_matrix = downstream_node_matrix
-    nodal_active_power, nodal_reactive_power = get_nodal_residual_load(
+    nodal_active_power, nodal_reactive_power, nodal_active_load, nodal_reactive_load, \
+           nodal_active_generation, nodal_reactive_generation = get_nodal_residual_load(
         grid_object, edisgo_object, considered_storage=inflexible_storage_units,
         considered_charging_points=inflexible_charging_points)
     model.nodal_active_power = nodal_active_power.T
@@ -521,8 +524,8 @@ def setup_model_wo_bands(edisgo, downstream_node_matrix, timesteps=None, optimiz
         model.EVCharging = pm.Constraint(model.flexible_charging_points_set,
                                          model.time_non_zero, rule=charging_ev)
         model.InitialEVEnergyLevel = \
-            pm.Constraint(model.flexible_charging_points_set, model.time_zero,
-                          rule=initial_energy_level)
+            pm.Constraint(model.flexible_charging_points_set, model.times_fixed_soc,
+                          rule=fixed_energy_level)
     if objective == 'minimize_energy_level' or \
             objective == 'maximize_energy_level':
         model.AggrGrid = pm.Constraint(model.time_set, rule=aggregated_power)
@@ -906,32 +909,9 @@ def active_power(model, branch, time):
     :return:
     '''
     timeindex = model.timeindex[time]
-    bus0 = model.branches.loc[branch, 'bus0']
-    bus1 = model.branches.loc[branch, 'bus1']
-    relevant_buses_bus0 = \
-        model.downstream_nodes_matrix.loc[bus0][
-            model.downstream_nodes_matrix.loc[bus0] == 1].index.values
-    relevant_buses_bus1 = \
-        model.downstream_nodes_matrix.loc[bus1][
-            model.downstream_nodes_matrix.loc[bus1] == 1].index.values
-    relevant_buses = list(set(relevant_buses_bus0).intersection(
-        relevant_buses_bus1))
-    if hasattr(model, 'storage_set'):
-        relevant_storage_units = \
-            model.grid.storage_units_df.loc[
-                model.grid.storage_units_df.index.isin(
-                    model.optimized_storage_set) &
-                model.grid.storage_units_df.bus.isin(relevant_buses)].index.values
-    else:
-        relevant_storage_units = []
-    if hasattr(model, 'charging_points_set'):
-        relevant_charging_points = \
-            model.grid.charging_points_df.loc[
-                model.grid.charging_points_df.index.isin(
-                    model.flexible_charging_points_set) &
-                model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
-    else:
-        relevant_charging_points = []
+    relevant_buses = model.underlying_branch_elements.loc[branch, 'buses']
+    relevant_storage_units = model.underlying_branch_elements.loc[branch, 'flexible_storage']
+    relevant_charging_points = model.underlying_branch_elements.loc[branch, 'flexible_ev']
     load_flow_on_line = \
         model.nodal_active_power.loc[relevant_buses, timeindex].sum()
     return model.p_cum[branch, time] == load_flow_on_line + \
@@ -951,16 +931,7 @@ def reactive_power(model, branch, time):
     :return:
     '''
     timeindex = model.timeindex[time]
-    bus0 = model.branches.loc[branch, 'bus0']
-    bus1 = model.branches.loc[branch, 'bus1']
-    relevant_buses_bus0 = \
-        model.downstream_nodes_matrix.loc[bus0][
-            model.downstream_nodes_matrix.loc[bus0] == 1].index.values
-    relevant_buses_bus1 = \
-        model.downstream_nodes_matrix.loc[bus1][
-            model.downstream_nodes_matrix.loc[bus1] == 1].index.values
-    relevant_buses = list(set(relevant_buses_bus0).intersection(
-        relevant_buses_bus1))
+    relevant_buses = model.underlying_branch_elements.loc[branch, 'buses']
     load_flow_on_line = \
         model.nodal_reactive_power.loc[relevant_buses, timeindex].sum()
     return model.q_cum[branch, time] == load_flow_on_line + \
@@ -1343,3 +1314,49 @@ def import_flexibility_bands(dir, grid_id, use_cases):
         (flexibility_bands[flexibility_bands.columns[
             flexibility_bands.columns.str.contains('power')]] + 1e-6).values
     return flexibility_bands
+
+
+def get_underlying_elements(model):
+    def _get_underlying_elements(downstream_elements, power_factors, model, branch):
+        bus0 = model.branches.loc[branch, 'bus0']
+        bus1 = model.branches.loc[branch, 'bus1']
+        relevant_buses_bus0 = \
+            model.downstream_nodes_matrix.loc[bus0][
+                model.downstream_nodes_matrix.loc[bus0] == 1].index.values
+        relevant_buses_bus1 = \
+            model.downstream_nodes_matrix.loc[bus1][
+                model.downstream_nodes_matrix.loc[bus1] == 1].index.values
+        relevant_buses = list(set(relevant_buses_bus0).intersection(
+            relevant_buses_bus1))
+        downstream_elements.loc[branch, 'buses'] = relevant_buses
+        power_factors.loc[branch] = model.nodal_active_power.loc[relevant_buses].sum().divide(
+            (model.nodal_active_power.loc[relevant_buses].sum().apply(np.square)+
+             model.nodal_reactive_power.loc[relevant_buses].sum().apply(np.square)).apply(np.sqrt)).apply(abs)
+        downstream_elements.loc[branch, 'generators'] = model.grid.generators_df.loc[model.grid.generators_df.bus.isin(
+            relevant_buses)].index.values
+        downstream_elements.loc[branch, 'loads'] = model.grid.loads_df.loc[model.grid.loads_df.bus.isin(
+            relevant_buses)].index.values
+        if hasattr(model, 'storage_set'):
+            downstream_elements.loc[branch, 'flexible_storage'] = \
+                model.grid.storage_units_df.loc[
+                    model.grid.storage_units_df.index.isin(
+                        model.optimized_storage_set) &
+                    model.grid.storage_units_df.bus.isin(relevant_buses)].index.values
+        else:
+            downstream_elements.loc[branch, 'flexible_storage'] = []
+        if hasattr(model, 'charging_points_set'):
+            downstream_elements.loc[branch, 'flexible_ev'] = \
+                model.grid.charging_points_df.loc[
+                    model.grid.charging_points_df.index.isin(
+                        model.flexible_charging_points_set) &
+                    model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
+        else:
+            downstream_elements.loc[branch, 'flexible_ev'] = []
+        return downstream_elements, power_factors
+
+    downstream_elements = pd.DataFrame(index=model.branches.index,
+                                       columns=['buses', 'generators', 'loads', 'flexible_storage', 'flexible_ev', 'pf'])
+    power_factors = pd.DataFrame(index=model.branches.index, columns=model.nodal_active_power.columns)
+    for branch in downstream_elements.index:
+        downstream_elements, power_factors = _get_underlying_elements(downstream_elements, power_factors, model, branch)
+    return downstream_elements, power_factors.fillna(1.0)
