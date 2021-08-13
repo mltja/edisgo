@@ -1,6 +1,6 @@
 # Script to extract and save independent feeders
 from edisgo.edisgo import import_edisgo_from_files
-from edisgo.tools.tools import extract_feeders
+from edisgo.tools.tools import extract_feeders_nx
 import multiprocessing as mp
 
 
@@ -9,7 +9,7 @@ def extract_feeders_parallel(grid_id):
     edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2\{}\reduced'.format(grid_id)
     save_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2\{}'.format(grid_id)
     edisgo_obj = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
-    extract_feeders(edisgo_obj, save_dir)
+    extract_feeders_nx(edisgo_obj, save_dir)
 
 
 if __name__ == '__main__':
