@@ -216,6 +216,8 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                 ['upper', str(m.mapping_cp.loc[b, 'ags']),
                                  str(m.mapping_cp.loc[b, 'cp_idx']),
                                  m.mapping_cp.loc[b, 'use_case']])]))
+            model.charging_slack_pos = pm.Var(model.flexible_charging_points_set, model.time_set, bounds=(0, None))
+            model.charging_slack_neg = pm.Var(model.flexible_charging_points_set, model.time_set, bounds=(0, None))
 
     # DEFINE CONSTRAINTS
     print('Setup model: Setting constraints.')
@@ -859,11 +861,22 @@ def minimize_residual_load(model):
     :param model:
     :return:
     """
-    return 1e-5*sum(model.grid_residual_load[time]**2 for time in model.time_set) + \
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+        return 1e10*sum([model.charging_slack_pos[charging_point, time]
+                        for charging_point in relevant_charging_points
+                        for time in model.time_set])+\
+               1e-5*sum(model.grid_residual_load[time]**2 for time in model.time_set) + \
         sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
            model.curtailment_reactive_load[bus, time] +
            model.curtailment_reactive_feedin[bus, time]
         for bus in model.bus_set for time in model.time_set)
+    else:
+        return 1e-5*sum(model.grid_residual_load[time]**2 for time in model.time_set) + \
+            sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
+               model.curtailment_reactive_load[bus, time] +
+               model.curtailment_reactive_feedin[bus, time]
+            for bus in model.bus_set for time in model.time_set)
 
 
 def grid_residual_load(model, time):
@@ -889,12 +902,24 @@ def minimize_curtailment(model):
     :param model:
     :return:
     """
-    return sum(model.curtailment_load[bus, time] +
-               model.curtailment_feedin[bus, time]+
-               model.curtailment_reactive_load[bus, time] +
-               model.curtailment_reactive_feedin[bus, time]
-               for bus in model.bus_set
-               for time in model.time_set)
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+        return 1e6*sum([model.charging_slack_pos[charging_point, time]
+                        for charging_point in relevant_charging_points
+                        for time in model.time_set])+ \
+               sum(model.curtailment_load[bus, time] +
+                   model.curtailment_feedin[bus, time] +
+                   model.curtailment_reactive_load[bus, time] +
+                   model.curtailment_reactive_feedin[bus, time]
+                   for bus in model.bus_set
+                   for time in model.time_set)
+    else:
+        return sum(model.curtailment_load[bus, time] +
+                   model.curtailment_feedin[bus, time]+
+                   model.curtailment_reactive_load[bus, time] +
+                   model.curtailment_reactive_feedin[bus, time]
+                   for bus in model.bus_set
+                   for time in model.time_set)
 
 
 def minimize_energy_level(model):
@@ -903,14 +928,26 @@ def minimize_energy_level(model):
     :param model:
     :return:
     """
-    return sum(model.curtailment_load[bus, time] +
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+        return 1e6*sum([model.charging_slack_pos[charging_point, time] + model.curtailment_load[bus, time] +
                model.curtailment_feedin[bus, time]+
                model.curtailment_reactive_load[bus, time] +
                model.curtailment_reactive_feedin[bus, time]
                for bus in model.bus_set
-               for time in model.time_set)*1e6 + \
+                        for charging_point in relevant_charging_points
+                        for time in model.time_set])+ \
            sum(model.grid_power_flexible[time] for
                time in model.time_set)
+    else:
+        return sum(model.curtailment_load[bus, time] +
+                   model.curtailment_feedin[bus, time]+
+                   model.curtailment_reactive_load[bus, time] +
+                   model.curtailment_reactive_feedin[bus, time]
+                   for bus in model.bus_set
+                   for time in model.time_set)*1e6 + \
+               sum(model.grid_power_flexible[time] for
+                   time in model.time_set)
 
 
 def maximize_energy_level(model):
@@ -919,18 +956,48 @@ def maximize_energy_level(model):
     :param model:
     :return:
     """
-    return sum(model.curtailment_load[bus, time] +
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+        return 1e6*sum([model.charging_slack_pos[charging_point, time] + model.curtailment_load[bus, time] +
                model.curtailment_feedin[bus, time]+
                model.curtailment_reactive_load[bus, time] +
                model.curtailment_reactive_feedin[bus, time]
                for bus in model.bus_set
-               for time in model.time_set)*1e6 - \
+                        for charging_point in relevant_charging_points
+                        for time in model.time_set])- \
            sum(model.grid_power_flexible[time] for
                time in model.time_set)
+    else:
+        return sum(model.curtailment_load[bus, time] +
+                   model.curtailment_feedin[bus, time]+
+                   model.curtailment_reactive_load[bus, time] +
+                   model.curtailment_reactive_feedin[bus, time]
+                   for bus in model.bus_set
+                   for time in model.time_set)*1e6 - \
+               sum(model.grid_power_flexible[time] for
+                   time in model.time_set)
 
 
 def maximize_energy_band(model):
-    return sum(model.energy_level[t] for t in model.time_set)
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+        return -1e6*sum([model.charging_slack_pos[charging_point, time]
+                        for charging_point in relevant_charging_points
+                        for time in model.time_set])+\
+               sum(model.energy_level[t] for t in model.time_set)
+    else:
+        return sum(model.energy_level[t] for t in model.time_set)
+
+
+def minimize_energy_band(model):
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = model.flexible_charging_points_set
+        return 1e6*sum([model.charging_slack_pos[charging_point, time]
+                        for charging_point in relevant_charging_points
+                        for time in model.time_set])+ \
+               sum(model.energy_level[t] for t in model.time_set)
+    else:
+        return sum(model.energy_level[t] for t in model.time_set)
 
 
 def active_power(model, branch, time):
@@ -1052,7 +1119,8 @@ def charging_ev(model, charging_point, time):
            model.energy_level_ev[charging_point, time - 1] + \
            model.charging_efficiency * \
            model.charging_ev[charging_point, time - 1]*\
-           (pd.to_timedelta(model.time_increment)/pd.to_timedelta('1h'))
+           (pd.to_timedelta(model.time_increment)/pd.to_timedelta('1h'))+\
+            model.charging_slack_pos[charging_point, time]-model.charging_slack_neg[charging_point, time]
 
 
 def charging_flex(model, time):
