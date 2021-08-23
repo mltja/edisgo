@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pyomo.environ as pm
 from pyomo.opt import SolverStatus, TerminationCondition
-from edisgo.tools.tools import get_nodal_residual_load
+from edisgo.tools.tools import get_nodal_residual_load, calculate_impedance_for_parallel_components
 from copy import deepcopy
 import itertools
 
@@ -116,10 +116,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.nodal_active_power = nodal_active_power.T
     model.nodal_reactive_power = nodal_reactive_power.T
     model.v_slack = kwargs.get('v_slack', model.v_nom)
-    trafos = grid_object.transformers_df.loc[
-        grid_object.transformers_df.bus0.isin(grid_object.buses_df.index)].loc[
-        grid_object.transformers_df.bus1.isin(grid_object.buses_df.index)]
-    model.branches = pd.concat([grid_object.lines_df, trafos], sort=False)
+    model.branches = concat_parallel_branch_elements(grid_object)
     model.underlying_branch_elements, model.power_factors = get_underlying_elements(model)
 
     model.branch_set = pm.Set(initialize=model.branches.index)
@@ -309,6 +306,45 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         model.pprint()
     print('Successfully set up optimisation model.')
     return model
+
+
+def concat_parallel_branch_elements(grid_object):
+    """
+    Method to merge parallel lines and transformers into one element, respectively.
+
+    Parameters
+    ----------
+    grid_object
+
+    Returns
+    -------
+
+    """
+    lines_tmp = grid_object.lines_df[['bus0', 'bus1']]
+    if lines_tmp.duplicated().any():
+        print('check parallel lines')
+
+    trafos = grid_object.transformers_df.loc[
+        grid_object.transformers_df.bus0.isin(grid_object.buses_df.index)].loc[
+        grid_object.transformers_df.bus1.isin(grid_object.buses_df.index)]
+    trafos_tmp = trafos[['bus0', 'bus1']]
+    parallel_trafos = pd.DataFrame(columns=['r', 'x', 's_nom'])
+    if trafos_tmp.duplicated().any():
+        duplicated_trafos = trafos_tmp.loc[trafos_tmp.duplicated(keep=False)]
+        duplicated_trafos['visited'] = False
+        trafos_tmp.drop(duplicated_trafos.index, inplace=True)
+        for name, buses in duplicated_trafos.iterrows():
+            if duplicated_trafos.loc[name, 'visited']:
+                continue
+            else:
+                parallel_trafos_tmp = duplicated_trafos.loc[(duplicated_trafos==buses).all(axis=1)]
+                duplicated_trafos.loc[parallel_trafos_tmp.index, 'visited'] = True
+                name = '_'.join(str.split(name, '_')[:-1])
+                parallel_trafos.loc[name] = calculate_impedance_for_parallel_components(trafos.loc[parallel_trafos_tmp.index, ['r', 'x', 's_nom']],
+                                                            pu=False)
+        print('check parallel transformers')
+    transformers = pd.concat([trafos.loc[trafos_tmp.index], parallel_trafos], sort=False)
+    return pd.concat([grid_object.lines_df, transformers], sort=False)
 
 
 def setup_model_wo_bands(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,

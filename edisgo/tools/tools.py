@@ -3,10 +3,16 @@ import networkx as nx
 from math import pi, sqrt
 from copy import deepcopy
 import os
+from functools import reduce  # Required in Python 3
+import operator
 
 from edisgo.flex_opt import exceptions
 from edisgo.flex_opt import check_tech_constraints
 from edisgo.network.grids import LVGrid
+
+
+def prod(iterable):
+    return reduce(operator.mul, iterable, 1)
 
 
 def select_worstcase_snapshots(edisgo_obj):
@@ -193,10 +199,13 @@ def check_bus_for_removal(topology, bus_name):
     # if another element is connected to node, it cannot be removed
     elif (
         bus_name in topology.loads_df.bus.values
+        or bus_name in topology.charging_points_df.bus.values
         or bus_name in topology.generators_df.bus.values
         or bus_name in topology.storage_units_df.bus.values
         or bus_name in topology.transformers_df.bus0.values
         or bus_name in topology.transformers_df.bus1.values
+        or bus_name in topology.transformers_hvmv_df.bus0.values
+        or bus_name in topology.transformers_hvmv_df.bus1.values
     ):
         return False
     else:
@@ -587,6 +596,28 @@ def get_aggregated_bands(bands):
     aggregated_bands['lower'] = bands[columns_lower].sum(axis=1)
     aggregated_bands['power'] = bands[columns_power].sum(axis=1)
     return aggregated_bands
+
+
+def calculate_impedance_for_parallel_components(parallel_components, pu=False):
+    if not (parallel_components.diff().dropna() < 1e-6).all().all():
+        parallel_impedance = \
+            prod([complex(comp.r, comp.x) for name, comp in parallel_components.iterrows()])/\
+            sum([complex(comp.r, comp.x) for name, comp in parallel_components.iterrows()])
+        # apply current devider and use minimum
+        s_parallel = min([abs(comp.s_nom/(1/complex(comp.r, comp.x)/
+                          sum([1/complex(comp.r, comp.x)
+                               for name, comp in parallel_components.iterrows()])))
+                          for name, comp in parallel_components.iterrows()])
+        return pd.Series({'r': parallel_impedance.real,
+                          'x': parallel_impedance.imag,
+                          's_nom': s_parallel})
+    if pu:
+        raise NotImplementedError('Calculation in pu for parallel components not implemented yet.')
+    else:
+        nr_components = len(parallel_components)
+        return pd.Series({'r': parallel_components.iloc[0].r/nr_components,
+                          'x': parallel_components.iloc[0].x/nr_components,
+                          's_nom': parallel_components.iloc[0].s_nom*nr_components})
 
 
 def convert_impedances_to_mv(edisgo):
