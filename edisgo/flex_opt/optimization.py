@@ -866,7 +866,7 @@ def minimize_max_residual_load(model):
                for time in model.time_set)
 
 
-def minimize_residual_load(model):
+def minimize_residual_load_depr(model):
     """
     Objective minimizing extreme load factors
     :param model:
@@ -882,9 +882,9 @@ def minimize_residual_load(model):
         relevant_charging_points = []
     return sum([1e-5*np.square([model.residual_load.loc[model.timeindex[time]] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units) - \
-        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  + \
-        sum(model.curtailment_load[bus, time] -
-            model.curtailment_feedin[bus, time] for bus in model.bus_set)
+        sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
+        # + sum(model.curtailment_load[bus, time] -
+        #     model.curtailment_feedin[bus, time] for bus in model.bus_set)
                          ]) for time in model.time_set])+ \
         sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
                model.curtailment_reactive_load[bus, time] +
@@ -917,9 +917,9 @@ def grid_residual_load(model, time):
     return model.grid_residual_load[time] == \
     model.residual_load.loc[model.timeindex[time]] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units) - \
-    sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  + \
-    sum(model.curtailment_load[bus, time] -
-        model.curtailment_feedin[bus, time] for bus in model.bus_set)
+    sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  #+ \
+    # sum(model.curtailment_load[bus, time] -
+    #     model.curtailment_feedin[bus, time] for bus in model.bus_set)
 
 
 def minimize_curtailment(model):
