@@ -320,31 +320,34 @@ def concat_parallel_branch_elements(grid_object):
     -------
 
     """
-    lines_tmp = grid_object.lines_df[['bus0', 'bus1']]
-    if lines_tmp.duplicated().any():
-        print('check parallel lines')
-
+    lines = fuse_parallel_branches(grid_object.lines_df)
     trafos = grid_object.transformers_df.loc[
         grid_object.transformers_df.bus0.isin(grid_object.buses_df.index)].loc[
         grid_object.transformers_df.bus1.isin(grid_object.buses_df.index)]
-    trafos_tmp = trafos[['bus0', 'bus1']]
-    parallel_trafos = pd.DataFrame(columns=['r', 'x', 's_nom'])
-    if trafos_tmp.duplicated().any():
-        duplicated_trafos = trafos_tmp.loc[trafos_tmp.duplicated(keep=False)]
-        duplicated_trafos['visited'] = False
-        trafos_tmp.drop(duplicated_trafos.index, inplace=True)
-        for name, buses in duplicated_trafos.iterrows():
-            if duplicated_trafos.loc[name, 'visited']:
+    transformers = fuse_parallel_branches(trafos)
+    return pd.concat([lines, transformers], sort=False)
+
+
+def fuse_parallel_branches(branches):
+    branches_tmp = branches[['bus0', 'bus1']]
+    parallel_branches = pd.DataFrame(columns=branches.columns)
+    if branches_tmp.duplicated().any():
+        duplicated_branches = branches_tmp.loc[branches_tmp.duplicated(keep=False)]
+        duplicated_branches['visited'] = False
+        branches_tmp.drop(duplicated_branches.index, inplace=True)
+        for name, buses in duplicated_branches.iterrows():
+            if duplicated_branches.loc[name, 'visited']:
                 continue
             else:
-                parallel_trafos_tmp = duplicated_trafos.loc[(duplicated_trafos==buses).all(axis=1)]
-                duplicated_trafos.loc[parallel_trafos_tmp.index, 'visited'] = True
-                name = '_'.join(str.split(name, '_')[:-1])
-                parallel_trafos.loc[name] = calculate_impedance_for_parallel_components(trafos.loc[parallel_trafos_tmp.index, ['r', 'x', 's_nom']],
-                                                            pu=False)
-        print('check parallel transformers')
-    transformers = pd.concat([trafos.loc[trafos_tmp.index], parallel_trafos], sort=False)
-    return pd.concat([grid_object.lines_df, transformers], sort=False)
+                parallel_branches_tmp = duplicated_branches.loc[(duplicated_branches == buses).all(axis=1)]
+                duplicated_branches.loc[parallel_branches_tmp.index, 'visited'] = True
+                name_par = '_'.join(str.split(name, '_')[:-1])
+                parallel_branches.loc[name_par] = branches.loc[name]
+                parallel_branches.loc[name_par, ['r', 'x', 's_nom']] = calculate_impedance_for_parallel_components(
+                    branches.loc[parallel_branches_tmp.index, ['r', 'x', 's_nom']],
+                    pu=False)
+    fused_branches = pd.concat([branches.loc[branches_tmp.index], parallel_branches], sort=False)
+    return fused_branches
 
 
 def setup_model_wo_bands(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,
