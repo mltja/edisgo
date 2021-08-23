@@ -1396,6 +1396,7 @@ def get_underlying_elements(model):
     def _get_underlying_elements(downstream_elements, power_factors, model, branch):
         bus0 = model.branches.loc[branch, 'bus0']
         bus1 = model.branches.loc[branch, 'bus1']
+        s_nom = model.branches.loc[branch, model.pars['s_nom']]
         relevant_buses_bus0 = \
             model.downstream_nodes_matrix.loc[bus0][
                 model.downstream_nodes_matrix.loc[bus0] == 1].index.values
@@ -1405,9 +1406,10 @@ def get_underlying_elements(model):
         relevant_buses = list(set(relevant_buses_bus0).intersection(
             relevant_buses_bus1))
         downstream_elements.loc[branch, 'buses'] = relevant_buses
-        power_factors.loc[branch] = model.nodal_active_power.loc[relevant_buses].sum().divide(
-            (model.nodal_active_power.loc[relevant_buses].sum().apply(np.square)+
-             model.nodal_reactive_power.loc[relevant_buses].sum().apply(np.square)).apply(np.sqrt)).apply(abs)
+        if (model.nodal_reactive_power.loc[relevant_buses].sum().divide(s_nom).apply(abs) > 1).any():
+            print('Careful: Reactive power already exceeding line capacity for branch {}.'.format(branch))
+        power_factors.loc[branch] = (1-
+             model.nodal_reactive_power.loc[relevant_buses].sum().divide(s_nom).apply(np.square)).apply(np.sqrt)
         downstream_elements.loc[branch, 'generators'] = model.grid.generators_df.loc[model.grid.generators_df.bus.isin(
             relevant_buses)].index.values
         downstream_elements.loc[branch, 'loads'] = model.grid.loads_df.loc[model.grid.loads_df.bus.isin(
@@ -1435,4 +1437,6 @@ def get_underlying_elements(model):
     power_factors = pd.DataFrame(index=model.branches.index, columns=model.nodal_active_power.columns)
     for branch in downstream_elements.index:
         downstream_elements, power_factors = _get_underlying_elements(downstream_elements, power_factors, model, branch)
-    return downstream_elements, power_factors.fillna(1.0)
+    power_factors = power_factors.fillna(0.9)
+    #power_factors.where(power_factors >= 0.9, 0.9, inplace=True)
+    return downstream_elements, power_factors
