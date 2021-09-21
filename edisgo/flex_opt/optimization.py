@@ -115,6 +115,10 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
         considered_charging_points=inflexible_charging_points)
     model.nodal_active_power = nodal_active_power.T
     model.nodal_reactive_power = nodal_reactive_power.T
+    model.nodal_active_load = nodal_active_load.T
+    model.nodal_reactive_load = nodal_reactive_load.T
+    model.nodal_active_feedin = nodal_active_generation.T
+    model.nodal_reactive_feedin = nodal_reactive_generation.T
     model.v_slack = kwargs.get('v_slack', model.v_nom)
     model.branches = concat_parallel_branch_elements(grid_object)
     model.underlying_branch_elements, model.power_factors = get_underlying_elements(model)
@@ -154,28 +158,26 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
 
     # DEFINE VARIABLES
     print('Setup model: Defining variables.')
-    model.p_cum = pm.Var(model.branch_set, model.time_set,
-                     bounds=lambda m, l, t:
-                     (-m.power_factors.loc[l, model.timeindex[t]] * m.branches.loc[l, model.pars['s_nom']] *
-                      m.branches_load_factors.loc[t, l],
-                      m.power_factors.loc[l, model.timeindex[t]] * m.branches.loc[l, model.pars['s_nom']] *
-                      m.branches_load_factors.loc[t, l]))
-
+    model.p_cum = pm.Var(model.branch_set, model.time_set)
+    model.slack_p_cum_pos = pm.Var(model.branch_set, model.time_set, bounds=(0, None))
+    model.slack_p_cum_neg = pm.Var(model.branch_set, model.time_set, bounds=(0, None))
     model.q_cum = pm.Var(model.branch_set, model.time_set)
-    model.v = pm.Var(
-        model.bus_set, model.time_set, bounds=(
-            np.square(model.v_min * model.v_nom), np.square(model.v_max *
-                                                            model.v_nom)))
+    model.v = pm.Var(model.bus_set, model.time_set)
+    model.slack_v_pos = pm.Var(model.bus_set, model.time_set, bounds=(0, None))
+    model.slack_v_neg = pm.Var(model.bus_set, model.time_set, bounds=(0, None))
     # if not objective == 'minimize_energy_level' and \
     #         not objective == 'maximize_energy_level':
     model.curtailment_load = pm.Var(model.bus_set, model.time_set,
                                     bounds=(0, None))
     model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
-                                      bounds=(0, None))
+                                      bounds=lambda m, b, t:
+                                      (0, m.nodal_active_feedin.loc[b, model.timeindex[t]]))
     model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
-                                             bounds=(0, None))
+                                             bounds=lambda m, b, t:
+                                             (0, m.nodal_reactive_load.loc[b, model.timeindex[t]]))
     model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
-                                               bounds=(0, None))
+                                               bounds=lambda m, b, t:
+                                               (0, -m.nodal_reactive_feedin.loc[b, model.timeindex[t]]))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -218,12 +220,22 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     print('Setup model: Setting constraints.')
     model.ActivePower = pm.Constraint(model.branch_set, model.time_set,
                                       rule=active_power)
+    model.UpperActive = pm.Constraint(model.branch_set, model.time_set,
+                                      rule=upper_active_power)
+    model.LowerActive = pm.Constraint(model.branch_set, model.time_set,
+                                      rule=lower_active_power)
     model.ReactivePower = pm.Constraint(model.branch_set, model.time_set,
                                         rule=reactive_power)
     model.SlackVoltage = pm.Constraint(model.slack_bus, model.time_set,
                                        rule=slack_voltage)
     model.VoltageDrop = pm.Constraint(model.branch_set, model.time_set,
                                       rule=voltage_drop)
+    model.UpperVoltage = pm.Constraint(model.bus_set, model.time_set,
+                                       rule=upper_voltage)
+    model.LowerVoltage = pm.Constraint(model.bus_set, model.time_set,
+                                       rule=lower_voltage)
+    model.UpperCurtLoad = pm.Constraint(model.bus_set, model.time_set,
+                                        rule=upper_bound_curtailment_load)
     if optimize_storage:
         model.BatteryCharging = pm.Constraint(model.storage_set,
                                               model.time_non_zero, rule=soc)
@@ -459,6 +471,10 @@ def setup_model_wo_bands(edisgo, downstream_node_matrix, timesteps=None, optimiz
         considered_charging_points=inflexible_charging_points)
     model.nodal_active_power = nodal_active_power.T
     model.nodal_reactive_power = nodal_reactive_power.T
+    model.nodal_active_power_load = nodal_active_load.T
+    model.nodal_reactive_power_load = nodal_reactive_load.T
+    model.nodal_active_power_generation = nodal_active_generation.T
+    model.nodal_reactive_power_generation = nodal_reactive_generation.T
     model.v_slack = kwargs.get('v_slack', model.v_nom)
     trafos = grid_object.transformers_df.loc[
         grid_object.transformers_df.bus0.isin(grid_object.buses_df.index)].loc[
@@ -998,6 +1014,16 @@ def active_power(model, branch, time):
             model.curtailment_feedin[bus, time] for bus in relevant_buses)
 
 
+def upper_active_power(model, branch, time):
+    return model.p_cum[branch, time] <= model.power_factors.loc[branch, model.timeindex[time]] * \
+           model.branches.loc[branch, model.pars['s_nom']] + model.slack_p_cum_pos[branch, time]
+
+
+def lower_active_power(model, branch, time):
+    return model.p_cum[branch, time] >= - model.power_factors.loc[branch, model.timeindex[time]] * \
+           model.branches.loc[branch, model.pars['s_nom']] - model.slack_p_cum_neg[branch, time]
+
+
 def reactive_power(model, branch, time):
     '''
     Constraint for reactive power at node
@@ -1013,6 +1039,38 @@ def reactive_power(model, branch, time):
     return model.q_cum[branch, time] == load_flow_on_line + \
            sum(model.curtailment_reactive_load[bus, time] -
             model.curtailment_reactive_feedin[bus, time] for bus in relevant_buses)
+
+
+def upper_bound_curtailment_load(model, bus, time):
+    '''
+    Constraint for upper bound of curtailment load
+    :param model:
+    :param bus:
+    :param time:
+    :return:
+    '''
+    timeindex = model.timeindex[time]
+    relevant_buses = [bus]
+    if hasattr(model, 'storage_set'):
+        relevant_storage_units = \
+            model.grid.storage_units_df.loc[
+                model.grid.storage_units_df.index.isin(
+                    model.optimized_storage_set) &
+                model.grid.storage_units_df.bus.isin(relevant_buses)].index.values
+    else:
+        relevant_storage_units = []
+    if hasattr(model, 'charging_points_set'):
+        relevant_charging_points = \
+            model.grid.charging_points_df.loc[
+                model.grid.charging_points_df.index.isin(
+                    model.flexible_charging_points_set) &
+                model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
+    else:
+        relevant_charging_points = []
+    return model.curtailment_load[bus, time] <= model.nodal_active_load.loc[bus, timeindex] \
+           -sum(model.charging[storage, time]
+            for storage in relevant_storage_units) + \
+           sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
 
 
 def ratio_active_reactive_power_load(model, bus, time):
@@ -1266,6 +1324,14 @@ def voltage_drop(model, branch, time):
     return model.v[downstream_bus, time] == model.v[upstream_bus, time] + \
         2 * (model.p_cum[branch, time] * model.branches.loc[branch, model.pars['r']] +
              model.q_cum[branch, time] *  model.branches.loc[branch, model.pars['x']])
+
+
+def upper_voltage(model, bus, time):
+    return model.v[bus, time] <= np.square(model.v_max * model.v_nom) + model.slack_v_pos[bus, time]
+
+
+def lower_voltage(model, bus, time):
+    return model.v[bus, time] >= np.square(model.v_min * model.v_nom) - model.slack_v_neg[bus, time]
 
 
 def voltage_drop_deprecated(model, branch, time):
