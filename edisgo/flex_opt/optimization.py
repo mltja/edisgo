@@ -734,6 +734,10 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                     if hasattr(model, 'energy_level_ev'):
                         energy_level_cp.loc[timeindex, cp] = \
                             model.energy_level_ev[cp, time].value
+                    if hasattr(model, 'slack_initial_charging_pos'):
+                        slack_charging.loc[cp, 'slack'] = model.slack_initial_charging_pos[cp].value + model.slack_initial_charging_neg[cp].value
+                    if hasattr(model, 'slack_initial_energy_pos'):
+                        slack_energy.loc[cp, 'slack'] = model.slack_initial_energy_pos[cp].value + model.slack_initial_energy_neg[cp].value
             for bus in model.bus_set:
                 curtailment_feedin.loc[timeindex, bus] = \
                     model.curtailment_feedin[bus, time].value
@@ -768,7 +772,7 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
         if not mode=='energy_band':
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
                    curtailment_load,  curtailment_reactive_feedin, curtailment_reactive_load, \
-                   v_bus, p_line, q_line
+                   v_bus, p_line, q_line, slack_charging, slack_energy
         else:
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
                    curtailment_load,  curtailment_reactive_feedin, curtailment_reactive_load, \
@@ -917,8 +921,11 @@ def minimize_residual_load(model):
     return 1e-5*sum(model.grid_residual_load[time]**2 for time in model.time_set) + \
         sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
            model.curtailment_reactive_load[bus, time] +
-           model.curtailment_reactive_feedin[bus, time]
-        for bus in model.bus_set for time in model.time_set)
+           model.curtailment_reactive_feedin[bus, time] +
+            1000* (model.slack_v_pos[bus, time] + model.slack_v_neg[bus, time])
+        for bus in model.bus_set for time in model.time_set) + 1000*(slack_charging + slack_energy) + \
+        1000*sum(model.slack_p_cum_pos[branch, time] + model.slack_p_cum_pos[branch, time]
+                 for branch in model.branch_set for time in model.time_set)
 
 
 def grid_residual_load(model, time):
