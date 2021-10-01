@@ -110,12 +110,13 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.grid = grid_object
     model.downstream_nodes_matrix = downstream_node_matrix
     nodal_active_power, nodal_reactive_power, nodal_active_load, nodal_reactive_load, \
-           nodal_active_generation, nodal_reactive_generation = get_nodal_residual_load(
+           nodal_active_generation, nodal_reactive_generation, nodal_active_charging_points, \
+           nodal_reactive_charging_points, nodal_active_storage, nodal_reactive_storage = get_nodal_residual_load(
         grid_object, edisgo_object, considered_storage=inflexible_storage_units,
         considered_charging_points=inflexible_charging_points)
     model.nodal_active_power = nodal_active_power.T
     model.nodal_reactive_power = nodal_reactive_power.T
-    model.nodal_active_load = nodal_active_load.T
+    model.nodal_active_load = nodal_active_load.T + nodal_active_charging_points.T
     model.nodal_reactive_load = nodal_reactive_load.T
     model.nodal_active_feedin = nodal_active_generation.T
     model.nodal_reactive_feedin = nodal_reactive_generation.T
@@ -177,7 +178,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                              (0, m.nodal_reactive_load.loc[b, model.timeindex[t]]))
     model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
                                                bounds=lambda m, b, t:
-                                               (0, -m.nodal_reactive_feedin.loc[b, model.timeindex[t]]))
+                                               (0, abs(m.nodal_reactive_feedin.loc[b, model.timeindex[t]])))#Todo: change back
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -722,6 +723,11 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
     v_bus = pd.DataFrame()
     slack_charging = pd.DataFrame(columns=['slack'])
     slack_energy = pd.DataFrame(columns=['slack'])
+    slack_v_pos = pd.DataFrame()
+    slack_v_neg = pd.DataFrame()
+    slack_p_cum_pos = pd.DataFrame()
+    slack_p_cum_neg = pd.DataFrame()
+    # Todo: extract slacks for voltage and loading limits
     if mode == 'energy_band':
         p_aggr = pd.DataFrame()
 
@@ -754,6 +760,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                     model.curtailment_reactive_feedin[bus, time].value
                 curtailment_reactive_load.loc[timeindex, bus] = \
                     model.curtailment_reactive_load[bus, time].value
+                slack_v_pos.loc[timeindex, bus]  = model.slack_v_pos[bus, time].value
+                slack_v_neg.loc[timeindex, bus] = model.slack_v_neg[bus, time].value
                 try:
                     v_bus.loc[timeindex, bus] = np.sqrt(model.v[bus, time].value)
                 except:
@@ -761,6 +769,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
             for line in model.branch_set:
                 p_line.loc[timeindex, line] = model.p_cum[line, time].value
                 q_line.loc[timeindex, line] = model.q_cum[line, time].value
+                slack_p_cum_pos.loc[timeindex, line] = model.slack_p_cum_pos[line, time].value
+                slack_p_cum_neg.loc[timeindex, line] = model.slack_p_cum_neg[line, time].value
             if mode == 'energy_band':
                 p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
         if save_dir:
@@ -779,7 +789,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
         if not mode=='energy_band':
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
                    curtailment_load,  curtailment_reactive_feedin, curtailment_reactive_load, \
-                   v_bus, p_line, q_line, slack_charging, slack_energy
+                   v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos, slack_v_neg, \
+                   slack_p_cum_pos, slack_p_cum_neg
         else:
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
                    curtailment_load,  curtailment_reactive_feedin, curtailment_reactive_load, \
@@ -936,9 +947,9 @@ def minimize_residual_load(model):
     else:
         slack_energy = 0
     return 1e-5*sum(model.grid_residual_load[time]**2 for time in model.time_set) + \
-        sum(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
+        sum(1e-2*(model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]+
            model.curtailment_reactive_load[bus, time] +
-           model.curtailment_reactive_feedin[bus, time] +
+           model.curtailment_reactive_feedin[bus, time]) +
             1000* (model.slack_v_pos[bus, time] + model.slack_v_neg[bus, time])
         for bus in model.bus_set for time in model.time_set) + 1000*(slack_charging + slack_energy) + \
         1000*sum(model.slack_p_cum_pos[branch, time] + model.slack_p_cum_pos[branch, time]
@@ -1061,7 +1072,7 @@ def reactive_power(model, branch, time):
     load_flow_on_line = \
         model.nodal_reactive_power.loc[relevant_buses, timeindex].sum()
     return model.q_cum[branch, time] == load_flow_on_line + \
-           sum(model.curtailment_reactive_load[bus, time] -
+           sum(model.curtailment_reactive_load[bus, time] +
             model.curtailment_reactive_feedin[bus, time] for bus in relevant_buses)
 
 
