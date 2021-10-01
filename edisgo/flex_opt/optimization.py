@@ -1492,6 +1492,14 @@ def import_flexibility_bands(dir, grid_id, use_cases):
     flexibility_bands.columns[flexibility_bands.columns.str.contains('power')]] = \
         (flexibility_bands[flexibility_bands.columns[
             flexibility_bands.columns.str.contains('power')]] + 1e-6).values
+    flexibility_bands.loc[:,
+    flexibility_bands.columns[flexibility_bands.columns.str.contains('upper')]] = \
+        (flexibility_bands[flexibility_bands.columns[
+            flexibility_bands.columns.str.contains('upper')]] + 1e-5).values
+    flexibility_bands.loc[:,
+    flexibility_bands.columns[flexibility_bands.columns.str.contains('lower')]] = \
+        (flexibility_bands[flexibility_bands.columns[
+            flexibility_bands.columns.str.contains('lower')]] - 1e-6).values
     return flexibility_bands
 
 
