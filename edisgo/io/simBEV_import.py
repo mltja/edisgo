@@ -9,7 +9,7 @@ import glob
 
 from edisgo import EDisGo
 from pathlib import Path
-from numpy.random import default_rng
+#from numpy.random import default_rng
 from time import perf_counter
 
 
