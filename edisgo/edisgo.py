@@ -1140,16 +1140,38 @@ class EDisGo:
             comp_name = self.topology.add_line(**kwargs)
         elif comp_type == "Load" or comp_type == "charging_park":
             comp_name = self.topology.add_load(**kwargs)
+            if isinstance(ts_active_power, pd.Series):
+                loads_active_power=pd.DataFrame()
+                loads_active_power[comp_name] = ts_active_power
+            else:
+                loads_active_power = None
+            if isinstance(ts_reactive_power, pd.Series):
+                loads_reactive_power=pd.DataFrame()
+                loads_reactive_power[comp_name] = ts_reactive_power
+            else:
+                loads_reactive_power = None
             if add_ts:
                 timeseries.add_loads_timeseries(
-                    edisgo_obj=self, load_names=comp_name, **kwargs
+                    edisgo_obj=self, load_names=comp_name, loads_active_power=loads_active_power,
+                    loads_reactive_power=loads_reactive_power, **kwargs
                 )
 
         elif comp_type == "Generator":
             comp_name = self.topology.add_generator(**kwargs)
+            if isinstance(ts_active_power, pd.Series):
+                generators_active_power=pd.DataFrame()
+                generators_active_power[comp_name] = ts_active_power
+            else:
+                generators_active_power = None
+            if isinstance(ts_reactive_power, pd.Series):
+                generators_reactive_power=pd.DataFrame()
+                generators_reactive_power[comp_name] = ts_reactive_power
+            else:
+                generators_reactive_power = None
             if add_ts:
                 timeseries.add_generators_timeseries(
-                    edisgo_obj=self, generator_names=comp_name, **kwargs
+                    edisgo_obj=self, generator_names=comp_name, generators_active_power=generators_active_power,
+                    generators_reactive_power=generators_reactive_power, **kwargs
                 )
 
         elif comp_type == "ChargingPoint":
