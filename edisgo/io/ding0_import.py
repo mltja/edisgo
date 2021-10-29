@@ -316,16 +316,16 @@ def _validate_ding0_grid_import(topology):
                     )
                 )
 
-    for attr in ["bus_open", "bus_closed"]:
-        missing = topology.switches_df.index[
-            ~topology.switches_df[attr].isin(topology.buses_df.index)
-        ]
-        buses.append(topology.switches_df[attr].values)
-        if len(missing) > 0:
-            raise ValueError(
-                "The following switches have {} which are not defined: "
-                "{}.".format(attr, ", ".join(missing.values))
-            )
+    # for attr in ["bus_open", "bus_closed"]:
+    #     missing = topology.switches_df.index[
+    #         ~topology.switches_df[attr].isin(topology.buses_df.index)
+    #     ]
+    #     buses.append(topology.switches_df[attr].values)
+    #     if len(missing) > 0:
+    #         raise ValueError(
+    #             "The following switches have {} which are not defined: "
+    #             "{}.".format(attr, ", ".join(missing.values))
+    #         ) # Todo: overthink. Does not allow import of smaller grid regions
 
     all_buses = np.unique(np.concatenate(buses, axis=None))
     missing = topology.buses_df.index[~topology.buses_df.index.isin(all_buses)]
