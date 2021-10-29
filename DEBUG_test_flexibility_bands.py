@@ -13,7 +13,7 @@ def objective(model):
 # Setting variable parameters
 root_dir = r'U:\Software'
 save_dir ='results/tests'
-grid_ids = [1056, 1690, 1811, 2534, 176, 177]
+grid_ids = [1690, 1811, 2534, 176, 177]
 use_cases = ['home', 'work']
 solver = 'gurobi'
 
@@ -53,7 +53,7 @@ for grid_id in grid_ids:
                                              model.time_non_zero, rule=opt.charging_ev)
     model.InitialEVEnergyLevel = \
                 pm.Constraint(model.flexible_charging_points_set, model.time_zero,
-                              rule=opt.initial_energy_level)
+                              rule=opt.fixed_energy_level)
     # Adding objective
     'Setup model: Defining objective.'
     model.objective = pm.Objective(rule=objective, sense=pm.minimize,
@@ -61,9 +61,9 @@ for grid_id in grid_ids:
     print('Successfully set up optimisation model.')
     #model.pprint()
     # Optimize
-    opt = pm.SolverFactory(solver)
+    slv = pm.SolverFactory(solver)
     try:
-        results = opt.solve(model, tee=True)
+        results = slv.solve(model, tee=True)
         # Load solutions
         x_charge_ev = pd.DataFrame()
         energy_level_cp = pd.DataFrame()
