@@ -175,12 +175,12 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
                                       bounds=lambda m, b, t:
                                       (0, m.nodal_active_feedin.loc[b, model.timeindex[t]]))
-    model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
-                                             bounds=lambda m, b, t:
-                                             (0, m.nodal_reactive_load.loc[b, model.timeindex[t]]))
-    model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
-                                               bounds=lambda m, b, t:
-                                               (0, abs(m.nodal_reactive_feedin.loc[b, model.timeindex[t]])))#Todo: change back
+    # model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
+    #                                          bounds=lambda m, b, t:
+    #                                          (0, m.nodal_reactive_load.loc[b, model.timeindex[t]]))
+    # model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
+    #                                            bounds=lambda m, b, t:
+    #                                            (0, abs(m.nodal_reactive_feedin.loc[b, model.timeindex[t]])))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -230,8 +230,8 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                                       rule=upper_active_power)
     model.LowerActive = pm.Constraint(model.branch_set, model.time_set,
                                       rule=lower_active_power)
-    model.ReactivePower = pm.Constraint(model.branch_set, model.time_set,
-                                        rule=reactive_power)
+    # model.ReactivePower = pm.Constraint(model.branch_set, model.time_set,
+    #                                     rule=reactive_power)
     model.SlackVoltage = pm.Constraint(model.slack_bus, model.time_set,
                                        rule=slack_voltage)
     model.VoltageDrop = pm.Constraint(model.branch_set, model.time_set,
@@ -777,6 +777,11 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                 slack_p_cum_neg.loc[timeindex, line] = model.slack_p_cum_neg[line, time].value
             if mode == 'energy_band':
                 p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
+        # Todo: check if this works
+        tan_phi_load = (model.nodal_reactive_load.divide(model.nodal_active_load)).fillna(0)
+        curtailment_reactive_load = curtailment_load.multiply(tan_phi_load)
+        tan_phi_feedin = (model.nodal_reactive_feedin.divide(model.nodal_active_feedin)).fillna(0)
+        curtailment_reactive_feedin = curtailment_feedin.multiply(tan_phi_feedin)
         if save_dir:
             x_charge.to_csv(save_dir+'/x_charge_storage.csv')
             soc.to_csv(save_dir+'/soc_storage.csv')
@@ -789,6 +794,7 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
             p_line.to_csv(save_dir + '/active_power_lines.csv')
             q_line.to_csv(save_dir + '/reactive_power_lines.csv')
         if not mode=='energy_band':
+            # Todo: extract reactive power curtailment
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
                    curtailment_load,  curtailment_ev, \
                    v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos, slack_v_neg, \
