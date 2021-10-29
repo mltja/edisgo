@@ -4,10 +4,11 @@ import edisgo.flex_opt.optimization as opt
 from edisgo.edisgo import import_edisgo_from_files
 import geopandas as gpd
 from edisgo.tools.tools import get_aggregated_bands
+import os
 
 grid_id = 1056
 
-edisgo_dir = r'\\192.168.10.221\Daten_flexibel_02\simbev_results\eDisGo_object_files_final\Electrification_2050\{}\reduced'.format(grid_id)
+edisgo_dir = r'U:\Software\{}_dumb'.format(grid_id)
 edisgo = import_edisgo_from_files(edisgo_dir, import_timeseries=True,
                                   import_results=True)
 
@@ -39,8 +40,9 @@ lv_grids = [grid for grid in edisgo.topology.mv_grid.lv_grids]
 
 weeks = {0: 'summer', 1: 'winter'}
 
+i = 0
 for lv_grid in lv_grids:
-
+    print('Grid {} of {} being analysed.'.format(i, len(lv_grids)))
     downstream_node_matrix = downstream_nodes_matrix.loc[
         lv_grid.buses_df.index,
         lv_grid.buses_df.index]
@@ -62,6 +64,11 @@ for lv_grid in lv_grids:
     timesteps_per_week = 672
     for week in range(int(len(
             edisgo.timeseries.timeindex) / timesteps_per_week)):
+        filename = 'grid_data/aggregated_bands/{}_{}_power.csv'.format(
+            repr(lv_grid), weeks[week])
+        if os.path.isfile(os.path.join(os.curdir, filename)):
+            print('{} already solved, skipping'.format(repr(lv_grid)))
+            continue
         print('Starting optimisation for {} week.'.format(weeks[week]))
         timeindex = edisgo.timeseries.timeindex[
                     week * timesteps_per_week:(week + 1) * timesteps_per_week]
@@ -75,13 +82,12 @@ for lv_grid in lv_grids:
                                     energy_band_charging_points=tmp_bands_lv_grid,
                                     pu=False, v_slack=slack_voltages,
                                     objective='minimize_energy_level')
-
-        x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-        curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
-        v_bus, p_line, q_line, p_agr_min = opt.optimize(model_min, 'glpk',
-                                                        mode='energy_band')
-
-        model_max = opt.setup_model(lv_grid, downstream_node_matrix,
+        try:
+            x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
+            curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+            v_bus, p_line, q_line, p_agr_min = opt.optimize(model_min, 'gurobi',
+                                                            mode='energy_band')
+            model_max = opt.setup_model(lv_grid, downstream_node_matrix,
                                     timesteps=timeindex,
                                     optimize_storage=False,
                                     mapping_cp=mapping_lv_grid,
@@ -89,31 +95,37 @@ for lv_grid in lv_grids:
                                     pu=False, v_slack=slack_voltages,
                                     objective='maximize_energy_level')
 
-        x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-        curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
-        v_bus, p_line, q_line, p_agr_max = opt.optimize(model_max, 'glpk',
-                                                        mode='energy_band')
+            x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
+            curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+            v_bus, p_line, q_line, p_agr_max = opt.optimize(model_max, 'gurobi',
+                                                            mode='energy_band')
+    
+            power_bands = pd.concat(
+                [p_agr_min.rename(columns={repr(lv_grid): 'lower'}),
+                 p_agr_max.rename(columns={repr(lv_grid): 'upper'})], axis=1)
+            energy_bands = get_aggregated_bands(tmp_bands_lv_grid)
+    
+            mode = "minimize"
+            model_min_eb = opt.setup_model_bands(energy_bands, power_bands, mode=mode)
+            energy_level_min, charging = opt.optimize_bands(model_min_eb, 'gurobi', mode)
+    
+            mode = "maximize"
+            model_max_eb = opt.setup_model_bands(energy_bands, power_bands, mode=mode)
+            energy_level_max, charging_max = opt.optimize_bands(model_max_eb, 'gurobi',
+                                                                mode)
+    
+            energy_band_grid = pd.concat([energy_level_min, energy_level_max], axis=1)
+            power_bands.to_csv('grid_data/aggregated_bands/{}_{}_power.csv'.format(
+                repr(lv_grid), weeks[week]))
+            energy_band_grid.to_csv('grid_data/aggregated_bands/{}_{}_energy.csv'.format(
+                repr(lv_grid), weeks[week]))
+            energy_bands.to_csv('grid_data/aggregated_bands/{}_{}_bands_unconstrained.csv'.format(
+                repr(lv_grid), weeks[week]))
+        except:
+            print('+++++ ERROR: {} could not be solved'.format(repr(lv_grid)))
+            continue
 
-        power_bands = pd.concat(
-            [p_agr_min.rename(columns={repr(lv_grid): 'lower'}),
-             p_agr_max.rename(columns={repr(lv_grid): 'upper'})], axis=1)
-        energy_bands = get_aggregated_bands(tmp_bands_lv_grid)
-
-        mode = "minimize"
-        model_min_eb = opt.setup_model_bands(energy_bands, power_bands, mode=mode)
-        energy_level_min, charging = opt.optimize_bands(model_min_eb, 'glpk', mode)
-
-        mode = "maximize"
-        model_max_eb = opt.setup_model_bands(energy_bands, power_bands, mode=mode)
-        energy_level_max, charging_max = opt.optimize_bands(model_max_eb, 'glpk',
-                                                            mode)
-
-        energy_band_grid = pd.concat([energy_level_min, energy_level_max], axis=1)
-        power_bands.to_csv('grid_data/aggregated_bands/{}_{}_power.csv'.format(
-            repr(lv_grid), weeks[week]))
-        energy_band_grid.to_csv('grid_data/aggregated_bands/{}_{}_energy.csv'.format(
-            repr(lv_grid), weeks[week]))
-        energy_bands.to_csv('grid_data/aggregated_bands/{}_{}_bands_unconstrained.csv'.format(
-            repr(lv_grid), weeks[week]))
+        
+    i+=1
 
 print('SUCCESS')

@@ -15,7 +15,7 @@ from pathlib import Path
 # get_downstream_nodes_matrix_iterative(edisgo)
 
 
-def run_optimized_charging_parallel(grid_id, week):
+def run_optimized_charging_parallel(grid_id, iteration):
     root_dir = r'U:\Software'
     mapping_dir = root_dir + r'\simbev_nep_2035_results\eDisGo_charging_time_series\{}'.format(grid_id)
     edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2\{}\reduced'.format(grid_id)
@@ -67,42 +67,48 @@ def run_optimized_charging_parallel(grid_id, week):
     print('Data checked. Please pay attention to warnings.')
 
     timesteps_per_week = 24*4
-    print('Starting optimisation for week {}.'.format(week))
-    timesteps = edisgo_obj.timeseries.timeindex[week*timesteps_per_week:(week+1)*timesteps_per_week]
-    start_time = (week*timesteps_per_week)%672
-    flexibility_bands_week = flexibility_bands.iloc[start_time:start_time+timesteps_per_week].set_index(timesteps)
+    print('Starting optimisation for week {}.'.format(iteration))
+    start_time = (iteration * timesteps_per_week) % 672
+    if iteration % 7 != 6:
+        timesteps = edisgo_obj.timeseries.timeindex[iteration * timesteps_per_week:(iteration + 1) * timesteps_per_week+2]
+        flexibility_bands_week = flexibility_bands.iloc[start_time:start_time + timesteps_per_week+2].set_index(timesteps)
+        energy_level_end = None
+    else:
+        timesteps = edisgo_obj.timeseries.timeindex[iteration * timesteps_per_week:(iteration + 1) * timesteps_per_week]
+        flexibility_bands_week = flexibility_bands.iloc[start_time:start_time+timesteps_per_week].set_index(timesteps)
+        energy_level_end = edisgo_obj.timeseries.charging_points_active_power.loc[:, mapping.index].sum()
 
     model = setup_model(edisgo_obj, downstream_nodes_matrix, timesteps, objective='residual_load',
                             optimize_storage=False, optimize_ev_charging=True,
                             mapping_cp=mapping,
                             energy_band_charging_points=flexibility_bands_week,
-                            pu=False)
-    print('Set up model for week {}.'.format(week))
+                            pu=False, energy_level_end=energy_level_end)
+    print('Set up model for week {}.'.format(iteration))
 
     x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
     curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
     v_bus, p_line, q_line = optimize(model, 'gurobi')
 
-    print('Finished optimisation for week {}.'.format(week))
+    print('Finished optimisation for week {}.'.format(iteration))
     x_charge.astype(np.float16).to_csv(
-        result_dir+'/x_charge_{}.csv'.format(week))
-    soc.astype(np.float16).to_csv(result_dir + '/soc_{}.csv'.format(week))
+        result_dir+'/x_charge_{}.csv'.format(iteration))
+    soc.astype(np.float16).to_csv(result_dir + '/soc_{}.csv'.format(iteration))
     x_charge_ev.astype(np.float16).to_csv(
-        result_dir + '/x_charge_ev_{}.csv'.format(week))
+        result_dir + '/x_charge_ev_{}.csv'.format(iteration))
     energy_level_cp.astype(np.float16).to_csv(
-        result_dir + '/energy_band_cp_{}.csv'.format(week))
+        result_dir + '/energy_band_cp_{}.csv'.format(iteration))
     curtailment_feedin.astype(np.float16).to_csv(
-        result_dir + '/curtailment_feedin_{}.csv'.format(week))
+        result_dir + '/curtailment_feedin_{}.csv'.format(iteration))
     curtailment_load.astype(np.float16).to_csv(
-        result_dir + '/curtailment_load_{}.csv'.format(week))
+        result_dir + '/curtailment_load_{}.csv'.format(iteration))
     curtailment_reactive_feedin.astype(np.float16).to_csv(
-        result_dir + '/curtailment_reactive_feedin_{}.csv'.format(week))
+        result_dir + '/curtailment_reactive_feedin_{}.csv'.format(iteration))
     curtailment_reactive_load.astype(np.float16).to_csv(
-        result_dir + '/curtailment_reactive_load_{}.csv'.format(week))
-    v_bus.astype(np.float16).to_csv(result_dir + '/bus_voltage_{}.csv'.format(week))
-    p_line.astype(np.float16).to_csv(result_dir + '/line_active_power_{}.csv'.format(week))
-    q_line.astype(np.float16).to_csv(result_dir + '/line_reactive_power_{}.csv'.format(week))
-    print('Saved results for week {}.'.format(week))
+        result_dir + '/curtailment_reactive_load_{}.csv'.format(iteration))
+    v_bus.astype(np.float16).to_csv(result_dir + '/bus_voltage_{}.csv'.format(iteration))
+    p_line.astype(np.float16).to_csv(result_dir + '/line_active_power_{}.csv'.format(iteration))
+    q_line.astype(np.float16).to_csv(result_dir + '/line_reactive_power_{}.csv'.format(iteration))
+    print('Saved results for week {}.'.format(iteration))
 
 
 if __name__ == '__main__':

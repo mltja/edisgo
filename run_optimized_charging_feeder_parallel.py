@@ -11,10 +11,11 @@ import geopandas as gpd
 import numpy as np
 
 
-def run_optimized_charging_feeder_parallel(grid_feeder_tuple):
+def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load_results=True, iteration=5):
     objective = 'residual_load'
     timesteps_per_iteration = 24 * 4
     iterations_per_era = 7
+    overlap_interations = 24
     solver = 'gurobi'
 
     config = pd.Series({'objective':objective, 'solver': solver,
@@ -25,10 +26,54 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple):
     feeder_id = grid_feeder_tuple[1]
     root_dir = r'U:\Software'
     mapping_dir = root_dir + r'\simbev_nep_2035_results\eDisGo_charging_time_series\{}'.format(grid_id)
-    edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2\{}\feeder\{}'.format(grid_id, feeder_id)
-    result_dir = 'results/{}/{}/{}'.format(objective+datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), grid_id, feeder_id)
+    edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2035_results\{}\feeder\{}'.format(grid_id, feeder_id)
+    result_dir = 'results/{}/{}/{}'.format(objective+run, grid_id, feeder_id)
 
-    os.makedirs(result_dir)
+    os.makedirs(result_dir, exist_ok=True)
+
+    if len(os.listdir(result_dir)) == 239:
+        print('Feeder {} of grid {} already solved.'.format(feeder_id, grid_id))
+        return
+    elif (len(os.listdir(result_dir))>1) and load_results:
+        iterations_finished = int((len(os.listdir(result_dir))-1)/17)
+        print('Importing values from previous run')
+        start_config_dir = r'U:\Software\eDisGo_mirror\results\tests'
+        starts = os.listdir(start_config_dir)
+        relevant_starts= [start for start in starts if ('charging_start_{}_{}_'.format(grid_id, feeder_id) in start) or
+                          ('energy_level_start_{}_{}_'.format(grid_id, feeder_id) in start)]
+        if (len(relevant_starts) > 0) and (int(relevant_starts[0].split('.')[0].split('_')[-1]) == iteration):
+            iteration = int(relevant_starts[0].split('.')[0].split('_')[-1])
+            charging_start = pd.read_csv(os.path.join(start_config_dir,
+                                                      'charging_start_{}_{}_{}.csv'.format(
+                                                          grid_id, feeder_id, iteration)), header=None, index_col=0)[1]
+            energy_level_start = pd.read_csv(os.path.join(start_config_dir,
+                                                          'energy_level_start_{}_{}_{}.csv'.format(
+                                                              grid_id, feeder_id, iteration)), header=None, index_col=0)[1]
+            # if new era starts, set start values to None
+            if iteration % iterations_per_era == iterations_per_era - 1:
+                charging_start = None
+                energy_level_start = None
+            start_iter = iteration
+        else:
+            if iteration == None:
+                iteration = int((len(os.listdir(result_dir))-1)/17)
+            charging_ev_tmp = pd.read_csv(os.path.join(result_dir,
+                                                      'x_charge_ev_{}_{}_{}.csv'.format(
+                                                          grid_id, feeder_id, iteration-1)),
+                                          index_col=0, parse_dates=[0])
+
+            energy_level_tmp = pd.read_csv(os.path.join(result_dir,
+                                                      'energy_band_cp_{}_{}_{}.csv'.format(
+                                                          grid_id, feeder_id, iteration-1)),
+                                          index_col=0, parse_dates=[0])
+            charging_start = charging_ev_tmp.iloc[-overlap_interations]
+            energy_level_start = energy_level_tmp.iloc[-overlap_interations]
+            start_iter=iteration
+
+    else:
+        charging_start = None
+        energy_level_start = None
+        start_iter = 7 #Todo:change
     config.to_csv(result_dir+'/config.csv')
 
     try:
@@ -95,15 +140,12 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple):
         check_mapping(mapping, edisgo_obj.topology, flexibility_bands)
         print('Data checked. Please pay attention to warnings.')
 
-        charging_start = None
-        energy_level_start = None
-        overlap_interations = 10
         energy_level = {}
         charging_ev = {}
 
-        for iteration in range(
-                int(len(
-                    edisgo_obj.timeseries.timeindex) / timesteps_per_iteration)):  # edisgo_obj.timeseries.timeindex.week.unique()
+        for iteration in range(start_iter,7):
+                #int(len(
+                #    edisgo_obj.timeseries.timeindex) / timesteps_per_iteration)):  # edisgo_obj.timeseries.timeindex.week.unique()
 
             print('Starting optimisation for week {}.'.format(iteration))
             # timesteps = edisgo_obj.timeseries.timeindex[
@@ -116,24 +158,52 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple):
                 flexibility_bands_week = flexibility_bands.iloc[
                                          start_time:start_time + timesteps_per_iteration + overlap_interations].set_index(
                     timesteps)
+                energy_level_end = None
             else:
                 timesteps = edisgo_obj.timeseries.timeindex[
                             iteration * timesteps_per_iteration:(iteration + 1) * timesteps_per_iteration]
                 flexibility_bands_week = flexibility_bands.iloc[
                                          start_time:start_time + timesteps_per_iteration].set_index(
                     timesteps)
+                energy_level_end = True
+            # Check if problem will be feasible
+            if charging_start is not None:
+                for cp_tmp in energy_level_start.index:
+                    flex_id_tmp = '_'.join([str(mapping.loc[cp_tmp, 'ags']),
+                               str(mapping.loc[cp_tmp, 'cp_idx']),
+                               mapping.loc[cp_tmp, 'use_case']])
+                    if energy_level_start[cp_tmp] > flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp]:
+                        print('charging point {} violates upper bound.'.format(cp_tmp))
+                        if energy_level_start[cp_tmp]-flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp] > 1e-4:
+                            raise ValueError('Optimisation should not return values higher than upper bound. '
+                                             'Problem for {}. Initial energy level is {}, but upper bound {}.'.format(
+                                cp_tmp, energy_level_start[cp_tmp], flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp]))
+                        else:
+                            energy_level_start[cp_tmp] = flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp] - 1e-6
+                    if energy_level_start[cp_tmp] < flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp]:
+                        print('charging point {} violates lower bound.'.format(cp_tmp))
+                        if -energy_level_start[cp_tmp] + flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp] > 1e-4:
+                            raise ValueError('Optimisation should not return values lower than lower bound. '
+                                             'Problem for {}. Initial energy level is {}, but lower bound {}.'.format(
+                                cp_tmp, energy_level_start[cp_tmp], flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp]))
+                        else:
+                            energy_level_start[cp_tmp] = flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp] + 1e-6
+                    if charging_start[cp_tmp] < 1e-5:
+                        print('Very small charging power: {}, set to 0.'.format(cp_tmp))
+                        charging_start[cp_tmp] = 0
             # if week == 0:
             model = setup_model(edisgo_obj, downstream_nodes_matrix, timesteps, objective=objective,
                                 optimize_storage=False, optimize_ev_charging=True,
                                 mapping_cp=mapping,
                                 energy_band_charging_points=flexibility_bands_week,
                                 pu=False, charging_start=charging_start,
-                                energy_level_start=energy_level_start)
+                                energy_level_start=energy_level_start, energy_level_end=energy_level_end)
             print('Set up model for week {}.'.format(iteration))
 
             x_charge, soc, charging_ev[iteration], energy_level[iteration], curtailment_feedin, \
             curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
-            v_bus, p_line, q_line = optimize(model, solver)
+            v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos,\
+            slack_v_neg, slack_p_cum_pos, slack_p_cum_neg = optimize(model, solver)
             if iteration % iterations_per_era != iterations_per_era - 1:
                 charging_start = charging_ev[iteration].iloc[-overlap_interations]
                 energy_level_start = energy_level[iteration].iloc[-overlap_interations]
@@ -163,25 +233,50 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple):
                 result_dir + '/line_active_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
             q_line.astype(np.float16).to_csv(
                 result_dir + '/line_reactive_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+            slack_charging.astype(np.float16).to_csv(
+                result_dir + '/slack_charging_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+            slack_energy.astype(np.float16).to_csv(
+                result_dir + '/slack_energy_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+            slack_v_pos.astype(np.float16).to_csv(
+                result_dir + '/slack_v_pos_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+            slack_v_neg.astype(np.float16).to_csv(
+                result_dir + '/slack_v_neg_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+            slack_p_cum_pos.astype(np.float16).to_csv(
+                result_dir + '/slack_p_cum_pos_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+            slack_p_cum_neg.astype(np.float16).to_csv(
+                result_dir + '/slack_p_cum_neg_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
             print('Saved results for week {}.'.format(iteration))
 
     except Exception as e:
         print('Something went wrong with feeder {} of grid {}'.format(feeder_id, grid_id))
         print(e)
+        if 'iteration' in locals():
+            if iteration >= 1:
+                charging_start = charging_ev[iteration-1].iloc[-overlap_interations]
+                charging_start.to_csv('results/tests/charging_start_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+                energy_level_start = energy_level[iteration-1].iloc[-overlap_interations]
+                energy_level_start.to_csv('results/tests/energy_level_start_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
 
 
-if __name__ == '__main__':
-    pool = mp.Pool(int(mp.cpu_count()/2))
+# if __name__ == '__main__':
+#     pool = mp.Pool(1)#int(mp.cpu_count()/2)
+#
+#     grid_ids = [176]
+#     root_dir = r'U:\Software'
+#     grid_id_feeder_tuples = [(176, 6)]#[(2534,0), (2534,1), (2534,6)]
+#     run_id = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+#     # for grid_id in grid_ids:
+#     #     edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2035_results\{}\feeder'.format(grid_id)
+#     #     for feeder in os.listdir(edisgo_dir):
+#     #         grid_id_feeder_tuples.append((grid_id, feeder))
+#
+#     # results = [pool.apply_async(func=run_optimized_charging_feeder_parallel,
+#     #                             args=(grid_feeder_tuple, run_id))
+#     #            for grid_feeder_tuple in grid_id_feeder_tuples]
+#     results = pool.map_async(run_optimized_charging_feeder_parallel, grid_id_feeder_tuples).get()
+#     pool.close()
+#
+#     print('SUCCESS')
 
-    grid_ids = [1690]
-    root_dir = r'U:\Software'
-    grid_id_feeder_tuples = []
-    for grid_id in grid_ids:
-        edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2\{}\feeder'.format(grid_id)
-        for feeder in os.listdir(edisgo_dir):
-            grid_id_feeder_tuples.append((grid_id, feeder))
-    results = pool.map_async(run_optimized_charging_feeder_parallel, grid_id_feeder_tuples).get()
-
-    pool.close()
-
-    print('SUCCESS')
+grid_feeder_tuple = (176, 6)
+run_optimized_charging_feeder_parallel(grid_feeder_tuple)

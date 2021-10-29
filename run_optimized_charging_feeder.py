@@ -18,14 +18,14 @@ from pathlib import Path
 # edisgo = import_edisgo_from_files(grid_dir)
 # get_downstream_nodes_matrix_iterative(edisgo)
 
-grid_id = 177
-feeder_id = 3
+grid_id = 2534
+feeder_id = 0 # 1,6
 root_dir = r'U:\Software'
 mapping_dir = root_dir + r'\simbev_nep_2035_results\eDisGo_charging_time_series\{}'.format(grid_id)
-edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2\{}\feeder\{}'.format(grid_id, feeder_id)
+edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2035_results\{}\feeder\{}'.format(grid_id, feeder_id)
 result_dir = 'results/{}/{}'.format(grid_id, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-os.makedirs(result_dir)
 data_dir = Path(root_dir + r'\simbev_nep_2035_results\cp_standing_times_mapping')
+objective='residual_load'
 
 edisgo_orig = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
 
@@ -107,11 +107,10 @@ timesteps_per_iteration = 24*4
 iterations_per_era = 7
 charging_start = None
 energy_level_start = None
-energy_level_beginning = None
-overlap_interations = 2
+overlap_interations = 24
 energy_level = {}
 charging_ev = {}
-for iteration in range(
+for iteration in range(7,
         int(len(edisgo_obj.timeseries.timeindex) / timesteps_per_iteration)):  # edisgo_obj.timeseries.timeindex.week.unique()
 
     print('Starting optimisation for week {}.'.format(iteration))
@@ -130,48 +129,74 @@ for iteration in range(
                     iteration * timesteps_per_iteration:(iteration + 1) * timesteps_per_iteration]
         flexibility_bands_week = flexibility_bands.iloc[start_time:start_time + timesteps_per_iteration].set_index(
             timesteps)
-        energy_level_end = edisgo_obj.timeseries.charging_points_active_power.sum()
+
+    if charging_start is not None:
+        for cp_tmp in energy_level_start.index:
+            flex_id_tmp = '_'.join([str(mapping.loc[cp_tmp, 'ags']),
+                                    str(mapping.loc[cp_tmp, 'cp_idx']),
+                                    mapping.loc[cp_tmp, 'use_case']])
+            if energy_level_start[cp_tmp] > flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp]:
+                print('charging point {} violates upper bound.'.format(cp_tmp))
+                if energy_level_start[cp_tmp] - flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp] > 1e-5:
+                    raise ValueError('Optimisation should not return values higher than upper bound. '
+                                     'Problem for {}. Initial energy level is {}, but upper bound {}.'.format(
+                        cp_tmp, energy_level_start[cp_tmp], flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp]))
+                else:
+                    energy_level_start[cp_tmp] = flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp] - 1e-6
+            if energy_level_start[cp_tmp] < flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp]:
+                print('charging point {} violates lower bound.'.format(cp_tmp))
+                if -energy_level_start[cp_tmp] + flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp] > 1e-5:
+                    raise ValueError('Optimisation should not return values lower than lower bound. '
+                                     'Problem for {}. Initial energy level is {}, but lower bound {}.'.format(
+                        cp_tmp, energy_level_start[cp_tmp], flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp]))
+                else:
+                    energy_level_start[cp_tmp] = flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp] + 1e-6
+            if charging_start[cp_tmp] < 1e-5:
+                print('Very small charging power: {}, set to 0.'.format(cp_tmp))
+                charging_start[cp_tmp] = 0
     # if week == 0:
-    model = setup_model(edisgo_obj, downstream_nodes_matrix, timesteps, objective='peak_load',
+    model = setup_model(edisgo_obj, downstream_nodes_matrix, timesteps, objective=objective,
                             optimize_storage=False, optimize_ev_charging=True,
                             mapping_cp=mapping,
                             energy_band_charging_points=flexibility_bands_week,
-                            pu=False, energy_level_end=energy_level_end, charging_start=charging_start,
-                            energy_level_start=energy_level_start, energy_level_beginning=energy_level_beginning)
+                            pu=False, charging_start=charging_start,
+                            energy_level_start=energy_level_start)
     print('Set up model for week {}.'.format(iteration))
 
-    x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
+    x_charge, soc, charging_ev[iteration], energy_level[iteration], curtailment_feedin, \
     curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
-    v_bus, p_line, q_line = optimize(model, 'gurobi')
+    v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos,\
+    slack_v_neg, slack_p_cum_pos, slack_p_cum_neg = optimize(model, 'gurobi')
     if iteration % iterations_per_era != iterations_per_era - 1:
         charging_start = charging_ev[iteration].iloc[-overlap_interations]
+        charging_start.to_csv('results/tests/charging_start.csv')
         energy_level_start = energy_level[iteration].iloc[-overlap_interations]
+        energy_level_start.to_csv('results/tests/energy_level_start.csv')
     else:
         charging_start = None
         energy_level_start = None
 
-    if iteration % iterations_per_era == 0:
-        energy_level_beginning = energy_level[iteration].iloc[0]
-
+    if iteration==0:
+        os.makedirs(result_dir)
     print('Finished optimisation for week {}.'.format(iteration))
-    x_charge.astype(np.float16).to_csv(
-        result_dir+'/x_charge_{}_{}_{}.csv'.format(iteration))
-    soc.astype(np.float16).to_csv(result_dir + '/soc_{}.csv'.format(iteration))
-    x_charge_ev.astype(np.float16).to_csv(
-        result_dir + '/x_charge_ev_{}_{}_{}.csv'.format(iteration))
-    energy_level_cp.astype(np.float16).to_csv(
-        result_dir + '/energy_band_cp_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    curtailment_feedin.astype(np.float16).to_csv(
-        result_dir + '/curtailment_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    curtailment_load.astype(np.float16).to_csv(
-        result_dir + '/curtailment_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    curtailment_reactive_feedin.astype(np.float16).to_csv(
-        result_dir + '/curtailment_reactive_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    curtailment_reactive_load.astype(np.float16).to_csv(
-        result_dir + '/curtailment_reactive_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    v_bus.astype(np.float16).to_csv(result_dir + '/bus_voltage_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    p_line.astype(np.float16).to_csv(result_dir + '/line_active_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    q_line.astype(np.float16).to_csv(result_dir + '/line_reactive_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-    print('Saved results for week {}_{}_{}.'.format(grid_id, feeder_id, iteration))
+    # x_charge.astype(np.float16).to_csv(
+    #     result_dir+'/x_charge_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # soc.astype(np.float16).to_csv(result_dir + '/soc_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # charging_ev[iteration].astype(np.float16).to_csv(
+    #     result_dir + '/x_charge_ev_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # energy_level[iteration].astype(np.float16).to_csv(
+    #     result_dir + '/energy_band_cp_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # curtailment_feedin.astype(np.float16).to_csv(
+    #     result_dir + '/curtailment_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # curtailment_load.astype(np.float16).to_csv(
+    #     result_dir + '/curtailment_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # curtailment_reactive_feedin.astype(np.float16).to_csv(
+    #     result_dir + '/curtailment_reactive_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # curtailment_reactive_load.astype(np.float16).to_csv(
+    #     result_dir + '/curtailment_reactive_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # v_bus.astype(np.float16).to_csv(result_dir + '/bus_voltage_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # p_line.astype(np.float16).to_csv(result_dir + '/line_active_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    # q_line.astype(np.float16).to_csv(result_dir + '/line_reactive_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+    print('Saved results for week {}.'.format(iteration))
 
 print('SUCCESS')
