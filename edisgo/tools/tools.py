@@ -573,7 +573,7 @@ def get_nodal_residual_load(grid, edisgo, **kwargs):
                                 considered_generators)
     nodal_active_storage, nodal_reactive_storage = \
         get_timeseries_per_node(grid, edisgo, 'storage_unit',
-                                considered_storage)
+                                considered_storage) #Todo: adapt handling, once important
     nodal_active_charging_points, nodal_reactive_charging_points = \
         get_timeseries_per_node(grid, edisgo, 'charging_point',
                                 considered_charging_points)
@@ -584,7 +584,8 @@ def get_nodal_residual_load(grid, edisgo, **kwargs):
         nodal_reactive_generation + nodal_reactive_storage - nodal_reactive_load - \
         nodal_reactive_charging_points
     return nodal_active_power, nodal_reactive_power, nodal_active_load, nodal_reactive_load, \
-           nodal_active_generation, nodal_reactive_generation
+           nodal_active_generation, nodal_reactive_generation, nodal_active_charging_points, \
+           nodal_reactive_charging_points, nodal_active_storage, nodal_reactive_storage
 
 
 def get_aggregated_bands(bands):
@@ -725,22 +726,30 @@ def create_feeder_edisgo_object(buses_with_feeders, edisgo_obj, feeder):
     edisgo_feeder.topology.switches_df = edisgo_obj.topology.switches_df.loc[
         edisgo_obj.topology.switches_df.branch.isin(edisgo_feeder.topology.lines_df.index)]
     # convert timeseries
-    edisgo_feeder.timeseries.charging_points_active_power = edisgo_obj.timeseries.charging_points_active_power[
-        edisgo_feeder.topology.charging_points_df.index]
-    edisgo_feeder.timeseries.charging_points_reactive_power = edisgo_obj.timeseries.charging_points_reactive_power[
-        edisgo_feeder.topology.charging_points_df.index]
-    edisgo_feeder.timeseries.generators_active_power = edisgo_obj.timeseries.generators_active_power[
-        edisgo_feeder.topology.generators_df.index]
-    edisgo_feeder.timeseries.generators_reactive_power = edisgo_obj.timeseries.generators_reactive_power[
-        edisgo_feeder.topology.generators_df.index]
-    edisgo_feeder.timeseries.loads_active_power = edisgo_obj.timeseries.loads_active_power[
-        edisgo_feeder.topology.loads_df.index]
-    edisgo_feeder.timeseries.loads_reactive_power = edisgo_obj.timeseries.loads_reactive_power[
-        edisgo_feeder.topology.loads_df.index]
-    edisgo_feeder.timeseries.storage_units_active_power = edisgo_obj.timeseries.storage_units_active_power[
-        edisgo_feeder.topology.storage_units_df.index]
-    edisgo_feeder.timeseries.storage_units_reactive_power = edisgo_obj.timeseries.storage_units_reactive_power[
-        edisgo_feeder.topology.storage_units_df.index]
+    if not edisgo_obj.timeseries.charging_points_active_power.empty:
+        edisgo_feeder.timeseries.charging_points_active_power = edisgo_obj.timeseries.charging_points_active_power[
+            edisgo_feeder.topology.charging_points_df.index]
+    if not edisgo_obj.timeseries.charging_points_reactive_power.empty:
+        edisgo_feeder.timeseries.charging_points_reactive_power = edisgo_obj.timeseries.charging_points_reactive_power[
+            edisgo_feeder.topology.charging_points_df.index]
+    if not edisgo_obj.timeseries.generators_active_power.empty:
+        edisgo_feeder.timeseries.generators_active_power = edisgo_obj.timeseries.generators_active_power[
+            edisgo_feeder.topology.generators_df.index]
+    if not edisgo_obj.timeseries.generators_reactive_power.empty:
+        edisgo_feeder.timeseries.generators_reactive_power = edisgo_obj.timeseries.generators_reactive_power[
+            edisgo_feeder.topology.generators_df.index]
+    if not edisgo_obj.timeseries.loads_active_power.empty:
+        edisgo_feeder.timeseries.loads_active_power = edisgo_obj.timeseries.loads_active_power[
+            edisgo_feeder.topology.loads_df.index]
+    if not edisgo_obj.timeseries.loads_reactive_power.empty:
+        edisgo_feeder.timeseries.loads_reactive_power = edisgo_obj.timeseries.loads_reactive_power[
+            edisgo_feeder.topology.loads_df.index]
+    if not edisgo_obj.timeseries.storage_units_active_power.empty:
+        edisgo_feeder.timeseries.storage_units_active_power = edisgo_obj.timeseries.storage_units_active_power[
+            edisgo_feeder.topology.storage_units_df.index]
+    if not edisgo_obj.timeseries.storage_units_reactive_power.empty:
+        edisgo_feeder.timeseries.storage_units_reactive_power = edisgo_obj.timeseries.storage_units_reactive_power[
+            edisgo_feeder.topology.storage_units_df.index]
     return edisgo_feeder
 
 
