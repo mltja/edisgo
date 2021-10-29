@@ -7,15 +7,83 @@ from copy import deepcopy
 import itertools
 
 
-def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage=True,
-                optimize_ev_charging=True, objective='curtailment', pu=True, **kwargs):
+def prepare_time_invariant_parameters(edisgo, downstream_nodes_matrix, pu=True,
+                                      optimize_storage=True, optimize_ev_charging=True, **kwargs):
+
+    parameters = {}
+    # set grid and edisgo objects as well as slack
+    parameters['edisgo_object'], parameters['grid_object'], parameters['slack'] = setup_grid_object(edisgo)
+    parameters['downstream_nodes_matrix'] = downstream_nodes_matrix
+    if optimize_storage:
+        parameters['optimized_storage_units'] = \
+            kwargs.get('flexible_storage_units',
+                       parameters['grid_object'].storage_units_df.index)
+        parameters['inflexible_storage_units'] = parameters['grid_object'].storage_units_df.index.drop(
+            parameters['optimized_storage_units'])
+    if optimize_ev_charging:
+        parameters['cp_mapping'] = kwargs.get('cp_mapping')
+        parameters['optimized_charging_points'] = parameters['cp_mapping'].index
+        parameters['inflexible_charging_points'] = parameters['grid_object'].charging_points_df.index.drop(
+            parameters['optimized_charging_points'])
+    # extract residual load of non optimised components
+    parameters['res_load_inflexible_units'] = get_residual_load_of_not_optimized_components(
+        parameters['grid_object'], parameters['edisgo_object'],
+        relevant_storage_units=parameters.get('inflexible_storage_units',
+                                              parameters['grid_object'].storage_units_df.index),
+        relevant_charging_points=parameters.get('inflexible_charging_points',
+                                                parameters['grid_object'].charging_points_df.index)
+    )
+    # get nodal active and reactive powers of non optimised components
+    # Todo: add handling of storage once become relevant
+    nodal_active_power, nodal_reactive_power, nodal_active_load, nodal_reactive_load, \
+    nodal_active_generation, nodal_reactive_generation, nodal_active_charging_points, \
+    nodal_reactive_charging_points, nodal_active_storage, nodal_reactive_storage = get_nodal_residual_load(
+        parameters['grid_object'], parameters['edisgo_object'],
+        considered_storage=parameters.get('inflexible_storage_units',
+                                          parameters['grid_object'].storage_units_df.index),
+        considered_charging_points=parameters.get('inflexible_charging_points',
+                                                  parameters['grid_object'].charging_points_df.index))
+    parameters['nodal_active_power'] = nodal_active_power.T
+    parameters['nodal_reactive_power'] = nodal_reactive_power.T
+    parameters['nodal_active_load'] = nodal_active_load.T + nodal_active_charging_points.T
+    parameters['nodal_reactive_load'] = nodal_reactive_load.T
+    parameters['nodal_active_feedin'] = nodal_active_generation.T
+    parameters['nodal_reactive_feedin'] = nodal_reactive_generation.T
+    # get underlying branch elements and power factors
+    # handle pu conversion
+    if pu:
+        print('Optimisation in pu-system. Make sure the inserted energy '
+              'bands are also converted to the same pu-system.')
+        parameters['v_nom'] = 1.0
+        s_base = kwargs.get("s_base", 1)
+        parameters['grid_object'].convert_to_pu_system(s_base, timeseries_inplace=True)
+        parameters['pars'] = {'r': 'r_pu', 'x': 'x_pu', 's_nom': 's_nom_pu',
+                      'p_nom': 'p_nom_pu', 'peak_load': 'peak_load_pu',
+                      'capacity': 'capacity_pu'}
+    else:
+        parameters['v_nom'] = parameters['grid_object'].buses_df.v_nom.iloc[0]
+        parameters['pars'] = {'r': 'r', 'x': 'x', 's_nom': 's_nom',
+                      'p_nom': 'p_nom', 'peak_load': 'peak_load',
+                      'capacity': 'capacity'}
+        parameters['grid_object'].transformers_df['r'] = parameters['grid_object'].transformers_df[
+                                               'r_pu'] * np.square(
+            parameters['v_nom']) / parameters['grid_object'].transformers_df.s_nom
+        parameters['grid_object'].transformers_df['x'] = parameters['grid_object'].transformers_df[
+                                               'x_pu'] * np.square(
+            parameters['v_nom']) / parameters['grid_object'].transformers_df.s_nom
+    parameters['branches'] = concat_parallel_branch_elements(parameters['grid_object'])
+    parameters['underlying_branch_elements'], parameters['power_factors'] = get_underlying_elements(parameters)  # Todo: time invariant
+    return parameters
+
+
+def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
+                optimize_ev_charging=True, objective='curtailment', **kwargs):
     """
     Method to set up pyomo model for optimisation of storage procurement
     and/or ev charging with linear approximation of power flow from
     eDisGo-object.
 
-    :param edisgo:
-    :param downstream_node_matrix:
+    :param timeinvariant_parameters: parameters that stay the same for every iteration
     :param timesteps:
     :param optimize_storage:
     :param optimize_ev_charging:
@@ -25,13 +93,16 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     :return:
     """
     model = pm.ConcreteModel()
-    edisgo_object, grid_object, slack = setup_grid_object(edisgo)
     # check if correct value of objective is inserted
     if objective not in ['curtailment', 'peak_load', 'minimize_energy_level',
                          'residual_load', 'maximize_energy_level']:
         raise ValueError('The objective you inserted is not implemented yet.')
+
+    edisgo_object, grid_object, slack = timeinvariant_parameters['edisgo_object'], \
+                                        timeinvariant_parameters['grid_object'], \
+                                        timeinvariant_parameters['slack']
     # check if multiple voltage levels are present
-    if len(grid_object.buses_df.v_nom.unique()) > 1 and not pu:
+    if len(grid_object.buses_df.v_nom.unique()) > 1:
         print('More than one voltage level included. Please make sure to '
               'adapt all impedance values to one reference system.')
 
@@ -57,73 +128,41 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
     if optimize_storage:
         model.storage_set = \
             pm.Set(initialize=grid_object.storage_units_df.index)
-        optimized_storage_units = \
-            kwargs.get('flexible_storage_units',
-                       grid_object.storage_units_df.index)
         model.optimized_storage_set = \
-            pm.Set(initialize=optimized_storage_units)
+            pm.Set(initialize=timeinvariant_parameters['optimized_storage_units'])
         model.fixed_storage_set = model.storage_set - \
                                   model.optimized_storage_set
         model.fix_relative_soc = kwargs.get('fix_relative_soc', 0.5)
-        inflexible_storage_units = list(model.fixed_storage_set.data())
-    else:
-        inflexible_storage_units = None
     if optimize_ev_charging:
         model.energy_band_charging_points = \
             kwargs.get('energy_band_charging_points')
-        model.mapping_cp = kwargs.get('mapping_cp')
+        model.mapping_cp = timeinvariant_parameters['cp_mapping']
         model.charging_points_set = \
             pm.Set(initialize=grid_object.charging_points_df.index)
         model.flexible_charging_points_set = \
-            pm.Set(initialize=model.mapping_cp.index)
+            pm.Set(initialize=timeinvariant_parameters['optimized_charging_points'])
         model.inflexible_charging_points_set = \
             model.charging_points_set - model.flexible_charging_points_set
         model.charging_efficiency = kwargs.get("charging_efficiency", 0.9)
-        inflexible_charging_points = \
-            list(model.inflexible_charging_points_set.data())
-    else:
-        inflexible_charging_points = None
     model.v_min = kwargs.get("v_min", 0.9)
     model.v_max = kwargs.get("v_max", 1.1)
     model.power_factor = kwargs.get("pf", 0.9)
-    # handle pu conversion
-    if pu:
-        model.v_nom = 1.0
-        s_base = kwargs.get("s_base", 1)
-        grid_object.convert_to_pu_system(s_base, timeseries_inplace=True)
-        model.pars = {'r': 'r_pu', 'x': 'x_pu', 's_nom': 's_nom_pu',
-                      'p_nom': 'p_nom_pu', 'peak_load': 'peak_load_pu',
-                      'capacity': 'capacity_pu'}
-    else:
-        model.v_nom = grid_object.buses_df.v_nom.iloc[0]
-        model.pars = {'r': 'r', 'x': 'x', 's_nom': 's_nom',
-                      'p_nom': 'p_nom', 'peak_load': 'peak_load',
-                      'capacity': 'capacity'}
-        grid_object.transformers_df['r'] = grid_object.transformers_df[
-                                               'r_pu'] * np.square(
-            model.v_nom) / grid_object.transformers_df.s_nom
-        grid_object.transformers_df['x'] = grid_object.transformers_df[
-                                               'x_pu'] * np.square(
-            model.v_nom) / grid_object.transformers_df.s_nom
-    model.residual_load = get_residual_load_of_not_optimized_components(
-        grid_object, edisgo_object, model)
+    model.v_nom = timeinvariant_parameters['v_nom']
+    model.pars = timeinvariant_parameters['pars']
+    model.residual_load = timeinvariant_parameters['res_load_inflexible_units']
     model.grid = grid_object
-    model.downstream_nodes_matrix = downstream_node_matrix
-    nodal_active_power, nodal_reactive_power, nodal_active_load, nodal_reactive_load, \
-           nodal_active_generation, nodal_reactive_generation, nodal_active_charging_points, \
-           nodal_reactive_charging_points, nodal_active_storage, nodal_reactive_storage = get_nodal_residual_load(
-        grid_object, edisgo_object, considered_storage=inflexible_storage_units,
-        considered_charging_points=inflexible_charging_points)
-    # Todo: add handling of storage once become relevant
-    model.nodal_active_power = nodal_active_power.T
-    model.nodal_reactive_power = nodal_reactive_power.T
-    model.nodal_active_load = nodal_active_load.T + nodal_active_charging_points.T
-    model.nodal_reactive_load = nodal_reactive_load.T
-    model.nodal_active_feedin = nodal_active_generation.T
-    model.nodal_reactive_feedin = nodal_reactive_generation.T
+    model.downstream_nodes_matrix = timeinvariant_parameters['downstream_nodes_matrix']
+
+    model.nodal_active_power = timeinvariant_parameters['nodal_active_power']
+    model.nodal_reactive_power = timeinvariant_parameters['nodal_reactive_power']
+    model.nodal_active_load = timeinvariant_parameters['nodal_active_load']
+    model.nodal_reactive_load = timeinvariant_parameters['nodal_reactive_load']
+    model.nodal_active_feedin = timeinvariant_parameters['nodal_active_feedin']
+    model.nodal_reactive_feedin = timeinvariant_parameters['nodal_reactive_feedin']
     model.v_slack = kwargs.get('v_slack', model.v_nom)
-    model.branches = concat_parallel_branch_elements(grid_object)
-    model.underlying_branch_elements, model.power_factors = get_underlying_elements(model)
+    model.branches = timeinvariant_parameters['branches']
+    model.underlying_branch_elements = timeinvariant_parameters['underlying_branch_elements']
+    model.power_factors = timeinvariant_parameters['power_factors']
 
     model.branch_set = pm.Set(initialize=model.branches.index)
 
@@ -192,9 +231,7 @@ def setup_model(edisgo, downstream_node_matrix, timesteps=None, optimize_storage
                    -m.grid.storage_units_df.loc[b, model.pars['p_nom']],
                    m.grid.storage_units_df.loc[b, model.pars['p_nom']]))
     if optimize_ev_charging:
-        if pu:
-            print('Optimisation in pu-system. Make sure the inserted energy '
-                  'bands are also converted to the same pu-system.')
+
         model.charging_ev = \
             pm.Var(model.flexible_charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
@@ -498,9 +535,11 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                         energy_level_cp.loc[timeindex, cp] = \
                             model.energy_level_ev[cp, time].value
                     if hasattr(model, 'slack_initial_charging_pos'):
-                        slack_charging.loc[cp, 'slack'] = model.slack_initial_charging_pos[cp].value + model.slack_initial_charging_neg[cp].value
+                        slack_charging.loc[cp, 'slack'] = model.slack_initial_charging_pos[cp].value + \
+                                                          model.slack_initial_charging_neg[cp].value
                     if hasattr(model, 'slack_initial_energy_pos'):
-                        slack_energy.loc[cp, 'slack'] = model.slack_initial_energy_pos[cp].value + model.slack_initial_energy_neg[cp].value
+                        slack_energy.loc[cp, 'slack'] = model.slack_initial_energy_pos[cp].value + \
+                                                        model.slack_initial_energy_neg[cp].value
             for bus in model.bus_set:
                 curtailment_feedin.loc[timeindex, bus] = \
                     model.curtailment_feedin[bus, time].value
@@ -599,24 +638,32 @@ def optimize_bands(model, solver, mode):
         return
 
 
-def get_residual_load_of_not_optimized_components(grid, edisgo, model):
+def get_residual_load_of_not_optimized_components(grid, edisgo, relevant_storage_units=None,
+                                                  relevant_charging_points=None, relevant_generators=None,
+                                                  relevant_loads=None):
     """
     Method to get residual load of fixed components.
 
-    :param edisgo:
-    :param model:
-    :return:
-    """
-    relevant_generators = grid.generators_df.index
-    relevant_loads = grid.loads_df.index
-    if hasattr(model, 'fixed_storage_set'):
-        relevant_storage_units = model.fixed_storage_set
-    else:
-        relevant_storage_units = grid.storage_units_df.index
+    Parameters
+    ----------
+    grid
+    edisgo
+    relevant_storage_units
+    relevant_charging_points
+    relevant_generators
+    relevant_loads
 
-    if hasattr(model, 'inflexible_charging_points_set'):
-        relevant_charging_points = model.inflexible_charging_points_set
-    else:
+    Returns
+    -------
+
+    """
+    if relevant_loads is None:
+        relevant_loads = grid.loads_df.index
+    if relevant_generators is None:
+        relevant_generators = grid.generators_df.index
+    if relevant_storage_units is None:
+        relevant_storage_units = grid.storage_units_df.index
+    if relevant_charging_points is None:
         relevant_charging_points = grid.charging_points_df.index
 
     if edisgo.timeseries.charging_points_active_power.empty:
@@ -1322,53 +1369,54 @@ def import_flexibility_bands(dir, grid_id, use_cases):
     return flexibility_bands
 
 
-def get_underlying_elements(model):
-    def _get_underlying_elements(downstream_elements, power_factors, model, branch):
-        bus0 = model.branches.loc[branch, 'bus0']
-        bus1 = model.branches.loc[branch, 'bus1']
-        s_nom = model.branches.loc[branch, model.pars['s_nom']]
+def get_underlying_elements(parameters):
+    def _get_underlying_elements(downstream_elements, power_factors, parameters, branch):
+        bus0 = parameters['branches'].loc[branch, 'bus0']
+        bus1 = parameters['branches'].loc[branch, 'bus1']
+        s_nom = parameters['branches'].loc[branch, parameters['pars']['s_nom']]
         relevant_buses_bus0 = \
-            model.downstream_nodes_matrix.loc[bus0][
-                model.downstream_nodes_matrix.loc[bus0] == 1].index.values
+            parameters['downstream_nodes_matrix'].loc[bus0][
+                parameters['downstream_nodes_matrix'].loc[bus0] == 1].index.values
         relevant_buses_bus1 = \
-            model.downstream_nodes_matrix.loc[bus1][
-                model.downstream_nodes_matrix.loc[bus1] == 1].index.values
+            parameters['downstream_nodes_matrix'].loc[bus1][
+                parameters['downstream_nodes_matrix'].loc[bus1] == 1].index.values
         relevant_buses = list(set(relevant_buses_bus0).intersection(
             relevant_buses_bus1))
         downstream_elements.loc[branch, 'buses'] = relevant_buses
-        if (model.nodal_reactive_power.loc[relevant_buses].sum().divide(s_nom).apply(abs) > 1).any():
+        if (parameters['nodal_reactive_power'].loc[relevant_buses].sum().divide(s_nom).apply(abs) > 1).any():
             print('Careful: Reactive power already exceeding line capacity for branch {}.'.format(branch))
         power_factors.loc[branch] = (1-
-             model.nodal_reactive_power.loc[relevant_buses].sum().divide(s_nom).apply(np.square)).apply(np.sqrt)
+             parameters['nodal_reactive_power'].loc[relevant_buses].sum().divide(s_nom).apply(np.square)).apply(np.sqrt)
         # Todo: check if loads and generators are used at all, if not delete, if so adapt loads
         # downstream_elements.loc[branch, 'generators'] = model.grid.generators_df.loc[model.grid.generators_df.bus.isin(
         #     relevant_buses)].index.values
         # downstream_elements.loc[branch, 'loads'] = model.grid.loads_df.loc[model.grid.loads_df.bus.isin(
         #     relevant_buses)].index.values
-        if hasattr(model, 'storage_set'):
+        if 'optimized_storage_units' in parameters:
             downstream_elements.loc[branch, 'flexible_storage'] = \
-                model.grid.storage_units_df.loc[
-                    model.grid.storage_units_df.index.isin(
-                        model.optimized_storage_set) &
-                    model.grid.storage_units_df.bus.isin(relevant_buses)].index.values
+                parameters['grid_object'].storage_units_df.loc[
+                    parameters['grid_object'].storage_units_df.index.isin(
+                        parameters['optimized_storage_units']) &
+                    parameters['grid_object'].storage_units_df.bus.isin(relevant_buses)].index.values
         else:
             downstream_elements.loc[branch, 'flexible_storage'] = []
         # Todo: add other cps to loads
-        if hasattr(model, 'charging_points_set'):
+        if 'optimized_charging_points' in parameters:
             downstream_elements.loc[branch, 'flexible_ev'] = \
-                model.grid.charging_points_df.loc[
-                    model.grid.charging_points_df.index.isin(
-                        model.flexible_charging_points_set) &
-                    model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
+                parameters['grid_object'].charging_points_df.loc[
+                    parameters['grid_object'].charging_points_df.index.isin(
+                        parameters['optimized_charging_points']) &
+                    parameters['grid_object'].charging_points_df.bus.isin(relevant_buses)].index.values
         else:
             downstream_elements.loc[branch, 'flexible_ev'] = []
         return downstream_elements, power_factors
 
-    downstream_elements = pd.DataFrame(index=model.branches.index,
-                                       columns=['buses', 'generators', 'loads', 'flexible_storage', 'flexible_ev', 'pf'])
-    power_factors = pd.DataFrame(index=model.branches.index, columns=model.nodal_active_power.columns)
+    downstream_elements = pd.DataFrame(index=parameters['branches'].index,
+                                       columns=['buses', 'flexible_storage', 'flexible_ev'])
+    power_factors = pd.DataFrame(index=parameters['branches'].index, columns=parameters['nodal_active_power'].columns)
     for branch in downstream_elements.index:
-        downstream_elements, power_factors = _get_underlying_elements(downstream_elements, power_factors, model, branch)
-    power_factors = power_factors.fillna(0.9) # Todo: ask Gaby and Birgit about this
-    #power_factors.where(power_factors >= 0.9, 0.9, inplace=True)
+        downstream_elements, power_factors = _get_underlying_elements(downstream_elements, power_factors, parameters, branch)
+    if power_factors.isna().any().any():
+        print('WARNING: Branch {} is overloaded with reactive power. Still needs handling.'.format(branch))
+        power_factors = power_factors.fillna(0.9) # Todo: ask Gaby and Birgit about this
     return downstream_elements, power_factors
