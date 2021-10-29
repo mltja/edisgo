@@ -732,7 +732,7 @@ class Topology:
         neighbours.remove(bus_name)
         return neighbours
 
-    def remove_bus(self, name):
+    def remove_bus(self, name, **kwargs):
         """
         Removes bus with given name from topology.
 
@@ -747,7 +747,7 @@ class Topology:
         functions first to delete all connected lines, transformers,
         loads, generators and storage_units.
         """
-
+        force_remove = kwargs.get('force_remove', False)
         # check if bus is isolated
         if (
             name in self.lines_df.bus0.values
@@ -755,17 +755,22 @@ class Topology:
             or name in self.storage_units_df.bus.values
             or name in self.generators_df.bus.values
             or name in self.loads_df.bus.values
+            or name in self.charging_points_df.bus.values
             or name in self.transformers_hvmv_df.bus0.values
             or name in self.transformers_hvmv_df.bus1.values
             or name in self.transformers_df.bus0.values
             or name in self.transformers_df.bus1.values
         ):
-            raise AssertionError(
-                "Bus {} is not isolated. Remove all connected "
-                "elements first to remove bus.".format(name)
-            )
-        else:
-            self._buses_df.drop(name, inplace=True)
+            if not force_remove:
+                raise AssertionError(
+                    "Bus {} is not isolated. Remove all connected "
+                    "elements first to remove bus.".format(name)
+                )
+            else:
+                print('Bus is connected to elements, but forced to be removed. The resulting topology '
+                      'cannot be used to calculate power flows. Make sure to remove the connected '
+                      'elements as well.')
+        self._buses_df.drop(name, inplace=True)
 
     def remove_generator(self, name):
         """
@@ -866,7 +871,7 @@ class Topology:
                 )
             )
 
-    def remove_line(self, name):
+    def remove_line(self, name, **kwargs):
         """
         Removes line with given name from topology.
 
@@ -876,11 +881,17 @@ class Topology:
             Name of line as specified in index of `lines_df`.
 
         """
+        force_remove = kwargs.get('force_remove', False)
         if not check_line_for_removal(self, line_name=name):
-            raise AssertionError(
-                "Removal of line {} would create isolated "
-                "node.".format(name)
-            )
+            if not force_remove:
+                raise AssertionError(
+                    "Removal of line {} would create isolated "
+                    "node.".format(name)
+                )
+            else:
+                print('Line {} is forced to be removed even though it creates isolated buses.'
+                      'The resulting topology cannot be fully utilised. Try to remove connected '
+                      'components and isolated bus first to avoid this warning.'.format(name))
 
         # backup buses of line and check if buses can be removed as well
         bus0 = self.lines_df.at[name, "bus0"]
