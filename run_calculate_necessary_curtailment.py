@@ -29,26 +29,27 @@ gc.collect()
 
 rng = default_rng(seed=5)
 
-num_threads = 5 # TODO
+num_threads = 7 # TODO
 
 data_dir = Path( # TODO: set dir
-    # r"\\192.168.10.221\Daten_flexibel_02\simbev_results",
-    r"/home/local/RL-INSTITUT/kilian.helfenbein/RLI_simulation_results/simbev_results",
+    r"/home/local/RL-INSTITUT/kilian.helfenbein/Daten_flexibel_02/simbev_results/calculations_for_anya_02",
+    # r"/home/kilian/rli/Daten_flexibel_02/simbev_results/calculations_for_anya",
 )
 
-sub_dir = r"eDisGo_object_files_final" # TODO
+sub_dir = r"eDisGo_object_files" # TODO
 
 scenarios = [ # TODO
+    "simbev_nep_2035_results",
     # "NEP_C_2035",
     # "Reference_2050",
-    "Electrification_2050",
-    "Electrification_2050_sensitivity_low_work",
+    # "Electrification_2050",
+    # "Electrification_2050_sensitivity_low_work",
 ]
 
 # "Szenarette_Kleinwagen_2050",
 # "Mobility_Transition_2050",
 
-grid_ids = ["176"]#["177", "1056", "1690", "1811", "2534", "176"] # TODO
+grid_ids = ["177", "1056", "1690", "1811", "2534", "176"] # TODO
 
 strategies = ["dumb", "grouped", "reduced", "residual"] # TODO
 
@@ -57,7 +58,7 @@ data_dirs = [
     for grid_id in grid_ids for scenario in scenarios for strategy in strategies
 ]
 
-# rng.shuffle(data_dirs) # TODO
+rng.shuffle(data_dirs) # TODO
 
 
 def run_calculate_curtailment(
@@ -72,16 +73,22 @@ def run_calculate_curtailment(
 
         print("Scenario {} with strategy {} in grid {} is being processed.".format(scenario, strategy, grid_id))
 
-        mode = "weeks" # TODO
+        mode = "full" # TODO
 
         if mode == "days":
             ts_count = 96
-        elif mode == "weeks":
+        elif mode == "weeks" or mode == "full":
             ts_count = 7*96
         else:
             ts_count = None
 
-        if ts_count is not None:
+        if mode == "full":
+            days = pd.date_range(
+                "2011-01-01",
+                periods=52,
+                freq="W-SAT",
+            )
+        elif ts_count is not None:
             days = get_days(
                 grid_id,
                 mode=mode,
@@ -90,6 +97,9 @@ def run_calculate_curtailment(
             days = [None]
 
         for day in days: # TODO
+            if day == days[-1] and mode == "full":
+                ts_count += 96
+
             stepwise_curtailment(
                 directory,
                 day,
@@ -244,7 +254,7 @@ def get_days(
     try:
         s = pd.read_csv(
             os.path.join(
-                data_dir,
+                data_dir.parent,
                 # sub_dir,
                 "extreme_weeks.csv",
             ),
@@ -257,10 +267,10 @@ def get_days(
 
             for ts in [s.start_week_low, s.start_week_high]:
                 for i in range(7):
-                    days.append(ts + timedelta(days=i))
+                    days.append(ts + timedelta(days=i, hours=7))  # TODO for Anya
 
         elif mode == "weeks":
-            days = [s.start_week_low, s.start_week_high]
+            days = [s.start_week_low + timedelta(hours=7), s.start_week_high + timedelta(hours=7)]  # TODO for Anya
 
         return days
     except:
@@ -295,4 +305,3 @@ if __name__ == "__main__":
                 run_calculate_curtailment,
                 data_dirs,
             )
-

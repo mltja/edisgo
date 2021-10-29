@@ -1101,7 +1101,7 @@ def integrate_public_charging(
         )
 
         timeseries_data_path = os.path.join(
-            grid_dir.parent.parent.parent,
+            grid_dir.parent.parent.parent.parent,
             r"hp.csv",
         )
 
@@ -1146,6 +1146,12 @@ def integrate_public_charging(
             timeindex = pd.date_range(
                 date,
                 periods=len_timeindex * 4,
+                freq="15min",
+            )
+        elif mode == "half-year":
+            timeindex = pd.date_range(
+                date,
+                periods=len_timeindex * 4 / 2,
                 freq="15min",
             )
         elif mode == "weeks":
@@ -1220,7 +1226,7 @@ def integrate_public_charging(
 
         geo_files = [
             Path(os.path.join(grid_dir, f)) for f in files
-            if ("geojson" in f and ("public" in f or "hpc" in f))
+            if ("geojson" in f and "mapped" not in f and ("public" in f or "hpc" in f))
         ]
 
         geo_files.sort()
@@ -1302,7 +1308,7 @@ def integrate_public_charging(
                 #     )
                 # ]
 
-                _ = [
+                edisgo_id = [
                     EDisGo.integrate_component(
                         edisgo,
                         comp_type=comp_type,
@@ -1323,6 +1329,17 @@ def integrate_public_charging(
                     )
                 ]
 
+                gdf = gdf.assign(edisgo_id=edisgo_id)
+
+                export_f = "mapped_" + geo_f.parts[-1]
+
+                export_path = os.path.join(geo_f.parent, export_f)
+
+                gdf.to_file(
+                    export_path,
+                    driver="GeoJSON",
+                )
+
         return edisgo
 
     except:
@@ -1338,7 +1355,7 @@ def integrate_private_charging(
     try:
         geo_files = [
             Path(os.path.join(grid_dir, f)) for f in files
-            if ("geojson" in f and ("home" in f or "work" in f))
+            if ("geojson" in f and "mapped" not in f and ("home" in f or "work" in f))
         ]
 
         geo_files.sort()
@@ -1454,6 +1471,17 @@ def integrate_private_charging(
                 cp_matching_dfs[count_files]["edisgo_id"] = edisgo_id
                 cp_matching_dfs[count_files]["ags"] = gdf.ags.tolist()
                 cp_matching_dfs[count_files]["cp_idx"] = gdf.cp_idx.tolist()
+
+                gdf = gdf.assign(edisgo_id=edisgo_id)
+
+                export_f = "mapped_" + geo_f.parts[-1]
+
+                export_path = os.path.join(geo_f.parent, export_f)
+
+                gdf.to_file(
+                    export_path,
+                    driver="GeoJSON",
+                )
 
         new_switch_line = edisgo.topology.lines_df.loc[
             (edisgo.topology.lines_df["bus0"] == edisgo.topology.switches_df.at["circuit_breaker_1", "bus_open"]) |
