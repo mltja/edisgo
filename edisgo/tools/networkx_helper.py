@@ -98,7 +98,7 @@ def get_downstream_nodes_matrix_iterative(grid):
         current_feeder.pop()
 
     buses = grid.buses_df.index.values
-    if isinstance(grid, nw.topology.Topology):
+    if str(type(grid)) == str(nw.topology.Topology):
         graph = grid.to_graph()
         slack = grid.slack_df.bus.values[0]
     else:
