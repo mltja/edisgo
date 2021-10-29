@@ -1466,7 +1466,6 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
                              **kwargs):
     energy_level = 0
     time_step = 0
-    week_pre = 0
     time_steps_per_week = 24 * 7 * 4
     if mode == 'annual':
         energy_band = \
@@ -1540,9 +1539,10 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
         energy_band.loc[charging_event['park_start']:
                         charging_event['park_end'], 'power'] = \
             ev_tech_data.loc['test', 'charging_power']
+    time_offset = kwargs.get('time_offset', 0)
     energy_band_week = \
         energy_band.loc[
-            start_week*time_steps_per_week:(start_week+1)*
+            time_offset+start_week*time_steps_per_week:time_offset+(start_week+1)*
             time_steps_per_week].reset_index().drop(columns=['index'])
     # remove offset
     offset = energy_band_week.loc[0, 'lower']
@@ -1581,58 +1581,57 @@ def get_ev_flexibility_bands(charging_events, ev_tech_data, mode='annual',
     return energy_band_week
 
 
-def get_energy_bands_for_optimization(data_dir, edisgo_dir, grid_id, use_cases):
+def get_energy_bands_for_optimization(data_dir, edisgo_dir, grid_id, use_case, **kwargs):
     gdf_cps_total, df_standing_total = charging_existing_edisgo_object(
         data_dir, grid_id, edisgo_dir, [])
     df_standing_total = df_standing_total.loc[
         df_standing_total.chargingdemand > 0]
-    for use_case in use_cases:
-        if use_case == 'home':
-            df_standing_times = df_standing_total.loc[
-                df_standing_total.use_case == 3]
-        elif use_case == 'work':
-            df_standing_times = df_standing_total.loc[
-                df_standing_total.use_case == 4]
-        else:
-            raise Exception('Only home and work charging have flexibility.')
+    if use_case == 'home':
+        df_standing_times = df_standing_total.loc[
+            df_standing_total.use_case == 3]
+    elif use_case == 'work':
+        df_standing_times = df_standing_total.loc[
+            df_standing_total.use_case == 4]
+    else:
+        raise Exception('Only home and work charging have flexibility.')
 
-        cp_indices = df_standing_times.cp_idx.unique()
-        weekly_bands = pd.DataFrame()
-        for idx in cp_indices:
-            charging = df_standing_times.loc[df_standing_times.cp_idx == idx]
-            ags = charging.ags.unique()
-            for ag in ags:
-                charging_cp = charging.loc[charging.ags == ag]
-                cp_sub_indices = charging_cp.cp_sub_idx.unique()
-                weekly_bands_cp = pd.DataFrame()
-                for sub_index in cp_sub_indices:
-                    charging_events = charging_cp.loc[
-                        charging_cp.cp_sub_idx == sub_index]
-                    maximum_charging_possible = \
-                        charging_events.netto_charging_capacity * \
-                        (
-                                charging_events.park_end - charging_events.park_start + 1) / 4
-                    charging_events.loc[
-                        charging_events.chargingdemand > maximum_charging_possible,
-                        'chargingdemand'] = \
-                        maximum_charging_possible[
-                            charging_events.chargingdemand >
-                            maximum_charging_possible]
-                    weekly_energy_band = get_ev_timeseries(charging_events)
-                    weekly_bands_cp = pd.concat(
-                        [weekly_bands_cp, weekly_energy_band], axis=1)
-                if len(cp_sub_indices) > 1:
-                    weekly_bands['_'.join(['upper', str(ag), str(idx)])] = \
-                        weekly_bands_cp['upper'].sum(axis=1)
-                    weekly_bands['_'.join(['lower', str(ag), str(idx)])] = \
-                        weekly_bands_cp['lower'].sum(axis=1)
-                    weekly_bands['_'.join(['power', str(ag), str(idx)])] = \
-                        weekly_bands_cp['power'].sum(axis=1)
-                else:
-                    weekly_bands['_'.join(['upper', str(ag), str(idx)])] = \
-                        weekly_bands_cp['upper']
-                    weekly_bands['_'.join(['lower', str(ag), str(idx)])] = \
-                        weekly_bands_cp['lower']
-                    weekly_bands['_'.join(['power', str(ag), str(idx)])] = \
-                        weekly_bands_cp['power']
-        return (weekly_bands / 1e3)
+    cp_indices = df_standing_times.cp_idx.unique()
+    weekly_bands = pd.DataFrame()
+    for idx in cp_indices:
+        charging = df_standing_times.loc[df_standing_times.cp_idx == idx]
+        ags = charging.ags.unique()
+        for ag in ags:
+            charging_cp = charging.loc[charging.ags == ag]
+            cp_sub_indices = charging_cp.cp_sub_idx.unique()
+            weekly_bands_cp = pd.DataFrame()
+            for sub_index in cp_sub_indices:
+                charging_events = charging_cp.loc[
+                    charging_cp.cp_sub_idx == sub_index]
+                maximum_charging_possible = \
+                    charging_events.netto_charging_capacity * \
+                    (
+                            charging_events.park_end - charging_events.park_start + 1) / 4
+                charging_events.loc[
+                    charging_events.chargingdemand > maximum_charging_possible,
+                    'chargingdemand'] = \
+                    maximum_charging_possible[
+                        charging_events.chargingdemand >
+                        maximum_charging_possible]
+                weekly_energy_band = get_ev_timeseries(charging_events, **kwargs)
+                weekly_bands_cp = pd.concat(
+                    [weekly_bands_cp, weekly_energy_band], axis=1)
+            if len(cp_sub_indices) > 1:
+                weekly_bands['_'.join(['upper', str(ag), str(idx)])] = \
+                    weekly_bands_cp['upper'].sum(axis=1)
+                weekly_bands['_'.join(['lower', str(ag), str(idx)])] = \
+                    weekly_bands_cp['lower'].sum(axis=1)
+                weekly_bands['_'.join(['power', str(ag), str(idx)])] = \
+                    weekly_bands_cp['power'].sum(axis=1)
+            else:
+                weekly_bands['_'.join(['upper', str(ag), str(idx)])] = \
+                    weekly_bands_cp['upper']
+                weekly_bands['_'.join(['lower', str(ag), str(idx)])] = \
+                    weekly_bands_cp['lower']
+                weekly_bands['_'.join(['power', str(ag), str(idx)])] = \
+                    weekly_bands_cp['power']
+    return (weekly_bands / 1e3)
