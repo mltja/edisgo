@@ -4,7 +4,7 @@ import datetime
 
 
 from edisgo.edisgo import import_edisgo_from_files
-from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping
+from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping, prepare_time_invariant_parameters
 from edisgo.tools.tools import convert_impedances_to_mv
 import pandas as pd
 import geopandas as gpd
@@ -73,7 +73,7 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load
     else:
         charging_start = None
         energy_level_start = None
-        start_iter = 7 #Todo:change
+        start_iter = 0
     config.to_csv(result_dir+'/config.csv')
 
     try:
@@ -140,6 +140,13 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load
         check_mapping(mapping, edisgo_obj.topology, flexibility_bands)
         print('Data checked. Please pay attention to warnings.')
 
+        # Create dict with time invariant parameters
+        parameters = prepare_time_invariant_parameters(edisgo_obj, downstream_nodes_matrix, pu=False,
+                                                       optimize_storage=False,
+                                                       optimize_ev_charging=True, cp_mapping=mapping)
+        print('Time-invariant parameters extracted.')
+
+
         energy_level = {}
         charging_ev = {}
 
@@ -192,16 +199,15 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load
                         print('Very small charging power: {}, set to 0.'.format(cp_tmp))
                         charging_start[cp_tmp] = 0
             # if week == 0:
-            model = setup_model(edisgo_obj, downstream_nodes_matrix, timesteps, objective=objective,
+            model = setup_model(parameters, timesteps, objective=objective,
                                 optimize_storage=False, optimize_ev_charging=True,
-                                mapping_cp=mapping,
                                 energy_band_charging_points=flexibility_bands_week,
-                                pu=False, charging_start=charging_start,
+                                charging_start=charging_start,
                                 energy_level_start=energy_level_start, energy_level_end=energy_level_end)
             print('Set up model for week {}.'.format(iteration))
 
             x_charge, soc, charging_ev[iteration], energy_level[iteration], curtailment_feedin, \
-            curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
+            curtailment_load, curtailment_ev, \
             v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos,\
             slack_v_neg, slack_p_cum_pos, slack_p_cum_neg = optimize(model, solver)
             if iteration % iterations_per_era != iterations_per_era - 1:
@@ -223,10 +229,8 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load
                 result_dir + '/curtailment_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
             curtailment_load.astype(np.float16).to_csv(
                 result_dir + '/curtailment_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-            curtailment_reactive_feedin.astype(np.float16).to_csv(
-                result_dir + '/curtailment_reactive_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-            curtailment_reactive_load.astype(np.float16).to_csv(
-                result_dir + '/curtailment_reactive_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+            curtailment_ev.astype(np.float16).to_csv(
+                result_dir + '/curtailment_ev_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
             v_bus.astype(np.float16).to_csv(
                 result_dir + '/bus_voltage_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
             p_line.astype(np.float16).to_csv(

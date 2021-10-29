@@ -1,6 +1,6 @@
 # Test to implement functionality of optimisation
 from edisgo.edisgo import import_edisgo_from_files
-from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping
+from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping, prepare_time_invariant_parameters
 from edisgo.tools.tools import convert_impedances_to_mv
 from edisgo.tools.networkx_helper import get_downstream_nodes_matrix_iterative
 import edisgo.flex_opt.charging_ev as cEV
@@ -32,13 +32,6 @@ edisgo_orig = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
 print('eDisGo object imported.')
 
 edisgo_obj = convert_impedances_to_mv(edisgo_orig)
-# ONLY FOR DEBUGGING Todo: remove
-# pypsa_network = edisgo_orig.to_pypsa(mode='mvlv', #aggregate_loads='all',
-#                                     aggregate_storage_units='all',
-#                                     aggregate_generators='all')
-# edisgo_obj = deepcopy(edisgo_orig)
-# convert_pypsa_to_edisgo_tmp(edisgo_obj, pypsa_network, edisgo_dir+'/topology',
-#                         convert_timeseries=True)
 
 print('Converted impedances to mv.')
 
@@ -103,6 +96,11 @@ flexibility_bands = flexibility_bands[flex_band_identifier]
 check_mapping(mapping, edisgo_obj.topology, flexibility_bands)
 print('Data checked. Please pay attention to warnings.')
 
+# Create dict with time invariant parameters
+parameters = prepare_time_invariant_parameters(edisgo_obj, downstream_nodes_matrix, pu=False, optimize_storage=False,
+                                               optimize_ev_charging=True, cp_mapping=mapping)
+print('Time-invariant parameters extracted.')
+
 timesteps_per_iteration = 24*4
 iterations_per_era = 7
 charging_start = None
@@ -114,8 +112,6 @@ for iteration in range(7,
         int(len(edisgo_obj.timeseries.timeindex) / timesteps_per_iteration)):  # edisgo_obj.timeseries.timeindex.week.unique()
 
     print('Starting optimisation for week {}.'.format(iteration))
-    # timesteps = edisgo_obj.timeseries.timeindex[
-    #     edisgo_obj.timeseries.timeindex.week == week] # Todo: adapt
     start_time = (iteration * timesteps_per_iteration) % 672
     if iteration % iterations_per_era != iterations_per_era - 1:
         timesteps = edisgo_obj.timeseries.timeindex[
@@ -155,18 +151,17 @@ for iteration in range(7,
                 print('Very small charging power: {}, set to 0.'.format(cp_tmp))
                 charging_start[cp_tmp] = 0
     # if week == 0:
-    model = setup_model(edisgo_obj, downstream_nodes_matrix, timesteps, objective=objective,
-                            optimize_storage=False, optimize_ev_charging=True,
-                            mapping_cp=mapping,
-                            energy_band_charging_points=flexibility_bands_week,
-                            pu=False, charging_start=charging_start,
-                            energy_level_start=energy_level_start)
+    model = setup_model(parameters, timesteps, objective=objective,
+                        optimize_storage=False, optimize_ev_charging=True,
+                        energy_band_charging_points=flexibility_bands_week,
+                        charging_start=charging_start,
+                        energy_level_start=energy_level_start)
     print('Set up model for week {}.'.format(iteration))
 
     x_charge, soc, charging_ev[iteration], energy_level[iteration], curtailment_feedin, \
-    curtailment_load, curtailment_reactive_feedin, curtailment_reactive_load, \
-    v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos,\
-    slack_v_neg, slack_p_cum_pos, slack_p_cum_neg = optimize(model, 'gurobi')
+    curtailment_load, curtailment_ev, v_bus, p_line, q_line, slack_charging, \
+    slack_energy, slack_v_pos, slack_v_neg, slack_p_cum_pos, slack_p_cum_neg = \
+        optimize(model, 'gurobi')
     if iteration % iterations_per_era != iterations_per_era - 1:
         charging_start = charging_ev[iteration].iloc[-overlap_interations]
         charging_start.to_csv('results/tests/charging_start.csv')
