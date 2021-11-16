@@ -78,6 +78,16 @@ def to_pypsa(grid_object, timesteps, **kwargs):
         Timesteps specifies which time steps to export to pypsa representation
         and use in power flow analysis.
 
+    Other Parameters
+    -----------------
+    use_seed : bool
+        Use a seed for the initial guess for the Newton-Raphson algorithm.
+        Only available when MV level is included in the power flow analysis.
+        If True, uses voltage magnitude results of previous power flow
+        analyses as initial guess in case of PQ buses. PV buses currently do
+        not occur and are therefore currently not supported.
+        Default: False.
+
     Returns
     -------
     :pypsa:`pypsa.Network<network>`
@@ -125,6 +135,8 @@ def to_pypsa(grid_object, timesteps, **kwargs):
     # define edisgo_obj, buses_df, slack_df and components for each use case
     if mode is None:
 
+        pypsa_network.mode = "mv"
+
         edisgo_obj = grid_object
         buses_df = grid_object.topology.buses_df.loc[:, ["v_nom"]]
         slack_df = _set_slack(edisgo_obj.topology.mv_grid)
@@ -147,11 +159,13 @@ def to_pypsa(grid_object, timesteps, **kwargs):
                 ["bus0", "bus1", "x", "r", "s_nom", "num_parallel", "length"],
             ],
             "Transformer": grid_object.topology.transformers_df.loc[
-                :, ["bus0", "bus1", "x_pu", "r_pu", "type", "s_nom"]
+                :, ["bus0", "bus1", "x_pu", "r_pu", "type_info", "s_nom"]
             ].rename(columns={"r_pu": "r", "x_pu": "x"}),
         }
 
     elif "mv" in mode:
+
+        pypsa_network.mode = "mv"
 
         edisgo_obj = grid_object.edisgo_obj
         buses_df = grid_object.buses_df.loc[:, ["v_nom"]]
@@ -170,7 +184,7 @@ def to_pypsa(grid_object, timesteps, **kwargs):
             mv_components[
                 "Transformer"
             ] = edisgo_obj.topology.transformers_df.loc[
-                :, ["bus0", "bus1", "x_pu", "r_pu", "type", "s_nom"]
+                :, ["bus0", "bus1", "x_pu", "r_pu", "type_info", "s_nom"]
             ].rename(
                 columns={"r_pu": "r", "x_pu": "x"}
             )
@@ -229,6 +243,8 @@ def to_pypsa(grid_object, timesteps, **kwargs):
                 components[key] = components[key].append(value)
 
     elif mode is "lv":
+
+        pypsa_network.mode = "lv"
 
         edisgo_obj = grid_object.edisgo_obj
         buses_df = grid_object.buses_df.loc[:, ["v_nom"]]
@@ -364,9 +380,106 @@ def to_pypsa(grid_object, timesteps, **kwargs):
             "q_set",
         )
 
+    if kwargs.get("use_seed", False) and pypsa_network.mode == "mv":
+        set_seed(edisgo_obj, pypsa_network)
+
     _check_integrity_of_pypsa(pypsa_network)
 
     return pypsa_network
+
+
+def set_seed(edisgo_obj, pypsa_network):
+    """
+    Set initial guess for the Newton-Raphson algorithm.
+
+    In `PyPSA <https://pypsa.readthedocs.io/en/latest/index.html/>`_ an
+    initial guess for the Newton-Raphson algorithm used in the power flow
+    analysis can be provided to speed up calculations.
+    For PQ buses, which besides the slack bus, is the only bus type in
+    edisgo, voltage magnitude and angle need to be guessed. If the power
+    flow was already conducted for the required time steps and buses, the
+    voltage magnitude and angle results from previously conducted power
+    flows stored in :attr:`~.network.results.Results.pfa_v_mag_pu_seed` and
+    :attr:`~.network.results.Results.pfa_v_ang_seed` are used
+    as the initial guess. Always the latest power flow calculation is used
+    and only results from power flow analyses including the MV level are
+    considered, as analysing single LV grids is currently not in the focus
+    of edisgo and does not require as much speeding up, as analysing single
+    LV grids is usually already quite quick.
+    If for some buses or time steps no power flow results are available,
+    default values are used. For the voltage magnitude the default value is 1
+    and for the voltage angle 0.
+
+    Parameters
+    ----------
+    edisgo_obj : :class:`~.EDisGo`
+    pypsa_network : :pypsa:`pypsa.Network<network>`
+        Pypsa network in which seed is set.
+
+    """
+
+    # get all PQ buses for which seed needs to be set
+    pq_buses = pypsa_network.buses[pypsa_network.buses.control == "PQ"].index
+
+    # get voltage magnitude and angle results from previous power flow analyses
+    pfa_v_mag_pu_seed = edisgo_obj.results.pfa_v_mag_pu_seed
+    pfa_v_ang_seed = edisgo_obj.results.pfa_v_ang_seed
+
+    # get busses seed cannot be set for from previous power flow analyses
+    # and add default values for those
+    buses_missing = [_ for _ in pq_buses if _ not in pfa_v_mag_pu_seed.columns]
+    if len(buses_missing) > 0:
+        pfa_v_mag_pu_seed = pd.concat(
+            [pfa_v_mag_pu_seed,
+             pd.DataFrame(
+                 data=1.,
+                 columns=buses_missing,
+                 index=pfa_v_ang_seed.index
+             )],
+            axis=1
+        )
+        pfa_v_ang_seed = pd.concat(
+            [pfa_v_ang_seed,
+             pd.DataFrame(
+                 data=0.,
+                 columns=buses_missing,
+                 index=pfa_v_ang_seed.index
+             )],
+            axis=1
+        )
+    # select only PQ buses
+    pfa_v_mag_pu_seed = pfa_v_mag_pu_seed.loc[:, pq_buses]
+    pfa_v_ang_seed = pfa_v_ang_seed.loc[:, pq_buses]
+
+    # get time steps seed cannot be set for from previous power flow analyses
+    # and add default values for those
+    ts_missing = [_ for _ in pypsa_network.snapshots
+                  if _ not in pfa_v_mag_pu_seed.index]
+    if len(ts_missing) > 0:
+        pfa_v_mag_pu_seed = pd.concat(
+            [pfa_v_mag_pu_seed,
+             pd.DataFrame(
+                 data=1.,
+                 columns=pq_buses,
+                 index=ts_missing
+             )],
+            axis=0
+        )
+        pfa_v_ang_seed = pd.concat(
+            [pfa_v_ang_seed,
+             pd.DataFrame(
+                 data=0.,
+                 columns=pq_buses,
+                 index=ts_missing
+             )],
+            axis=0
+        )
+    # select only snapshots
+    pfa_v_mag_pu_seed = pfa_v_mag_pu_seed.loc[pypsa_network.snapshots, :]
+    pfa_v_ang_seed = pfa_v_ang_seed.loc[pypsa_network.snapshots, :]
+
+    pypsa_network.buses_t.v_mag_pu = pfa_v_mag_pu_seed
+    pypsa_network.buses_t.v_ang = pfa_v_ang_seed
 
 
 def _get_grid_component_dict(grid_object):
@@ -498,9 +611,7 @@ def _append_lv_components(
             comps_aggr = comps.loc[:, ["bus", "control", "p_nom"]]
             comps_aggr["fluctuating"] = comps.type.isin(flucts)
         elif aggregate_generators == "type":
-            comps_aggr = (
-                comps.groupby("type").sum().loc[:, ["bus", "control", "p_nom"]]
-            )
+            comps_aggr = comps.groupby("type").sum().reindex(columns=["bus", "control", "p_nom"])
             comps_aggr.bus = bus
             comps_aggr.control = "PQ"
             comps_aggr["fluctuating"] = comps_aggr.index.isin(flucts)
@@ -705,272 +816,6 @@ def _buses_voltage_set_point(edisgo_obj, buses, slack_bus, timesteps):
     return v_nom
 
 
-def _pypsa_bus_timeseries(network, buses, timesteps):
-    """
-    Todo: remove?
-    Time series in PyPSA compatible format for bus instances
-
-    Set all buses except for the slack bus to voltage of 1 pu (it is assumed
-    this setting is entirely ignored during solving the power flow problem).
-    This slack bus is set to an operational voltage which is typically greater
-    than nominal voltage plus a control deviation.
-    The control deviation is always added positively to the operational voltage.
-    For example, the operational voltage (offset) is set to 1.025 pu plus the
-    control deviation of 0.015 pu. This adds up to a set voltage of the slack
-    bus of 1.04 pu.
-
-    .. warning::
-
-        Voltage settings for the slack bus defined by this function assume the
-        feedin case (reverse power flow case) as the worst-case for the power
-        system. Thus, the set point for the slack is always greater 1.
-
-
-    Parameters
-    ----------
-    network : Topology
-        The eDisGo topology topology model overall container
-    timesteps : array_like
-        Timesteps is an array-like object with entries of type
-        :pandas:`pandas.Timestamp<Timestamp>` specifying which time steps
-        to export to pypsa representation and use in power flow analysis.
-    buses : list
-        Buses names
-
-    Returns
-    -------
-    :pandas:`pandas.DataFrame<DataFrame>`
-        Time series table in PyPSA format
-    """
-
-    # get slack bus label
-    slack_bus = "_".join(["Bus", network.mv_grid.station.__repr__(side="mv")])
-
-    # set all buses (except slack bus) to nominal voltage
-    v_set_dict = {bus: 1 for bus in buses if bus != slack_bus}
-
-    # Set slack bus to operational voltage (includes offset and control
-    # deviation
-    control_deviation = network.config[
-        "grid_expansion_allowed_voltage_deviations"
-    ]["hv_mv_trafo_control_deviation"]
-    if control_deviation != 0:
-        control_deviation_ts = network.timeseries.timesteps_load_feedin_case.case.apply(
-            lambda _: control_deviation
-            if _ == "feedin_case"
-            else -control_deviation
-        )
-    else:
-        control_deviation_ts = 0
-
-    slack_voltage_pu = (
-        control_deviation_ts
-        + 1
-        + network.config["grid_expansion_allowed_voltage_deviations"][
-            "hv_mv_trafo_offset"
-        ]
-    )
-
-    v_set_dict.update({slack_bus: slack_voltage_pu})
-
-    # Convert to PyPSA compatible dataframe
-    v_set_df = pd.DataFrame(v_set_dict, index=timesteps)
-
-    return v_set_df
-
-
-def _pypsa_generator_timeseries_aggregated_at_lv_station(network, timesteps):
-    """
-    Todo: remove?
-    Aggregates generator time series per generator subtype and LV topology.
-
-    Parameters
-    ----------
-    network : Topology
-        The eDisGo topology topology model overall container
-    timesteps : array_like
-        Timesteps is an array-like object with entries of type
-        :pandas:`pandas.Timestamp<Timestamp>` specifying which time steps
-        to export to pypsa representation and use in power flow analysis.
-
-    Returns
-    -------
-    tuple of :pandas:`pandas.DataFrame<DataFrame>`
-        Tuple of size two containing DataFrames that represent
-
-            1. 'p_set' of aggregated Generation per subtype at each LV station
-            2. 'q_set' of aggregated Generation per subtype at each LV station
-
-    """
-
-    generation_p = []
-    generation_q = []
-
-    for lv_grid in network.mv_grid.lv_grids:
-        # Determine aggregated generation at LV stations
-        generation = {}
-        for gen in lv_grid.generators:
-            # for type in gen.type:
-            #     for subtype in gen.subtype:
-            gen_name = "_".join(
-                [
-                    gen.type,
-                    gen.subtype,
-                    "aggregated",
-                    "LV_grid",
-                    str(lv_grid.id),
-                ]
-            )
-
-            generation.setdefault(gen.type, {})
-            generation[gen.type].setdefault(gen.subtype, {})
-            generation[gen.type][gen.subtype].setdefault("timeseries_p", [])
-            generation[gen.type][gen.subtype].setdefault("timeseries_q", [])
-            generation[gen.type][gen.subtype]["timeseries_p"].append(
-                gen.pypsa_timeseries("p")
-                .rename(gen_name)
-                .to_frame()
-                .loc[timesteps]
-            )
-            generation[gen.type][gen.subtype]["timeseries_q"].append(
-                gen.pypsa_timeseries("q")
-                .rename(gen_name)
-                .to_frame()
-                .loc[timesteps]
-            )
-
-        for k_type, v_type in generation.items():
-            for k_type, v_subtype in v_type.items():
-                col_name = v_subtype["timeseries_p"][0].columns[0]
-                generation_p.append(
-                    pd.concat(v_subtype["timeseries_p"], axis=1)
-                    .sum(axis=1)
-                    .rename(col_name)
-                    .to_frame()
-                )
-                generation_q.append(
-                    pd.concat(v_subtype["timeseries_q"], axis=1)
-                    .sum(axis=1)
-                    .rename(col_name)
-                    .to_frame()
-                )
-
-    return generation_p, generation_q
-
-
-def _pypsa_load_timeseries_aggregated_at_lv_station(network, timesteps):
-    """
-    Todo: remove?
-    Aggregates load time series per sector and LV topology.
-
-    Parameters
-    ----------
-    network : Topology
-        The eDisGo topology topology model overall container
-    timesteps : array_like
-        Timesteps is an array-like object with entries of type
-        :pandas:`pandas.Timestamp<Timestamp>` specifying which time steps
-        to export to pypsa representation and use in power flow analysis.
-
-    Returns
-    -------
-    tuple of :pandas:`pandas.DataFrame<DataFrame>`
-        Tuple of size two containing DataFrames that represent
-
-            1. 'p_set' of aggregated Load per sector at each LV station
-            2. 'q_set' of aggregated Load per sector at each LV station
-
-    """
-    # ToDo: Load.pypsa_timeseries is not differentiated by sector so this
-    # function will not work (either change here and in
-    # add_aggregated_lv_components or in Load class)
-
-    load_p = []
-    load_q = []
-
-    for lv_grid in network.mv_grid.lv_grids:
-        # Determine aggregated load at LV stations
-        load = {}
-        for lo in lv_grid.graph.nodes_by_attribute("load"):
-            for sector, val in lo.consumption.items():
-                load.setdefault(sector, {})
-                load[sector].setdefault("timeseries_p", [])
-                load[sector].setdefault("timeseries_q", [])
-
-                load[sector]["timeseries_p"].append(
-                    lo.pypsa_timeseries("p")
-                    .rename(repr(lo))
-                    .to_frame()
-                    .loc[timesteps]
-                )
-                load[sector]["timeseries_q"].append(
-                    lo.pypsa_timeseries("q")
-                    .rename(repr(lo))
-                    .to_frame()
-                    .loc[timesteps]
-                )
-
-        for sector, val in load.items():
-            load_p.append(
-                pd.concat(val["timeseries_p"], axis=1)
-                .sum(axis=1)
-                .rename("_".join(["Load", sector, repr(lv_grid)]))
-                .to_frame()
-            )
-            load_q.append(
-                pd.concat(val["timeseries_q"], axis=1)
-                .sum(axis=1)
-                .rename("_".join(["Load", sector, repr(lv_grid)]))
-                .to_frame()
-            )
-
-    return load_p, load_q
-
-
-def _check_topology(components):
-    # Todo: remove?
-    buses = components["Bus"].index.tolist()
-    line_buses = (
-        components["Line"]["bus0"].tolist()
-        + components["Line"]["bus1"].tolist()
-    )
-    load_buses = components["Load"]["bus"].tolist()
-    generator_buses = components["Generator"]["bus"].tolist()
-    transformer_buses = (
-        components["Transformer"]["bus0"].tolist()
-        + components["Transformer"]["bus1"].tolist()
-    )
-
-    buses_to_check = (
-        line_buses + load_buses + generator_buses + transformer_buses
-    )
-
-    missing_buses = []
-
-    missing_buses.extend([_ for _ in buses_to_check if _ not in buses])
-
-    if missing_buses:
-        raise ValueError(
-            "Buses {buses} are not defined.".format(buses=missing_buses)
-        )
-
-    # check if there are duplicate components and print them
-    for k, comps in components.items():
-        if len(list(comps.index.values)) != len(set(comps.index.values)):
-            raise ValueError(
-                "There are duplicates in the {comp} list: {dupl}".format(
-                    comp=k,
-                    dupl=[
-                        item
-                        for item, count in collections.Counter(
-                            comps.index.values
-                        ).items()
-                        if count > 1
-                    ],
-                )
-            )
-
-
 def _check_integrity_of_pypsa(pypsa_network):
     """
     Checks whether the provided pypsa network is calculable.
@@ -1104,42 +949,40 @@ def process_pfa_results(edisgo, pypsa, timesteps):
     # subtracting total generation (including slack) from total load
     grid_losses = {
         "p": (
-            pypsa.generators_t["p"].sum(axis=1)
-            - pypsa.loads_t["p"].sum(axis=1)
+            abs(pypsa.generators_t["p"].sum(axis=1)
+                - pypsa.loads_t["p"].sum(axis=1))
         ),
         "q": (
-            pypsa.generators_t["q"].sum(axis=1)
-            - pypsa.loads_t["q"].sum(axis=1)
+            abs(pypsa.generators_t["q"].sum(axis=1)
+                - pypsa.loads_t["q"].sum(axis=1))
         ),
     }
-    edisgo.results.grid_losses = pd.DataFrame(grid_losses).loc[timesteps, :]
+    edisgo.results.grid_losses = pd.DataFrame(grid_losses).reindex(index=timesteps)
 
-    # get slack results (HV/MV exchanges) in MW and Mvar
-    grid_exchanges = {
+    # get slack results in MW and Mvar
+    pfa_slack = {
         "p": (pypsa.generators_t["p"]["Generator_slack"]),
         "q": (pypsa.generators_t["q"]["Generator_slack"]),
     }
-    edisgo.results.hv_mv_exchanges = pd.DataFrame(grid_exchanges).loc[
-        timesteps, :
-    ]
+    edisgo.results.pfa_slack = pd.DataFrame(pfa_slack).reindex(index=timesteps)
 
     # get P and Q of lines and transformers in MW and Mvar
     q0 = pd.concat(
         [np.abs(pypsa.lines_t["q0"]), np.abs(pypsa.transformers_t["q0"])],
         axis=1, sort=False
-    ).loc[timesteps, :]
+    ).reindex(index=timesteps)
     q1 = pd.concat(
         [np.abs(pypsa.lines_t["q1"]), np.abs(pypsa.transformers_t["q1"])],
         axis=1, sort=False
-    ).loc[timesteps, :]
+    ).reindex(index=timesteps)
     p0 = pd.concat(
         [np.abs(pypsa.lines_t["p0"]), np.abs(pypsa.transformers_t["p0"])],
         axis=1, sort=False
-    ).loc[timesteps, :]
+    ).reindex(index=timesteps)
     p1 = pd.concat(
         [np.abs(pypsa.lines_t["p1"]), np.abs(pypsa.transformers_t["p1"])],
         axis=1, sort=False
-    ).loc[timesteps, :]
+    ).reindex(index=timesteps)
     # determine apparent power at line endings/transformer sides
     s0 = np.hypot(p0, q0)
     s1 = np.hypot(p1, q1)
@@ -1153,9 +996,30 @@ def process_pfa_results(edisgo, pypsa, timesteps):
         pypsa.buses_t["v_mag_pu"].T.loc[list(lines_bus0.values()), :].copy()
     )
     bus0_v_mag_pu.index = list(lines_bus0.keys())
-    edisgo.results._i_res = np.hypot(
+    current = np.hypot(
         pypsa.lines_t["p0"], pypsa.lines_t["q0"]
-    ).truediv(pypsa.lines["v_nom"] * bus0_v_mag_pu.T, axis="columns") / sqrt(3)
+    ).truediv(pypsa.lines["v_nom"] * bus0_v_mag_pu.T,
+              axis="columns") / sqrt(3)
+    edisgo.results._i_res = current.reindex(index=timesteps)
 
     # get voltage results in kV
-    edisgo.results._v_res = pypsa.buses_t["v_mag_pu"]
+    edisgo.results._v_res = pypsa.buses_t["v_mag_pu"].reindex(index=timesteps)
+
+    # save seeds
+    edisgo.results.pfa_v_mag_pu_seed = pd.concat(
+        [edisgo.results.pfa_v_mag_pu_seed,
+         pypsa.buses_t["v_mag_pu"].reindex(index=timesteps)
+         ]
+    )
+    edisgo.results.pfa_v_mag_pu_seed = edisgo.results.pfa_v_mag_pu_seed[
+        ~edisgo.results.pfa_v_mag_pu_seed.index.duplicated(
+            keep='last')].fillna(1)
+
+    edisgo.results.pfa_v_ang_seed = pd.concat(
+        [edisgo.results.pfa_v_ang_seed,
+         pypsa.buses_t["v_ang"].reindex(index=timesteps)
+         ]
+    )
+    edisgo.results.pfa_v_ang_seed = edisgo.results.pfa_v_ang_seed[
+        ~edisgo.results.pfa_v_ang_seed.index.duplicated(
+            keep='last')].fillna(0)

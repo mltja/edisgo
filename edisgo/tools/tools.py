@@ -1,6 +1,9 @@
+import os
+import numpy as np
 import pandas as pd
 import networkx as nx
 from math import pi, sqrt
+from sqlalchemy import func
 from copy import deepcopy
 import os
 from functools import reduce  # Required in Python 3
@@ -9,6 +12,21 @@ import operator
 from edisgo.flex_opt import exceptions
 from edisgo.flex_opt import check_tech_constraints
 from edisgo.network.grids import LVGrid
+from edisgo.tools import session_scope
+
+if "READTHEDOCS" not in os.environ:
+
+    from egoio.db_tables import climate
+    from egoio.tools.db import connection
+
+    from shapely.geometry.multipolygon import MultiPolygon
+    from shapely.wkt import loads as wkt_loads
+
+    geopandas = True
+    try:
+        import geopandas as gpd
+    except:
+        geopandas = False
 
 
 def prod(iterable):
@@ -21,10 +39,10 @@ def select_worstcase_snapshots(edisgo_obj):
 
     Two time steps in a time series represent worst-case snapshots. These are
 
-    1. Load case: refers to the point in the time series where the
-        (load - generation) achieves its maximum and is greater than 0.
-    2. Feed-in case: refers to the point in the time series where the
-        (load - generation) achieves its minimum and is smaller than 0.
+    1. Maximum Residual Load: refers to the point in the time series where the
+        (load - generation) achieves its maximum.
+    2. Minimum Residual Load: refers to the point in the time series where the
+        (load - generation) achieves its minimum.
 
     These two points are identified based on the generation and load time
     series. In case load or feed-in case don't exist None is returned.
@@ -36,20 +54,17 @@ def select_worstcase_snapshots(edisgo_obj):
     Returns
     -------
     :obj:`dict`
-        Dictionary with keys 'load_case' and 'feedin_case'. Values are
-        corresponding worst-case snapshots of type
-        :pandas:`pandas.Timestamp<Timestamp>` or None.
+        Dictionary with keys 'min_residual_load' and 'max_residual_load'.
+        Values are corresponding worst-case snapshots of type
+        :pandas:`pandas.Timestamp<Timestamp>`.
 
     """
     residual_load = edisgo_obj.timeseries.residual_load
 
-    timestamp = {}
-    timestamp["load_case"] = (
-        residual_load.idxmin() if min(residual_load) < 0 else None
-    )
-    timestamp["feedin_case"] = (
-        residual_load.idxmax() if max(residual_load) > 0 else None
-    )
+    timestamp = {
+        "min_residual_load": residual_load.idxmin(),
+        "max_residual_load": residual_load.idxmax()}
+
     return timestamp
 
 
@@ -106,9 +121,10 @@ def calculate_relative_line_load(
         edisgo_obj, lines_allowed_load)
 
 
-def calculate_line_reactance(line_inductance_per_km, line_length):
+def calculate_line_reactance(line_inductance_per_km, line_length,
+                             num_parallel):
     """
-    Calculates line reactance in Ohm from given line data and length.
+    Calculates line reactance in Ohm.
 
     Parameters
     ----------
@@ -116,6 +132,8 @@ def calculate_line_reactance(line_inductance_per_km, line_length):
         Line inductance in mH/km.
     line_length : float
         Length of line in km.
+    num_parallel : int
+        Number of parallel lines.
 
     Returns
     -------
@@ -123,12 +141,14 @@ def calculate_line_reactance(line_inductance_per_km, line_length):
         Reactance in Ohm
 
     """
-    return line_inductance_per_km / 1e3 * line_length * 2 * pi * 50
+    return (line_inductance_per_km / 1e3 * line_length *
+            2 * pi * 50 / num_parallel)
 
 
-def calculate_line_resistance(line_resistance_per_km, line_length):
+def calculate_line_resistance(line_resistance_per_km, line_length,
+                              num_parallel):
     """
-    Calculates line resistance in Ohm from given line data and length.
+    Calculates line resistance in Ohm.
 
     Parameters
     ----------
@@ -136,6 +156,8 @@ def calculate_line_resistance(line_resistance_per_km, line_length):
         Line resistance in Ohm/km.
     line_length : float
         Length of line in km.
+    num_parallel : int
+        Number of parallel lines.
 
     Returns
     -------
@@ -143,10 +165,10 @@ def calculate_line_resistance(line_resistance_per_km, line_length):
         Resistance in Ohm
 
     """
-    return line_resistance_per_km * line_length
+    return line_resistance_per_km * line_length / num_parallel
 
 
-def calculate_apparent_power(nominal_voltage, current):
+def calculate_apparent_power(nominal_voltage, current, num_parallel):
     """
     Calculates apparent power in MVA from given voltage and current.
 
@@ -156,6 +178,8 @@ def calculate_apparent_power(nominal_voltage, current):
         Nominal voltage in kV.
     current : float or array-like
         Current in kA.
+    num_parallel : int or array-like
+        Number of parallel lines.
 
     Returns
     -------
@@ -163,101 +187,7 @@ def calculate_apparent_power(nominal_voltage, current):
         Apparent power in MVA.
 
     """
-    return sqrt(3) * nominal_voltage * current
-
-
-def check_bus_for_removal(topology, bus_name):
-    """
-    Checks whether bus is connected to elements other than one line. Returns
-    True if bus of inserted name is only connected to one line. Returns False
-    if bus is connected to other element or additional line.
-
-
-    Parameters
-    ----------
-    topology: :class:`~.network.topology.Topology`
-        Topology object containing bus of name bus_name
-    bus_name: str
-        Name of bus which has to be checked
-
-    Returns
-    -------
-    Removable: bool
-        Indicator if bus of name bus_name can be removed from topology
-    """
-    # Todo: move to topology?
-    # check if bus is party of topology
-    if bus_name not in topology.buses_df.index:
-        raise ValueError(
-            "Bus of name {} not in Topology. Cannot be checked "
-            "to be removed.".format(bus_name)
-        )
-    connected_lines = topology.get_connected_lines_from_bus(bus_name)
-    # if more than one line is connected to node, it cannot be removed
-    if len(connected_lines) > 1:
-        return False
-    # if another element is connected to node, it cannot be removed
-    elif (
-        bus_name in topology.loads_df.bus.values
-        or bus_name in topology.charging_points_df.bus.values
-        or bus_name in topology.generators_df.bus.values
-        or bus_name in topology.storage_units_df.bus.values
-        or bus_name in topology.transformers_df.bus0.values
-        or bus_name in topology.transformers_df.bus1.values
-        or bus_name in topology.transformers_hvmv_df.bus0.values
-        or bus_name in topology.transformers_hvmv_df.bus1.values
-    ):
-        return False
-    else:
-        return True
-
-
-def check_line_for_removal(topology, line_name):
-    """
-    Checks whether line can be removed without leaving isolated nodes. Returns
-    True if line can be removed safely.
-
-
-    Parameters
-    ----------
-    topology: :class:`~.network.topology.Topology`
-        Topology object containing bus of name bus_name
-    line_name: str
-        Name of line which has to be checked
-
-    Returns
-    -------
-    Removable: bool
-        Indicator if line of name line_name can be removed from topology
-        without leaving isolated node
-
-    """
-    # Todo: move to topology?
-    # check if line is part of topology
-    if line_name not in topology.lines_df.index:
-        raise ValueError(
-            "Line of name {} not in Topology. Cannot be checked "
-            "to be removed.".format(line_name)
-        )
-
-    bus0 = topology.lines_df.loc[line_name, "bus0"]
-    bus1 = topology.lines_df.loc[line_name, "bus1"]
-    # if either of the buses can be removed as well, line can be removed safely
-    if check_bus_for_removal(topology, bus0) or check_bus_for_removal(
-        topology, bus1
-    ):
-        return True
-    # otherwise both buses have to be connected to at least two lines
-    if (
-        len(topology.get_connected_lines_from_bus(bus0)) > 1
-        and len(topology.get_connected_lines_from_bus(bus1)) > 1
-    ):
-        return True
-    else:
-        return False
-    # Todo: add check for creation of subnetworks, so far it is only checked,
-    #  if isolated node would be created. It could still happen that two sub-
-    #  networks are created by removing the line.
+    return sqrt(3) * nominal_voltage * current * num_parallel
 
 
 def drop_duplicated_indices(dataframe, keep="first"):
@@ -336,7 +266,9 @@ def select_cable(edisgo_obj, level, apparent_power):
     suitable_cables = available_cables[
         calculate_apparent_power(
             available_cables["U_n"],
-            available_cables["I_max_th"])
+            available_cables["I_max_th"],
+            cable_count
+        )
         > apparent_power
     ]
 
@@ -346,7 +278,8 @@ def select_cable(edisgo_obj, level, apparent_power):
         suitable_cables = available_cables[
             calculate_apparent_power(
                 available_cables["U_n"],
-                available_cables["I_max_th"]) * cable_count
+                available_cables["I_max_th"],
+                cable_count)
             > apparent_power
         ]
     if suitable_cables.empty:
@@ -355,7 +288,7 @@ def select_cable(edisgo_obj, level, apparent_power):
             "{} MVA.".format(apparent_power)
         )
 
-    cable_type = suitable_cables.ix[suitable_cables["I_max_th"].idxmin()]
+    cable_type = suitable_cables.loc[suitable_cables["I_max_th"].idxmin()]
 
     return cable_type, cable_count
 
@@ -462,17 +395,18 @@ def get_path_length_to_station(edisgo_obj):
         edisgo_obj.topology.buses_df.at[
             bus, "path_length_to_station"] = len(path) - 1
         if bus.split("_")[0] == "BusBar" and bus.split("_")[-1] == "MV":
-            lvgrid = LVGrid(
-                id=int(bus.split("_")[-2]),
-                edisgo_obj=edisgo_obj)
-            lv_graph = lvgrid.graph
-            lv_station = lvgrid.station.index[0]
-
-            for bus in lvgrid.buses_df.index:
-                lv_path = nx.shortest_path(lv_graph, source=lv_station,
-                                        target=bus)
-                edisgo_obj.topology.buses_df.at[
-                    bus, "path_length_to_station"] = len(path) + len(lv_path)
+            # check if there is an underlying LV grid
+            lv_grid_repr = "LVGrid_{}".format(int(bus.split("_")[-2]))
+            if lv_grid_repr in edisgo_obj.topology._grids.keys():
+                lvgrid = edisgo_obj.topology._grids[lv_grid_repr]
+                lv_graph = lvgrid.graph
+                lv_station = lvgrid.station.index[0]
+                for bus in lvgrid.buses_df.index:
+                    lv_path = nx.shortest_path(lv_graph, source=lv_station,
+                                            target=bus)
+                    edisgo_obj.topology.buses_df.at[
+                        bus, "path_length_to_station"] = \
+                        len(path) + len(lv_path)
     return edisgo_obj.topology.buses_df.path_length_to_station
 
 
@@ -507,6 +441,62 @@ def assign_voltage_level_to_component(edisgo_obj, df):
         axis=1,
     )
     return df
+
+
+def get_weather_cells_intersecting_with_grid_district(edisgo_obj):
+    """
+    Get all weather cells that intersect with the grid district.
+
+    Parameters
+    ----------
+    edisgo_obj : :class:`~.EDisGo`
+
+    Returns
+    -------
+    set
+        Set with weather cell IDs
+
+    """
+
+    # Download geometries of weather cells
+    srid = edisgo_obj.topology.grid_district["srid"]
+    table = climate.Cosmoclmgrid
+    with session_scope() as session:
+        query = session.query(
+            table.gid,
+            func.ST_AsText(
+                func.ST_Transform(
+                    table.geom, srid
+                )
+            ).label("geometry")
+        )
+    geom_data = pd.read_sql_query(
+        query.statement, query.session.bind)
+    geom_data.geometry = geom_data.apply(
+        lambda _: wkt_loads(_.geometry), axis=1)
+    geom_data = gpd.GeoDataFrame(
+        geom_data, crs=f"EPSG:{srid}")
+
+    # Make sure MV Geometry is MultiPolygon
+    mv_geom = edisgo_obj.topology.grid_district["geom"]
+    if mv_geom.geom_type == "Polygon":
+        # Transform Polygon to MultiPolygon and overwrite geometry
+        p = wkt_loads(str(mv_geom))
+        m = MultiPolygon([p])
+        edisgo_obj.topology.grid_district["geom"] = m
+    elif mv_geom.geom_type == "MultiPolygon":
+        m = mv_geom
+    else:
+        raise ValueError(
+            f"Grid district geometry is of type {type(mv_geom)}."
+            " Only Shapely Polygon or MultiPolygon are accepted.")
+    mv_geom_gdf = gpd.GeoDataFrame(
+        m, crs=f"EPSG:{srid}", columns=["geometry"])
+
+    return set(np.append(gpd.sjoin(
+        geom_data, mv_geom_gdf, how="right", op='intersects').gid.unique(),
+        edisgo_obj.topology.generators_df.weather_cell_id.dropna().unique()))
+
 
 
 def get_timeseries_per_node(grid, edisgo, component, component_names=None):

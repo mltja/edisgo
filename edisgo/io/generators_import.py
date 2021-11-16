@@ -18,7 +18,7 @@ if "READTHEDOCS" not in os.environ:
     from shapely.wkt import loads as wkt_loads
 
 
-def oedb(edisgo_object, **kwargs):
+def oedb(edisgo_object, generator_scenario, **kwargs):
     """
     Gets generator park for specified scenario from oedb and integrates them
     into the grid.
@@ -32,6 +32,9 @@ def oedb(edisgo_object, **kwargs):
     Parameters
     ----------
     edisgo_object : :class:`~.EDisGo`
+    generator_scenario : str
+        Scenario for which to retrieve generator data. Possible options
+        are 'nep2035' and 'ego100'.
 
     Other Parameters
     ----------------
@@ -244,16 +247,16 @@ def oedb(edisgo_object, **kwargs):
                 and not generators_res_lv["geom"].empty
                 and not generators_res_mv["geom"].empty
         ):
-
+            projection = proj2equidistant(srid)
             # get geom of 1 random MV and 1 random LV generator and transform
             sample_mv_geno_geom_shp = transform(
-                proj2equidistant(srid),
+                projection,
                 wkt_loads(
                     generators_res_mv["geom"].dropna().sample(n=1).values[0]
                 ),
             )
             sample_lv_geno_geom_shp = transform(
-                proj2equidistant(srid),
+                projection,
                 wkt_loads(
                     generators_res_lv["geom"].dropna().sample(n=1).values[0]
                 ),
@@ -261,7 +264,7 @@ def oedb(edisgo_object, **kwargs):
 
             # get geom of MV grid district
             mvgd_geom_shp = transform(
-                proj2equidistant(srid),
+                projection,
                 edisgo_object.topology.grid_district["geom"],
             )
 
@@ -277,20 +280,19 @@ def oedb(edisgo_object, **kwargs):
                 )
 
     oedb_data_source = edisgo_object.config["data_source"]["oedb_data_source"]
-    scenario = edisgo_object.topology.generator_scenario
     srid = edisgo_object.topology.grid_district["srid"]
 
     # load ORM names
     orm_conv_generators_name = (
             edisgo_object.config[oedb_data_source][
                 "conv_generators_prefix"]
-            + scenario
+            + generator_scenario
             + edisgo_object.config[oedb_data_source][
                 "conv_generators_suffix"]
     )
     orm_re_generators_name = (
             edisgo_object.config[oedb_data_source]["re_generators_prefix"]
-            + scenario
+            + generator_scenario
             + edisgo_object.config[oedb_data_source]["re_generators_suffix"]
     )
 
@@ -358,7 +360,8 @@ def _update_grids(
         remove_decommissioned=True,
         update_existing=True,
         p_target=None,
-        allowed_number_of_comp_per_lv_bus=2
+        allowed_number_of_comp_per_lv_bus=2,
+        **kwargs
 ):
     """
     Update network according to new generator dataset.

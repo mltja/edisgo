@@ -12,7 +12,103 @@ from edisgo.network import timeseries
 from edisgo.io import ding0_import
 
 
-class Testget_component_timeseries:
+class TestTimeSeries:
+
+    def test_timeindex(self):
+        timeseries_obj = timeseries.TimeSeries()
+        # test single time step
+        ind = pd.Timestamp("1/1/1970")
+        timeseries_obj.timeindex = ind
+        assert timeseries_obj.timeindex == pd.DatetimeIndex([ind])
+        # test list of time steps
+        ind = ["1/1/1970", "1/2/1970"]
+        timeseries_obj.timeindex = ind
+        assert timeseries_obj.timeindex.equals(pd.DatetimeIndex(ind))
+        # test DatetimeIndex
+        ind = ["1/1/1970", "1/2/1970"]
+        timeseries_obj.timeindex = pd.DatetimeIndex(ind)
+        assert timeseries_obj.timeindex.equals(pd.DatetimeIndex(ind))
+
+    def test_to_csv(self):
+        timeindex = pd.date_range('1/1/2018', periods=2, freq='H')
+        timeseries_obj = timeseries.TimeSeries(timeindex=timeindex)
+
+        # create dummy time series
+        loads_active_power = pd.DataFrame(
+            {"load1": [1.4, 2.3],
+             "load2": [2.4, 1.3]},
+            index=timeindex
+        )
+        timeseries_obj.loads_active_power = loads_active_power
+        generators_reactive_power = pd.DataFrame(
+            {"gen1": [1.4, 2.3],
+             "gen2": [2.4, 1.3]},
+            index=timeindex
+        )
+        timeseries_obj.generators_reactive_power = generators_reactive_power
+
+        # test with default values
+        dir = os.path.join(os.getcwd(), "timeseries_csv")
+        timeseries_obj.to_csv(dir)
+
+        files_in_timeseries_dir = os.listdir(dir)
+        assert len(files_in_timeseries_dir) == 2
+        assert "loads_active_power.csv" in files_in_timeseries_dir
+        assert "generators_reactive_power.csv" in files_in_timeseries_dir
+
+        shutil.rmtree(dir)
+
+        # test with reduce memory True
+        timeseries_obj.to_csv(
+            dir,
+            reduce_memory=True
+        )
+
+        assert timeseries_obj.loads_active_power.load1.dtype == "float32"
+
+        shutil.rmtree(dir, ignore_errors=True)
+
+    def test_from_csv(self):
+        timeindex = pd.date_range('1/1/2018', periods=2, freq='H')
+        timeseries_obj = timeseries.TimeSeries(timeindex=timeindex)
+
+        # create dummy time series
+        loads_active_power = pd.DataFrame(
+            {"load1": [1.4, 2.3],
+             "load2": [2.4, 1.3]},
+            index=timeindex
+        )
+        timeseries_obj.loads_active_power = loads_active_power
+        generators_reactive_power = pd.DataFrame(
+            {"gen1": [1.4, 2.3],
+             "gen2": [2.4, 1.3]},
+            index=timeindex
+        )
+        timeseries_obj.generators_reactive_power = generators_reactive_power
+
+        # write to csv
+        dir = os.path.join(os.getcwd(), "timeseries_csv")
+        timeseries_obj.to_csv(dir)
+
+        # reset TimeSeries
+        timeseries_obj = timeseries.TimeSeries()
+
+        timeseries_obj.from_csv(dir)
+
+        pd.testing.assert_frame_equal(
+            timeseries_obj.loads_active_power, loads_active_power,
+            check_freq=False
+        )
+        pd.testing.assert_frame_equal(
+            timeseries_obj.generators_reactive_power,
+            generators_reactive_power,
+            check_freq=False
+        )
+
+        shutil.rmtree(dir)
+
+
+class Test_get_component_timeseries:
 
     @classmethod
     def setup_class(self):
@@ -20,61 +116,6 @@ class Testget_component_timeseries:
         self.timeseries = timeseries.TimeSeries()
         self.config = Config()
         ding0_import.import_ding0_grid(pytest.ding0_test_network_path, self)
-
-    def test_to_csv(self):
-        cur_dir = os.getcwd()
-        timeseries.get_component_timeseries(edisgo_obj=self, mode='worst-case')
-        self.timeseries.to_csv(cur_dir)
-        #create edisgo obj to compare
-        parent_dirname = os.path.dirname(os.path.dirname(__file__))
-        test_network_directory = os.path.join(
-            parent_dirname, 'ding0_test_network_1')
-        edisgo = pd.DataFrame()
-        edisgo.topology = Topology()
-        edisgo.timeseries = timeseries.TimeSeries()
-        edisgo.config = Config()
-        ding0_import.import_ding0_grid(test_network_directory, edisgo)
-        timeseries.get_component_timeseries(
-            edisgo, mode='manual',
-            timeindex=pd.read_csv(
-                os.path.join(cur_dir, 'timeseries', 'loads_active_power.csv'),
-                index_col=0).index,
-            loads_active_power=pd.read_csv(
-                os.path.join(cur_dir, 'timeseries', 'loads_active_power.csv'),
-                index_col=0),
-            loads_reactive_power=pd.read_csv(
-                os.path.join(cur_dir, 'timeseries',
-                             'loads_reactive_power.csv'), index_col=0),
-            generators_active_power=pd.read_csv(
-                os.path.join(cur_dir, 'timeseries',
-                             'generators_active_power.csv'), index_col=0),
-            generators_reactive_power=pd.read_csv(
-                os.path.join(cur_dir, 'timeseries',
-                             'generators_reactive_power.csv'), index_col=0),
-            storage_units_active_power=pd.read_csv(
-                os.path.join(cur_dir, 'timeseries',
-                             'storage_units_active_power.csv'), index_col=0),
-            storage_units_reactive_power=pd.read_csv(
-                os.path.join(cur_dir, 'timeseries',
-                             'storage_units_reactive_power.csv'), index_col=0)
-        )
-        # check if timeseries are the same
-        assert np.isclose(self.timeseries.loads_active_power,
-                          edisgo.timeseries.loads_active_power).all()
-        assert np.isclose(self.timeseries.loads_reactive_power,
-                          edisgo.timeseries.loads_reactive_power).all()
-        assert np.isclose(self.timeseries.generators_active_power,
-                          edisgo.timeseries.generators_active_power).all()
-        assert np.isclose(self.timeseries.generators_reactive_power,
-                          edisgo.timeseries.generators_reactive_power).all()
-        assert np.isclose(self.timeseries.storage_units_active_power,
-                          edisgo.timeseries.storage_units_active_power).all()
-        assert np.isclose(self.timeseries.storage_units_reactive_power,
-                          edisgo.timeseries.storage_units_reactive_power).all()
-        # delete folder
-        # Todo: check files before rmtree?
-        shutil.rmtree(os.path.join(cur_dir, 'timeseries'), ignore_errors=True)
-        self.timeseries = timeseries.TimeSeries()
 
     def test_timeseries_imported(self):
         # test storage ts
@@ -128,9 +169,9 @@ class Testget_component_timeseries:
         #Todo: test with inserted reactive generation and/or reactive load
 
         # remove storages
-        self.topology.remove_storage(storage_1)
-        self.topology.remove_storage(storage_2)
-        self.topology.remove_storage(storage_3)
+        self.topology.remove_storage_unit(storage_1)
+        self.topology.remove_storage_unit(storage_2)
+        self.topology.remove_storage_unit(storage_3)
 
     def test_import_load_timeseries(self):
         with pytest.raises(NotImplementedError):
@@ -140,10 +181,9 @@ class Testget_component_timeseries:
                                       timeindex[0].year)
         assert (load.columns == ['retail', 'residential',
                                  'agricultural', 'industrial']).all()
-        assert load.loc[timeindex[453], 'retail'] == 8.335076810751597e-05
-        assert load.loc[timeindex[13], 'residential'] == 0.00017315167492271323
-        assert load.loc[timeindex[6328], 'agricultural'] == \
-               0.00010134645909959844
+        assert load.loc[timeindex[453], 'retail'] == 8.33507681075118e-05
+        assert load.loc[timeindex[13], 'residential'] == 0.00017315167492271174
+        assert load.loc[timeindex[6328], 'agricultural'] == 0.00010134645909959971
         assert load.loc[timeindex[4325], 'industrial'] == 9.91768322919766e-05
 
     def test_worst_case(self):
@@ -232,14 +272,13 @@ class Testget_component_timeseries:
             self.timeseries.generators_reactive_power.loc[:, gen],
             exp * pf)
 
-        load = 'Load_retail_MVGrid_1_Load_aggregated_retail_' \
-               'MVGrid_1_1'  # retail, mv
-        exp = pd.Series(data=[0.15 * 0.31, 1.0 * 0.31],
+        load = 'Load_retail_MVGrid_1_Load_aggregated_retail_MVGrid_1_1'  # retail, mv
+        exp = pd.Series(data=[0.1 * 0.31, 1.0 * 0.31],
                         name=load, index=self.timeseries.timeindex)
         assert_series_equal(
             self.timeseries.loads_active_power.loc[:, load], exp,
             check_exact=False, check_dtype=False)
-        pf = tan(acos(0.9))
+        pf = tan(acos(0.95))
         assert_series_equal(
             self.timeseries.loads_reactive_power.loc[:, load],
             exp * pf, check_exact=False, check_dtype=False)
@@ -291,9 +330,9 @@ class Testget_component_timeseries:
             exp * pf, check_exact=False, check_dtype=False)
 
         # remove storages
-        self.topology.remove_storage(storage_1)
-        #self.topology.remove_storage(storage_2)
-        self.topology.remove_storage(storage_3)
+        self.topology.remove_storage_unit(storage_1)
+        #self.topology.remove_storage_unit(storage_2)
+        self.topology.remove_storage_unit(storage_3)
 
         # test for only feed-in case
         timeseries.get_component_timeseries(edisgo_obj=self,
@@ -382,7 +421,7 @@ class Testget_component_timeseries:
         timeseries.add_loads_timeseries(self, load_name)
         active_power_new_load = \
             self.timeseries.loads_active_power.loc[:,
-                ['Load_retail_MVGrid_1_4']]
+                ['Load_MVGrid_1_retail_4']]
         timeindex = pd.date_range('1/1/1970', periods=2, freq='H')
         assert (self.timeseries.loads_active_power.shape == (2, num_loads+1))
         assert (self.timeseries.loads_reactive_power.shape ==
@@ -488,8 +527,11 @@ class Testget_component_timeseries:
             (self.timeseries.generators_active_power.index == timeindex).all()
         assert (self.timeseries.generators_active_power.loc[
             timeindex, gen_name].values == [0.85*p_nom, 0]).all()
-        assert np.isclose(self.timeseries.generators_reactive_power.loc[
-            timeindex, gen_name], [-tan(acos(0.95))*0.85*p_nom, 0]).all()
+        assert np.isclose(
+            np.array(self.timeseries.generators_reactive_power.loc[
+                timeindex, gen_name].values, dtype=float),
+            [-tan(acos(0.95))*0.85*p_nom, 0]
+        ).all()
         # add multiple generators and check
         p_nom2 = 1.3
         gen_name2 = self.topology.add_generator(generator_id=2, p_nom=p_nom2,
@@ -505,13 +547,17 @@ class Testget_component_timeseries:
         assert self.timeseries.generators_reactive_power.shape == (
             2, num_gens + 3)
         assert np.isclose(
-            self.timeseries.generators_active_power.loc[
-                timeindex, [gen_name2, gen_name3]].values,
-            [[p_nom2, p_nom3], [0, 0]]).all()
+            np.array(
+                self.timeseries.generators_active_power.loc[
+                timeindex, [gen_name2, gen_name3]].values, dtype=float),
+            [[p_nom2, p_nom3], [0, 0]]
+        ).all()
         assert np.isclose(
-            self.timeseries.generators_reactive_power.loc[
-                timeindex, [gen_name2, gen_name3]].values,
-            [[-p_nom2*tan(acos(0.9)), -p_nom3*tan(acos(0.95))], [0, 0]]).all()
+            np.array(
+                self.timeseries.generators_reactive_power.loc[
+                timeindex, [gen_name2, gen_name3]].values, dtype=float),
+            [[-p_nom2*tan(acos(0.9)), -p_nom3*tan(acos(0.95))], [0, 0]]
+        ).all()
         # remove added generators
         self.topology.remove_generator(gen_name)
         self.topology.remove_generator(gen_name2)
@@ -691,9 +737,12 @@ class Testget_component_timeseries:
                 (len(timeindex), num_storage_units + 1))
         assert (self.timeseries.storage_units_active_power.loc[
                     timeindex, storage_name].values == [p_nom, -p_nom]).all()
-        assert (np.isclose(self.timeseries.storage_units_reactive_power.loc[
-                    timeindex, storage_name].values,
-                    [-p_nom*tan(acos(0.9)), p_nom*tan(acos(0.9))])).all()
+        assert (np.isclose(
+            np.array(
+                self.timeseries.storage_units_reactive_power.loc[
+                    timeindex, storage_name].values, dtype=float),
+            [-p_nom*tan(acos(0.9)), p_nom * tan(acos(0.9))])
+        ).all()
         # add two storage units
         p_nom2 = 1.3
         storage_name2 = self.topology.add_storage_unit(
@@ -708,18 +757,24 @@ class Testget_component_timeseries:
         assert (self.timeseries.storage_units_reactive_power.shape ==
                 (len(timeindex), num_storage_units + 3))
         assert np.isclose(
-            self.timeseries.storage_units_active_power.loc[
+            np.array(
+                self.timeseries.storage_units_active_power.loc[
                 timeindex, [storage_name2, storage_name3]].values,
-            [[p_nom2, p_nom3], [-p_nom2, -p_nom3]]).all()
+                dtype=float),
+            [[p_nom2, p_nom3], [-p_nom2, -p_nom3]]
+        ).all()
         assert np.isclose(
-            self.timeseries.storage_units_reactive_power.loc[
+            np.array(
+                self.timeseries.storage_units_reactive_power.loc[
                 timeindex, [storage_name2, storage_name3]].values,
+                dtype=float),
             [[-tan(acos(0.95))*p_nom2, -tan(acos(0.9))*p_nom3],
-             [tan(acos(0.95))*p_nom2, tan(acos(0.9))*p_nom3]]).all()
-        # remove storages
-        self.topology.remove_storage(storage_name)
-        self.topology.remove_storage(storage_name2)
-        self.topology.remove_storage(storage_name3)
+             [tan(acos(0.95))*p_nom2, tan(acos(0.9))*p_nom3]]
+        ).all()
+        # remove storage units
+        self.topology.remove_storage_unit(storage_name)
+        self.topology.remove_storage_unit(storage_name2)
+        self.topology.remove_storage_unit(storage_name3)
         # TEST MANUAL
         timeindex = pd.date_range('1/1/2018', periods=24, freq='H')
         generators_active_power, generators_reactive_power, \
@@ -792,9 +847,9 @@ class Testget_component_timeseries:
                 timeindex, [storage_name2, storage_name3]].values,
             [p_nom2 * 0.5, p_nom3 * 0.4]).all()
         # remove added generators
-        self.topology.remove_storage(storage_name)
-        self.topology.remove_storage(storage_name2)
-        self.topology.remove_storage(storage_name3)
+        self.topology.remove_storage_unit(storage_name)
+        self.topology.remove_storage_unit(storage_name2)
+        self.topology.remove_storage_unit(storage_name3)
         # TEST TIMESERIES IMPORT
         # test import timeseries from dbs
         timeindex = pd.date_range('1/1/2011', periods=24, freq='H')
@@ -852,14 +907,20 @@ class Testget_component_timeseries:
         assert (self.timeseries.storage_units_reactive_power.shape ==
                 (24, num_storage_units + 3))
         assert np.isclose(
-            self.timeseries.storage_units_active_power.loc[
+            np.array(
+                self.timeseries.storage_units_active_power.loc[
                 timeindex, [storage_name2, storage_name3]].values,
-            [p_nom2 * 0.97, p_nom3 * 0.98]).all()
+                dtype=float),
+            [p_nom2 * 0.97, p_nom3 * 0.98]
+        ).all()
         assert np.isclose(
-            self.timeseries.storage_units_reactive_power.loc[
+            np.array(
+                self.timeseries.storage_units_reactive_power.loc[
                 timeindex, [storage_name2, storage_name3]].values,
+                dtype=float),
             [-tan(acos(0.95)) * p_nom2 * 0.97,
-             -tan(acos(0.9)) * p_nom3 * 0.98]).all()
+             -tan(acos(0.9)) * p_nom3 * 0.98]
+        ).all()
         # check values when reactive power is inserted as timeseries
         timeseries.add_storage_units_timeseries(self,
                                                 [storage_name2, storage_name3],
@@ -880,9 +941,9 @@ class Testget_component_timeseries:
                 timeindex, [storage_name2, storage_name3]].values,
             [p_nom2 * 0.5, p_nom3 * 0.4]).all()
         # remove added generators
-        self.topology.remove_storage(storage_name)
-        self.topology.remove_storage(storage_name2)
-        self.topology.remove_storage(storage_name3)
+        self.topology.remove_storage_unit(storage_name)
+        self.topology.remove_storage_unit(storage_name2)
+        self.topology.remove_storage_unit(storage_name3)
 
     def test_check_timeseries_for_index_and_cols(self):
         """Test check_timeseries_for_index_and_cols method"""
@@ -1004,7 +1065,7 @@ class Testget_component_timeseries:
         with pytest.raises(KeyError):
             self.timeseries.storage_units_reactive_power.loc[
                 timeindex, storage_1]
-        self.topology.remove_storage(storage_1)
+        self.topology.remove_storage_unit(storage_1)
 
 
 class TestReactivePowerTimeSeriesFunctions:
@@ -1076,7 +1137,10 @@ class TestReactivePowerTimeSeriesFunctions:
             active_power_ts.loc[:, [comp_lv_1, comp_lv_2]] * -0.328684).all()
 
         # test for component_type="loads"
+        # change bus of load so that it becomes MV load
         comp_mv_1 = "Load_retail_MVGrid_1_Load_aggregated_retail_MVGrid_1_1"
+        self.topology._loads_df.at[
+            comp_mv_1, "bus"] = "Bus_BranchTee_MVGrid_1_1"
         comp_lv_1 = "Load_residential_LVGrid_7_2"
         comp_lv_2 = "Load_agricultural_LVGrid_8_1"
 

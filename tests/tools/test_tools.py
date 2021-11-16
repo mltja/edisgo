@@ -25,12 +25,12 @@ class TestTools:
         # test without providing lines and time steps
         rel_line_load = tools.calculate_relative_line_load(
             self.edisgo)
-        assert rel_line_load.shape == (2, 198)
+        assert rel_line_load.shape == (2, 129)
 
         # test with providing lines
         rel_line_load = tools.calculate_relative_line_load(
             self.edisgo,
-            lines=["Line_10005", "Line_50000002", "Line_90000025"])
+            lines=["Line_10005", "Line_50000002", "Line_90000021"])
         assert rel_line_load.shape == (2, 3)
         assert np.isclose(
             rel_line_load.at[self.timesteps[0], "Line_10005"],
@@ -56,88 +56,50 @@ class TestTools:
         )
 
     def test_calculate_line_reactance(self):
-        data = tools.calculate_line_reactance(2, 3)
+        # test single line
+        data = tools.calculate_line_reactance(2, 3, 1)
         assert np.isclose(data, 1.88496)
-        data = tools.calculate_line_reactance(np.array([2, 3]), 3)
+        data = tools.calculate_line_reactance(np.array([2, 3]), 3, 1)
         assert_allclose(data, np.array([1.88496, 2.82743]), rtol=1e-5)
+        # test parallel line
+        data = tools.calculate_line_reactance(2, 3, 2)
+        assert np.isclose(data, 1.88496/2)
+        data = tools.calculate_line_reactance(np.array([2, 3]), 3, 2)
+        assert_allclose(data, np.array([1.88496/2, 2.82743/2]), rtol=1e-5)
 
     def test_calculate_line_resistance(self):
-        data = tools.calculate_line_resistance(2, 3)
+        # test single line
+        data = tools.calculate_line_resistance(2, 3, 1)
         assert data == 6
-        data = tools.calculate_line_resistance(np.array([2, 3]), 3)
+        data = tools.calculate_line_resistance(np.array([2, 3]), 3, 1)
         assert_array_equal(data, np.array([6, 9]))
+        # test parallel line
+        data = tools.calculate_line_resistance(2, 3, 2)
+        assert data == 3
+        data = tools.calculate_line_resistance(np.array([2, 3]), 3, 2)
+        assert_array_equal(data, np.array([3, 4.5]))
 
     def test_calculate_apparent_power(self):
-        data = tools.calculate_apparent_power(20, 30)
+        # test single line
+        data = tools.calculate_apparent_power(20, 30, 1)
         assert np.isclose(data, 1039.23)
-        data = tools.calculate_apparent_power(30, np.array([20, 30]))
+        data = tools.calculate_apparent_power(30, np.array([20, 30]), 1)
         assert_allclose(data, np.array([1039.23, 1558.84]), rtol=1e-5)
         data = tools.calculate_apparent_power(np.array([30, 30]),
-                                              np.array([20, 30]))
+                                              np.array([20, 30]), 1)
         assert_allclose(data, np.array([1039.23, 1558.84]), rtol=1e-5)
-
-    def test_check_bus_for_removal(self):
-        self.topology = Topology()
-        ding0_import.import_ding0_grid(pytest.ding0_test_network_path, self)
-
-        # check for assertion
-        msg = "Bus of name Test_bus_to_remove not in Topology. " \
-              "Cannot be checked to be removed."
-        with pytest.raises(ValueError, match=msg):
-            tools.check_bus_for_removal(self.topology, 'Test_bus_to_remove')
-
-        # check buses with connected elements
-        assert not \
-            tools.check_bus_for_removal(self.topology, 'Bus_Generator_1')
-        assert not \
-            tools.check_bus_for_removal(self.topology,
-                                        'Bus_Load_agricultural_LVGrid_1_1')
-        assert not \
-            tools.check_bus_for_removal(self.topology,
-                                        'BusBar_MVGrid_1_LVGrid_7_MV')
-        assert not \
-            tools.check_bus_for_removal(self.topology,
-                                        'Bus_BranchTee_MVGrid_1_3')
-
-        # add bus and line that could be removed
-        self.topology.add_bus(bus_name='Test_bus_to_remove', v_nom=20)
-        self.topology.add_line(bus0='Bus_MVStation_1',
-                               bus1='Test_bus_to_remove',
-                               length=1.0)
-        assert self.topology.lines_df.at[
-                   'Line_Bus_MVStation_1_Test_bus_to_remove', 'length'] == 1
-        assert tools.check_bus_for_removal(self.topology, 'Test_bus_to_remove')
-
-    def test_check_line_for_removal(self):
-        parent_dirname = os.path.dirname(os.path.dirname(__file__))
-        test_network_directory = os.path.join(
-            parent_dirname, 'ding0_test_network_1')
-        self.topology = Topology()
-        ding0_import.import_ding0_grid(test_network_directory, self)
-
-        # check for assertion
-        msg = "Line of name Test_line_to_remove not in Topology. " \
-              "Cannot be checked to be removed."
-        with pytest.raises(ValueError, match=msg):
-            tools.check_line_for_removal(self.topology, 'Test_line_to_remove')
-
-        # check lines with connected elements
-        # transformer
-        assert not tools.check_line_for_removal(self.topology, 'Line_10024')
-        # generator
-        assert not tools.check_line_for_removal(self.topology, 'Line_10032')
-        # load
-        assert not tools.check_line_for_removal(self.topology, 'Line_10000021')
-        # check for lines that could be removed
-        # Todo: this case would create subnetworks, still has to be implemented
-        assert tools.check_line_for_removal(self.topology, 'Line_10014')
-
-        # create line that can be removed safely
-        self.topology.add_bus(bus_name='testbus', v_nom=20)
-        self.topology.add_bus(bus_name='testbus2', v_nom=20)
-        line_name = self.topology.add_line(bus0='testbus', bus1='testbus2', length=2.3)
-        assert tools.check_line_for_removal(self.topology, line_name)
-        self.topology.remove_line(line_name)
+        # test parallel line
+        data = tools.calculate_apparent_power(20, 30, 2)
+        assert np.isclose(data, 1039.23*2)
+        data = tools.calculate_apparent_power(30, np.array([20, 30]), 3)
+        assert_allclose(data, np.array([1039.23*3, 1558.84*3]), rtol=1e-5)
+        data = tools.calculate_apparent_power(np.array([30, 30]),
+                                              np.array([20, 30]), 2)
+        assert_allclose(data, np.array([1039.23*2, 1558.84*2]), rtol=1e-5)
+        data = tools.calculate_apparent_power(np.array([30, 30]),
+                                              np.array([20, 30]),
+                                              np.array([2, 3]))
+        assert_allclose(data, np.array([1039.23 * 2, 1558.84 * 3]), rtol=1e-5)
 
     def test_select_cable(self):
         cable_data, num_parallel_cables = tools.select_cable(
@@ -162,12 +124,16 @@ class TestTools:
 
         topo = self.edisgo.topology
 
-        # check that all lines and all buses (except MV station bus) have an
-        # MV feeder assigned
+        # check that all lines and all buses (except MV station bus and buses
+        # in aggregated load areas) have an MV feeder assigned
         assert not topo.lines_df.mv_feeder.isna().any()
+        mv_station = topo.mv_grid.station.index[0]
+        buses_aggr_la = list(topo.transformers_df[
+            topo.transformers_df.bus0 == mv_station].bus1.unique())
+        buses_aggr_la.append(mv_station)
         assert not topo.buses_df[
             ~topo.buses_df.index.isin(
-                topo.mv_grid.station.index)].mv_feeder.isna().any()
+                buses_aggr_la)].mv_feeder.isna().any()
 
         # check specific buses
         # MV and LV bus in feeder 1
@@ -208,7 +174,7 @@ class TestTools:
             "Bus_BranchTee_LVGrid_1_8", "lv_feeder"] ==
                 "Bus_BranchTee_LVGrid_1_7")
         assert (topo.buses_df.at[
-            "Bus_Load_residential_LVGrid_2_2", "lv_feeder"] ==
+            "Bus_BranchTee_LVGrid_2_4", "lv_feeder"] ==
                 "Bus_BranchTee_LVGrid_2_1")
 
         # check specific lines
@@ -216,3 +182,50 @@ class TestTools:
             "Line_30000005", "lv_feeder"] == "Bus_BranchTee_LVGrid_3_3"
         assert topo.lines_df.at[
             "Line_40000001", "lv_feeder"] == "Bus_GeneratorFluctuating_16"
+
+        # ######## test real ding0 network ########
+        self.edisgo = EDisGo(
+            ding0_grid=pytest.ding0_test_network_2_path,
+            worst_case_analysis="worst-case"
+        )
+        topo = self.edisgo.topology
+
+        tools.assign_feeder(self.edisgo, mode="mv_feeder")
+
+        # check that all lines and all buses (except MV station bus and buses
+        # in aggregated load areas) have an MV feeder assigned
+        assert not topo.lines_df.mv_feeder.isna().any()
+        mv_station = topo.mv_grid.station.index[0]
+        buses_aggr_la = list(
+            topo.transformers_df[
+                topo.transformers_df.bus0 == mv_station].bus1.unique())
+        buses_aggr_la.append(mv_station)
+        assert not topo.buses_df[
+            ~topo.buses_df.index.isin(
+                buses_aggr_la)].mv_feeder.isna().any()
+
+        tools.assign_feeder(self.edisgo, mode="lv_feeder")
+        # check that all buses (except LV station buses) and lines in LV have
+        # an LV feeder assigned
+        mv_lines = topo.mv_grid.lines_df.index
+        assert not topo.lines_df[
+            ~topo.lines_df.index.isin(
+                mv_lines)].lv_feeder.isna().any()
+        mv_buses = list(topo.mv_grid.buses_df.index)
+        mv_buses.extend(topo.transformers_df.bus1)
+        assert not topo.buses_df[
+            ~topo.buses_df.index.isin(
+                mv_buses)].lv_feeder.isna().any()
+
+    def test_get_weather_cells_intersecting_with_grid_district(self):
+        weather_cells = \
+            tools.get_weather_cells_intersecting_with_grid_district(
+                self.edisgo)
+        assert len(weather_cells) == 4
+        assert 1123075 in weather_cells
+        assert 1122075 in weather_cells
+        assert 1122076 in weather_cells
+        # the following weather cell does not intersect with the grid district
+        # but there are generators in the grid that have that weather cell
+        # for some reason..
+        assert 1122074 in weather_cells

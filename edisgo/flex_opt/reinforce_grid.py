@@ -13,7 +13,7 @@ logger = logging.getLogger("edisgo")
 def reinforce_grid(
     edisgo,
     timesteps_pfa=None,
-    copy_graph=False,
+    copy_grid=False,
     max_while_iterations=10,
     combined_analysis=False,
     mode=None,
@@ -53,9 +53,9 @@ def reinforce_grid(
           :pandas:`pandas.Timestamp<Timestamp>`
           Use this option to explicitly choose which time steps to consider.
 
-    copy_graph : :obj:`Boolean`
-        If True reinforcement is conducted on a copied graph and discarded.
-        Default: False. Todo: Do we still need this? If so, rename.
+    copy_grid : :obj:`Boolean`
+        If True reinforcement is conducted on a copied grid and discarded.
+        Default: False.
     max_while_iterations : :obj:`int`
         Maximum number of times each while loop is conducted.
     combined_analysis : :obj:`Boolean`
@@ -68,15 +68,14 @@ def reinforce_grid(
         Determines network levels reinforcement is conducted for. Specify
 
         * None to reinforce MV and LV network levels. None is the default.
-        * 'mv' to reinforce MV network level only, neglecting MV/LV stations, and
-          LV network topology. LV load and generation is aggregated per
+        * 'mv' to reinforce MV network level only, neglecting MV/LV stations,
+          and LV network topology. LV load and generation is aggregated per
           LV network and directly connected to the primary side of the
           respective MV/LV station.
-        * 'mvlv' to reinforce MV network level only, including MV/LV stations, and
-          neglecting LV network topology. LV load and generation is aggregated per
-          LV network and directly connected to the secondary side of the
-          respective MV/LV station.
-          #Todo: check if this mode is implemented correctly, if not adjust
+        * 'mvlv' to reinforce MV network level only, including MV/LV stations,
+          and neglecting LV network topology. LV load and generation is
+          aggregated per LV network and directly connected to the secondary
+          side of the respective MV/LV station.
 
     Returns
     -------
@@ -125,14 +124,9 @@ def reinforce_grid(
     if mode and mode not in ["mv", "mvlv"]:
         raise ValueError("Provided mode {} is not a valid mode.".format(mode))
 
-    # assign MV feeder to every generator, LV station, load, and branch tee
-    # to assign network expansion costs to an MV feeder
-    # Todo: Necessary? If so change
-    # assign_mv_feeder_to_nodes(edisgo.topology.mv_grid)
-
     # in case reinforcement needs to be conducted on a copied graph the
     # edisgo object is deep copied
-    if copy_graph is True:
+    if copy_grid is True:
         edisgo_reinforce = copy.deepcopy(edisgo)
     else:
         edisgo_reinforce = edisgo
@@ -146,7 +140,8 @@ def reinforce_grid(
             snapshots = tools.select_worstcase_snapshots(edisgo_reinforce)
             # drop None values in case any of the two snapshots does not exist
             timesteps_pfa = pd.DatetimeIndex(
-                data=[snapshots["load_case"], snapshots["feedin_case"]]
+                data=[snapshots["max_residual_load"],
+                      snapshots["min_residual_load"]]
             ).dropna()
         # if timesteps_pfa is not of type datetime or does not contain
         # datetimes throw an error
@@ -243,16 +238,17 @@ def reinforce_grid(
         or not overloaded_mv_station.empty
         or not overloaded_lv_stations.empty
     ):
-        edisgo_reinforce.results.unresolved_issues.update(crit_lines)
-        edisgo_reinforce.results.unresolved_issues.update(
-            overloaded_lv_stations
-        )
-        edisgo_reinforce.results.unresolved_issues.update(
-            overloaded_mv_station
-        )
+        edisgo_reinforce.results.unresolved_issues = \
+            pd.concat(
+                [edisgo_reinforce.results.unresolved_issues,
+                 crit_lines,
+                 overloaded_lv_stations,
+                 overloaded_mv_station
+                 ]
+            )
         raise exceptions.MaximumIterationError(
-            "Overloading issues for the following lines could not be solved:"
-            "{}".format(crit_lines)
+            "Overloading issues could not be solved after maximum allowed "
+            "iterations."
         )
     else:
         logger.info(
@@ -300,11 +296,12 @@ def reinforce_grid(
     # check if all voltage problems were solved after maximum number of
     # iterations allowed
     if while_counter == max_while_iterations and crit_nodes:
-        for k, v in crit_nodes.items():
-            for node in v.index:
-                edisgo_reinforce.results.unresolved_issues.update(
-                    {node: v.loc[node, "v_diff_max"]}
-                )
+        edisgo_reinforce.results.unresolved_issues = \
+            pd.concat(
+                [edisgo_reinforce.results.unresolved_issues,
+                 pd.concat([_ for _ in crit_nodes.values()])
+                 ]
+            )
         raise exceptions.MaximumIterationError(
             "Over-voltage issues for the following nodes in MV topology could "
             "not be solved: {}".format(crit_nodes)
@@ -354,11 +351,12 @@ def reinforce_grid(
         # check if all voltage problems were solved after maximum number of
         # iterations allowed
         if while_counter == max_while_iterations and crit_stations:
-            for k, v in crit_stations.items():
-                for node in v.index:
-                    edisgo_reinforce.results.unresolved_issues.update(
-                        {node: v.loc[node, "v_diff_max"]}
-                    )
+            edisgo_reinforce.results.unresolved_issues = \
+                pd.concat(
+                    [edisgo_reinforce.results.unresolved_issues,
+                     pd.concat([_ for _ in crit_stations.values()])
+                     ]
+                )
             raise exceptions.MaximumIterationError(
                 "Over-voltage issues at busbar could not be solved for the "
                 "following LV grids: {}".format(crit_stations)
@@ -404,11 +402,12 @@ def reinforce_grid(
         # check if all voltage problems were solved after maximum number of
         # iterations allowed
         if while_counter == max_while_iterations and crit_nodes:
-            for k, v in crit_nodes.items():
-                for node in v.index:
-                    edisgo_reinforce.results.unresolved_issues.update(
-                        {repr(node): v.loc[node, "v_diff_max"]}
-                    )
+            edisgo_reinforce.results.unresolved_issues = \
+                pd.concat(
+                    [edisgo_reinforce.results.unresolved_issues,
+                     pd.concat([_ for _ in crit_nodes.values()])
+                     ]
+                )
             raise exceptions.MaximumIterationError(
                 "Over-voltage issues for the following nodes in LV grids "
                 "could not be solved: {}".format(crit_nodes)
@@ -491,13 +490,14 @@ def reinforce_grid(
         or not overloaded_mv_station.empty
         or not overloaded_lv_stations.empty
     ):
-        edisgo_reinforce.results.unresolved_issues.update(crit_lines)
-        edisgo_reinforce.results.unresolved_issues.update(
-            overloaded_lv_stations
-        )
-        edisgo_reinforce.results.unresolved_issues.update(
-            overloaded_mv_station
-        )
+        edisgo_reinforce.results.unresolved_issues = \
+            pd.concat(
+                [edisgo_reinforce.results.unresolved_issues,
+                 crit_lines,
+                 overloaded_lv_stations,
+                 overloaded_mv_station
+                 ]
+            )
         raise exceptions.MaximumIterationError(
             "Overloading issues (after solving over-voltage issues) for the"
             "following lines could not be solved: {}".format(crit_lines)

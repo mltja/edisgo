@@ -5,7 +5,8 @@ import logging
 from matplotlib import pyplot as plt
 from pypsa import Network as PyPSANetwork
 
-from pyproj import Proj, transform
+from pyproj import Proj
+from pyproj import Transformer
 import matplotlib
 
 from edisgo.tools import tools, session_scope
@@ -349,17 +350,18 @@ def mv_grid_topology(
     def get_color_and_size(connected_components, colors_dict, sizes_dict):
         # Todo: handling of multiple connected elements, so far determined as
         #  'other'
-        if not connected_components["Transformer_HVMV"].empty:
+        if not connected_components["transformers_hvmv"].empty:
             return colors_dict["MVStation"], sizes_dict["MVStation"]
-        elif not connected_components["Transformer"].empty:
+        elif not connected_components["transformers"].empty:
             return colors_dict["LVStation"], sizes_dict["LVStation"]
         elif (
-            not connected_components["Generator"].empty
-            and connected_components["Load"].empty
-            and connected_components["StorageUnit"].empty
+            not connected_components["generators"].empty
+            and connected_components["loads"].empty
+            and connected_components["charging_points"].empty
+            and connected_components["storage_units"].empty
         ):
             if (
-                connected_components["Generator"].type.isin(["wind", "solar"])
+                connected_components["generators"].type.isin(["wind", "solar"])
             ).all():
                 return (
                     colors_dict["GeneratorFluctuating"],
@@ -368,24 +370,25 @@ def mv_grid_topology(
             else:
                 return colors_dict["Generator"], sizes_dict["Generator"]
         elif (
-            not connected_components["Load"].empty
-            and connected_components["Generator"].empty
-            and connected_components["StorageUnit"].empty
+                (not connected_components["loads"].empty
+                 or not connected_components["charging_points"].empty)
+                and connected_components["generators"].empty
+                and connected_components["storage_units"].empty
         ):
-            #raise NotImplementedError
             return colors_dict["Load"], sizes_dict["Load"]
-        elif not connected_components["Switch"].empty:
+        elif not connected_components["switches"].empty:
             return (
                 colors_dict["DisconnectingPoint"],
                 sizes_dict["DisconnectingPoint"],
             )
         elif (
-            not connected_components["StorageUnit"].empty
-            and connected_components["Load"].empty
-            and connected_components["Generator"].empty
+            not connected_components["storage_units"].empty
+            and connected_components["loads"].empty
+            and connected_components["charging_points"].empty
+            and connected_components["generators"].empty
         ):
             return colors_dict["Storage"], sizes_dict["Storage"]
-        elif len(connected_components["Line"]) > 1:
+        elif len(connected_components["lines"]) > 1:
             return colors_dict["BranchTee"], sizes_dict["BranchTee"]
         else:
             return colors_dict["else"], sizes_dict["else"]
@@ -500,7 +503,7 @@ def mv_grid_topology(
             {
                 bus: edisgo_obj.topology.get_connected_components_from_bus(
                     bus
-                )["StorageUnit"].p_nom.values.sum()
+                )["storage_units"].p_nom.values.sum()
                 * 1000
                 / 3
                 for bus in buses_with_storages
@@ -678,13 +681,10 @@ def mv_grid_topology(
 
     # convert bus coordinates to Mercator
     if contextily and background_map:
-        inProj = Proj(init="epsg:4326")
-        outProj = Proj(init="epsg:3857")
-        x2, y2 = transform(
-            inProj,
-            outProj,
+        transformer = Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
+        x2, y2 = transformer.transform(
             list(pypsa_plot.buses.loc[:, "x"]),
-            list(pypsa_plot.buses.loc[:, "y"]),
+            list(pypsa_plot.buses.loc[:, "y"])
         )
         pypsa_plot.buses.loc[:, "x"] = x2
         pypsa_plot.buses.loc[:, "y"] = y2
@@ -804,7 +804,7 @@ def mv_grid_topology(
             [],
             c="orangered",
             s=200,
-            label="$\equiv$ 10% share of curtailment",
+            label="$\\equiv$ 10% share of curtailment",
         )
     else:
         scatter_handle = [

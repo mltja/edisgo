@@ -18,31 +18,14 @@ class TestImportFromDing0:
 
         # buses, generators, loads, lines, transformers dataframes
         # check number of imported components
-        assert self.topology.buses_df.shape[0] == 208
+        assert self.topology.buses_df.shape[0] == 140
         assert self.topology.generators_df.shape[0] == 28
         assert self.topology.loads_df.shape[0] == 50
-        assert self.topology.lines_df.shape[0] == 198
-        assert self.topology.transformers_df.shape[0] == 10
+        assert self.topology.lines_df.shape[0] == 129
+        assert self.topology.transformers_df.shape[0] == 14
         assert self.topology.transformers_hvmv_df.shape[0] == 1
         assert self.topology.switches_df.shape[0] == 2
         assert self.topology.storage_units_df.shape[0] == 1
-        # check necessary columns
-        assert all([col in self.topology.buses_df.columns for col in
-                    ding0_import.COLUMNS['buses_df']])
-        assert all([col in self.topology.generators_df.columns
-                    for col in ding0_import.COLUMNS['generators_df']])
-        assert all([col in self.topology.loads_df.columns for col in
-                    ding0_import.COLUMNS['loads_df']])
-        assert all([col in self.topology.transformers_df.columns
-                    for col in ding0_import.COLUMNS['transformers_df']])
-        assert all([col in self.topology.transformers_hvmv_df.columns
-                    for col in ding0_import.COLUMNS['transformers_df']])
-        assert all([col in self.topology.lines_df.columns for col in
-                    ding0_import.COLUMNS['lines_df']])
-        assert all([col in self.topology.switches_df.columns for col in
-                    ding0_import.COLUMNS['switches_df']])
-        assert all([col in self.topology.storage_units_df.columns for col in
-                    ding0_import.COLUMNS['storage_units_df']])
 
         # grid district
         assert self.topology.grid_district['population'] == 23358
@@ -51,7 +34,7 @@ class TestImportFromDing0:
 
         # grids
         assert isinstance(self.topology.mv_grid, MVGrid)
-        assert len(self.topology._grids) == 10
+        assert len(self.topology._grids) == 11
         lv_grid = [_ for _ in self.topology.mv_grid.lv_grids if _.id == 3][0]
         assert isinstance(lv_grid, LVGrid)
 
@@ -171,7 +154,7 @@ class TestImportFromDing0:
         self.topology.transformers_df.loc[
             'LVStation_7_transformer_1', 'bus1'] = 'Bus_primary_LVStation_7'
         with pytest.raises(AssertionError):
-            assert ((self.topology.buses_df.loc[
-                     self.topology.transformers_df.bus1].v_nom.values <
-                 self.topology.buses_df.loc[
-                     self.topology.transformers_df.bus0].v_nom.values).all())
+            assert ((self.topology.buses_df.reindex(
+                     index=self.topology.transformers_df.bus1).v_nom.values <
+                 self.topology.buses_df.reindex(
+                     index=self.topology.transformers_df.bus0).v_nom.values).all())

@@ -229,7 +229,7 @@ def _line_load(edisgo_obj, voltage_level):
         the voltage level the line is in (either 'mv' or 'lv').
 
     """
-    if edisgo_obj.results.i_res is None:
+    if edisgo_obj.results.i_res.empty:
         raise Exception(
             "No power flow results to check over-load for. Please perform "
             "power flow analysis first."
@@ -371,9 +371,15 @@ def _station_load(edisgo_obj, grid):
     elif isinstance(grid, MVGrid):
         voltage_level = "mv"
         transformers_df = edisgo_obj.topology.transformers_hvmv_df
+        # ensure that power flow was conducted for MV
+        mv_lines = edisgo_obj.topology.mv_grid.lines_df.index
+        if not any(mv_lines.isin(edisgo_obj.results.i_res.columns)):
+            raise ValueError(
+                "MV was not included in power flow analysis, wherefore load "
+                "of HV/MV station cannot be calculated.")
         s_station_pfa = np.hypot(
-            edisgo_obj.results.hv_mv_exchanges.p,
-            edisgo_obj.results.hv_mv_exchanges.q,
+            edisgo_obj.results.pfa_slack.p,
+            edisgo_obj.results.pfa_slack.q,
         )
     else:
         raise ValueError("Inserted grid is invalid.")
@@ -598,8 +604,7 @@ def _mv_allowed_voltage_limits(edisgo_obj, voltage_levels):
 
         * 'mv_lv'
           The allowed voltage deviations for buses in the MV are the same as
-          for buses in the LV. Further load and feed-in case are not
-          distinguished.
+          for buses in the LV, namely $pm$ 10 %.
         * 'mv'
           Use this to handle allowed voltage limits in the MV and LV
           differently. In that case load and feed-in case are differentiated.
