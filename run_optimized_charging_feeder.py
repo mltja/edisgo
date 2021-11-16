@@ -18,8 +18,8 @@ from pathlib import Path
 # edisgo = import_edisgo_from_files(grid_dir)
 # get_downstream_nodes_matrix_iterative(edisgo)
 
-grid_id = 2534
-feeder_id = 0 # 1,6
+grid_id = 176
+feeder_id = 6 # 1,6
 root_dir = r'U:\Software'
 mapping_dir = root_dir + r'\simbev_nep_2035_results\eDisGo_charging_time_series\{}'.format(grid_id)
 edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2035_results\{}\feeder\{}'.format(grid_id, feeder_id)
@@ -100,6 +100,10 @@ print('Data checked. Please pay attention to warnings.')
 parameters = prepare_time_invariant_parameters(edisgo_obj, downstream_nodes_matrix, pu=False, optimize_storage=False,
                                                optimize_ev_charging=True, cp_mapping=mapping)
 print('Time-invariant parameters extracted.')
+# parameters['branches'][['bus0', 'bus1', 'r', 'x', 's_nom']].to_csv(r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\176\feeder\6\topology\branches.csv')
+# parameters['nodal_active_power'].T.to_csv(r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\176\feeder\6\timeseries\nodal_active_power.csv')
+# parameters['nodal_reactive_power'].T.to_csv(r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\176\feeder\6\timeseries\nodal_reactive_power.csv')
+# parameters['downstream_nodes_matrix'].to_csv(r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\176\feeder\6\topology\BIBC.csv')
 
 timesteps_per_iteration = 24*4
 iterations_per_era = 7
