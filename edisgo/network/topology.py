@@ -703,11 +703,14 @@ class Topology:
                 self.transformers_hvmv_df.bus1 == bus_name
             ]
         )
-        components["StorageUnit"] = self.storage_units_df.loc[
+        components["Storage_Unit"] = self.storage_units_df.loc[
             self.storage_units_df.bus == bus_name
         ]
         components["Switch"] = self.switches_df.loc[
             self.switches_df.bus_open == bus_name
+        ]
+        components["Charging_Point"] = self.charging_points_df.loc[
+            self.charging_points_df.bus == bus_name
         ]
         return components
 
@@ -893,7 +896,7 @@ class Topology:
                       'The resulting topology cannot be fully utilised. Try to remove connected '
                       'components and isolated bus first to avoid this warning.'.format(name))
 
-        # backup buses of line and check if buses can be removed as well
+        # backup buses of line and check if buses can be removed as
         bus0 = self.lines_df.at[name, "bus0"]
         remove_bus0 = check_bus_for_removal(self, bus0)
         bus1 = self.lines_df.at[name, "bus1"]
