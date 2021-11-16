@@ -29,4 +29,28 @@ def get_energy_bands_for_optimization_parallel_server(root_dir, grid_id, use_cas
 #             result[(grid_id, use_case)].to_csv('grid_data/ev_flexibility_bands_{}_{}_00.csv'.format(grid_id, use_case))
 #
 #     print('SUCCESS')
-get_energy_bands_for_optimization_parallel_server(r'U:\Software', 177, 'work')
+# get_energy_bands_for_optimization_parallel_server(r'U:\Software', 177, 'work')
+
+for grid_id in [176, 177, 1690]:
+    flexibility_bands = pd.DataFrame()
+    for use_case in ['home', 'work']:
+        flexibility_bands_tmp = \
+            pd.read_csv(
+                'grid_data/ev_flexibility_bands_{}_{}_00.csv'.format(grid_id,
+                                                                     use_case),
+                index_col=0)
+        rename_dict = {col: col + '_{}'.format(use_case) for col in
+                       flexibility_bands_tmp.columns}
+        flexibility_bands_tmp.rename(columns=rename_dict, inplace=True)
+        flexibility_bands = pd.concat([flexibility_bands, flexibility_bands_tmp],
+                                      axis=1)
+
+    columns_upper = [col for col in flexibility_bands.columns if 'upper' in col]
+    columns_lower = [col for col in flexibility_bands.columns if 'lower' in col]
+    columns_power = [col for col in flexibility_bands.columns if 'power' in col]
+    aggregated_bands = pd.DataFrame()
+    aggregated_bands['upper'] = flexibility_bands[columns_upper].sum(axis=1)
+    aggregated_bands['lower'] = flexibility_bands[columns_lower].sum(axis=1)
+    aggregated_bands['power'] = flexibility_bands[columns_power].sum(axis=1)
+    aggregated_bands.to_csv(r'U:\Software\grids\{}\flex_ev.csv'.format(grid_id))
+print("SUCCESS")
