@@ -643,7 +643,7 @@ def convert_impedances_back_to_lv(edisgo):
 
 def extract_feeders_nx(edisgo_obj, save_dir=None):
     edisgo_orig = deepcopy(edisgo_obj)
-    buses_with_feeders = edisgo_obj.topology.buses_df
+    buses_with_feeders = edisgo_orig.topology.buses_df
     station_bus = edisgo_obj.topology.mv_grid.station.index[0]
     # get lines connected to station
     feeder_lines = edisgo_obj.topology.lines_df.loc[
