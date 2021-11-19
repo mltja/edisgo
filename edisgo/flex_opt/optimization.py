@@ -416,7 +416,7 @@ def setup_grid_object(edisgo):
     if hasattr(edisgo, 'topology'):
         grid_object = deepcopy(edisgo.topology)
         edisgo_object = deepcopy(edisgo)
-        slack = grid_object.slack_df.bus
+        slack = grid_object.mv_grid.station.index
     else:
         grid_object = deepcopy(edisgo)
         edisgo_object = deepcopy(edisgo.edisgo_obj)
