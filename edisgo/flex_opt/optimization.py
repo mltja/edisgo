@@ -764,14 +764,14 @@ def minimize_residual_load(model):
                 0.5*model.curtailment_ev[bus,time]) +
                 1000* (model.slack_v_pos[bus, time] + model.slack_v_neg[bus, time])
             for bus in model.bus_set for time in model.time_set) + 1000*(slack_charging + slack_energy) + \
-            1000*sum(model.slack_p_cum_pos[branch, time] + model.slack_p_cum_pos[branch, time]
+            1000*sum(model.slack_p_cum_pos[branch, time] + model.slack_p_cum_neg[branch, time]
                      for branch in model.branch_set for time in model.time_set)
     else:
         return 1e-5 * sum(model.grid_residual_load[time] ** 2 for time in model.time_set) + \
                sum(1e-2 * (model.curtailment_load[bus, time] + model.curtailment_feedin[bus, time]) +
                    1000 * (model.slack_v_pos[bus, time] + model.slack_v_neg[bus, time])
                    for bus in model.bus_set for time in model.time_set)  + \
-               1000 * sum(model.slack_p_cum_pos[branch, time] + model.slack_p_cum_pos[branch, time]
+               1000 * sum(model.slack_p_cum_pos[branch, time] + model.slack_p_cum_neg[branch, time]
                           for branch in model.branch_set for time in model.time_set)
 
 
