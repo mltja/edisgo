@@ -37,7 +37,9 @@ def relative_load(edisgo_obj):
         lv_lines_allowed_load = lines_allowed_load(edisgo_obj, "lv")
         allowed_load_lines = pd.concat(
             [allowed_load_lines,
-             lv_lines_allowed_load.loc[:, edisgo_obj.results.i_res.columns]],
+             lv_lines_allowed_load.loc[:, edisgo_obj.results.i_res.columns[
+                                              edisgo_obj.results.i_res.columns.isin(
+                                                  lv_lines_allowed_load.columns)]]],
             axis=1)
 
     # calculated relative load for lines

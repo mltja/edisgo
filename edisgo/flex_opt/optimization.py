@@ -120,11 +120,11 @@ def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
     if not any(char.isdigit() for char in model.time_increment):
         model.time_increment = '1' + model.time_increment
     model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
-    model.time_zero = [model.time_set[1]]
-    model.time_end = [model.time_set[-1]]
-    model.time_non_zero = model.time_set - [model.time_set[1]]
-    model.times_fixed_soc = pm.Set(initialize=[model.time_set[1],
-                                               model.time_set[-1]])
+    model.time_zero = [model.time_set.at(1)]
+    model.time_end = [model.time_set.at(-1)]
+    model.time_non_zero = model.time_set - [model.time_set.at(1)]
+    model.times_fixed_soc = pm.Set(initialize=[model.time_set.at(1),
+                                               model.time_set.at(-1)])
     if optimize_storage:
         model.storage_set = \
             pm.Set(initialize=grid_object.storage_units_df.index)
