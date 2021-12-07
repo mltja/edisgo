@@ -651,20 +651,22 @@ def get_component_timeseries(edisgo_obj, **kwargs):
             edisgo_obj)
 
         # feed-in time series of fluctuating renewables
-        ts = kwargs.get("timeseries_generation_fluctuating", None)
-        if isinstance(ts, pd.DataFrame):
-            edisgo_obj.timeseries.generation_fluctuating = ts
-        elif isinstance(ts, str) and ts == "oedb":
-            edisgo_obj.timeseries.generation_fluctuating = \
-                import_feedin_timeseries(
-                    config_data, weather_cell_ids, kwargs.get(
-                        "timeindex", None))
-        else:
-            raise ValueError(
-                "Your input for "
-                '"timeseries_generation_fluctuating" is not '
-                "valid.".format(mode)
-            )
+        gens = edisgo_obj.topology.generators_df
+        if (gens.type.isin(["solar", "wind"])).any():
+            ts = kwargs.get("timeseries_generation_fluctuating", None)
+            if isinstance(ts, pd.DataFrame):
+                edisgo_obj.timeseries.generation_fluctuating = ts
+            elif isinstance(ts, str) and ts == "oedb":
+                edisgo_obj.timeseries.generation_fluctuating = \
+                    import_feedin_timeseries(
+                        config_data, weather_cell_ids, kwargs.get(
+                            "timeindex", None))
+            else:
+                raise ValueError(
+                    "Your input for "
+                    '"timeseries_generation_fluctuating" is not '
+                    "valid.".format(mode)
+                )
         # feed-in time series for dispatchable generators
         ts = kwargs.get("timeseries_generation_dispatchable", None)
         if isinstance(ts, pd.DataFrame):
