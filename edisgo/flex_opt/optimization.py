@@ -563,9 +563,9 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                 p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
         # Todo: check if this works
         tan_phi_load = (model.nodal_reactive_load.divide(model.nodal_active_load)).fillna(0)
-        curtailment_reactive_load = curtailment_load.multiply(tan_phi_load)
+        curtailment_reactive_load = curtailment_load.multiply(tan_phi_load.T)
         tan_phi_feedin = (model.nodal_reactive_feedin.divide(model.nodal_active_feedin)).fillna(0)
-        curtailment_reactive_feedin = curtailment_feedin.multiply(tan_phi_feedin)
+        curtailment_reactive_feedin = curtailment_feedin.multiply(tan_phi_feedin.T)
         if save_dir:
             x_charge.to_csv(save_dir+'/x_charge_storage.csv')
             soc.to_csv(save_dir+'/soc_storage.csv')
@@ -580,7 +580,7 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
         if not mode=='energy_band':
             # Todo: extract reactive power curtailment
             return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-                   curtailment_load,  curtailment_ev, \
+                   curtailment_load,  curtailment_ev, curtailment_reactive_feedin, curtailment_reactive_load,\
                    v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos, slack_v_neg, \
                    slack_p_cum_pos, slack_p_cum_neg
         else:
