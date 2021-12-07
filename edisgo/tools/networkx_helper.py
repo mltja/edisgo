@@ -100,7 +100,7 @@ def get_downstream_nodes_matrix_iterative(grid):
     buses = grid.buses_df.index.values
     if str(type(grid)) == str(nw.topology.Topology):
         graph = grid.to_graph()
-        slack = grid.slack_df.bus.values[0]
+        slack = grid.mv_grid.station.index[0]
     else:
         graph = grid.graph
         slack = grid.transformers_df.bus1.iloc[0]

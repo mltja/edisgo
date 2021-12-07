@@ -77,8 +77,8 @@ def relative_load(edisgo_obj):
     if any(mv_lines.isin(edisgo_obj.results.i_res.columns)):
         transformers_df = edisgo_obj.topology.transformers_hvmv_df
         s_station_pfa = np.hypot(
-            edisgo_obj.results.hv_mv_exchanges.p,
-            edisgo_obj.results.hv_mv_exchanges.q,
+            edisgo_obj.results.pfa_slack.p,
+            edisgo_obj.results.pfa_slack.q,
         )
         # get maximum allowed apparent power of station in each time step
         s_station = sum(transformers_df.s_nom)
@@ -288,7 +288,8 @@ def voltage_diff(edisgo_obj):
                         undervoltage_diff.fillna(0)
                 )
                 voltage_difference = pd.concat(
-                    [voltage_difference, voltage_difference_lv_grid.T],
+                    [voltage_difference,
+                     voltage_difference_lv_grid[~voltage_difference_lv_grid.T.columns.isin(voltage_difference.columns)].T],
                     sort=False, axis=1
                 )
 
