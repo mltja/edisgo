@@ -49,6 +49,8 @@ def prepare_time_invariant_parameters(edisgo, downstream_nodes_matrix, pu=True,
     parameters['nodal_reactive_load'] = nodal_reactive_load.T
     parameters['nodal_active_feedin'] = nodal_active_generation.T
     parameters['nodal_reactive_feedin'] = nodal_reactive_generation.T
+    parameters['tan_phi_load'] = (nodal_reactive_load.divide(nodal_active_load)).fillna(0)
+    parameters['tan_phi_feedin'] = (nodal_reactive_generation.divide(nodal_active_generation)).fillna(0)
     # get underlying branch elements and power factors
     # handle pu conversion
     if pu:
@@ -76,7 +78,7 @@ def prepare_time_invariant_parameters(edisgo, downstream_nodes_matrix, pu=True,
     return parameters
 
 
-def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
+def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
                 optimize_ev_charging=True, objective='curtailment', **kwargs):
     """
     Method to set up pyomo model for optimisation of storage procurement
@@ -92,6 +94,19 @@ def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
     :param kwargs:
     :return:
     """
+    def init_active_nodal_power(model, bus, time):
+        return timeinvariant_parameters['nodal_active_power'].T.loc[model.timeindex[time]].loc[bus]
+    def init_reactive_nodal_power(model, bus, time):
+        return timeinvariant_parameters['nodal_reactive_power'].T.loc[model.timeindex[time]].loc[bus]
+    def init_active_nodal_load(model, bus, time):
+        return timeinvariant_parameters['nodal_active_load'].T.loc[model.timeindex[time]].loc[bus]
+    def init_reactive_nodal_load(model, bus, time):
+        return timeinvariant_parameters['nodal_reactive_load'].T.loc[model.timeindex[time]].loc[bus]
+    def init_active_nodal_feedin(model, bus, time):
+        return timeinvariant_parameters['nodal_active_feedin'].T.loc[model.timeindex[time]].loc[bus]
+    def init_reactive_nodal_feedin(model, bus, time):
+        return timeinvariant_parameters['nodal_reactive_feedin'].T.loc[model.timeindex[time]].loc[bus]
+
     model = pm.ConcreteModel()
     # check if correct value of objective is inserted
     if objective not in ['curtailment', 'peak_load', 'minimize_energy_level',
@@ -112,19 +127,17 @@ def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
     print('Setup model: Defining sets and parameters.')
     model.bus_set = pm.Set(initialize=grid_object.buses_df.index)
     model.slack_bus = pm.Set(initialize=slack)
-    if timesteps is not None:
-        model.timeindex = timesteps
-    else:
-        model.timeindex = edisgo_object.timeseries.timeindex
-    model.time_increment = pd.infer_freq(model.timeindex)
-    if not any(char.isdigit() for char in model.time_increment):
-        model.time_increment = '1' + model.time_increment
-    model.time_set = pm.RangeSet(0, len(model.timeindex)-1)
+    model.time_set = pm.RangeSet(0, len(timesteps)-1)
     model.time_zero = [model.time_set.at(1)]
     model.time_end = [model.time_set.at(-1)]
     model.time_non_zero = model.time_set - [model.time_set.at(1)]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set.at(1),
                                                model.time_set.at(-1)])
+    model.timeindex = pm.Param(model.time_set, initialize={i:timesteps[i] for i in model.time_set}, within=pm.Any, mutable=True)
+    model.time_increment = pd.infer_freq(timesteps)
+    if not any(char.isdigit() for char in model.time_increment):
+        model.time_increment = '1' + model.time_increment
+
     if optimize_storage:
         model.storage_set = \
             pm.Set(initialize=grid_object.storage_units_df.index)
@@ -149,16 +162,27 @@ def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
     model.power_factor = kwargs.get("pf", 0.9)
     model.v_nom = timeinvariant_parameters['v_nom']
     model.pars = timeinvariant_parameters['pars']
-    model.residual_load = timeinvariant_parameters['res_load_inflexible_units']
+    res_load = {i: timeinvariant_parameters['res_load_inflexible_units'][model.timeindex[i]]
+                for i in model.time_set}
+    model.residual_load = pm.Param(model.time_set, initialize=res_load, mutable=True)
     model.grid = grid_object
     model.downstream_nodes_matrix = timeinvariant_parameters['downstream_nodes_matrix']
 
-    model.nodal_active_power = timeinvariant_parameters['nodal_active_power']
-    model.nodal_reactive_power = timeinvariant_parameters['nodal_reactive_power']
-    model.nodal_active_load = timeinvariant_parameters['nodal_active_load']
-    model.nodal_reactive_load = timeinvariant_parameters['nodal_reactive_load']
-    model.nodal_active_feedin = timeinvariant_parameters['nodal_active_feedin']
-    model.nodal_reactive_feedin = timeinvariant_parameters['nodal_reactive_feedin']
+    #time_dict = {timesteps[i]: list(model.time_set.value)[i] for i in range(len(timesteps))}
+    model.nodal_active_power = pm.Param(model.bus_set, model.time_set, initialize=init_active_nodal_power,
+                                        mutable=True)
+    model.nodal_reactive_power = pm.Param(model.bus_set, model.time_set, initialize=init_reactive_nodal_power,
+                                          mutable=True)
+    model.nodal_active_load = pm.Param(model.bus_set, model.time_set, initialize=init_active_nodal_load,
+                                       mutable=True)
+    model.nodal_reactive_load = pm.Param(model.bus_set, model.time_set, initialize=init_reactive_nodal_load,
+                                         mutable=True)
+    model.nodal_active_feedin = pm.Param(model.bus_set, model.time_set, initialize=init_active_nodal_feedin,
+                                         mutable=True)
+    model.nodal_reactive_feedin = pm.Param(model.bus_set, model.time_set, initialize=init_reactive_nodal_feedin,
+                                           mutable=True)
+    model.tan_phi_load = timeinvariant_parameters['tan_phi_load']
+    model.tan_phi_feedin = timeinvariant_parameters['tan_phi_feedin']
     model.v_slack = kwargs.get('v_slack', model.v_nom)
     model.branches = timeinvariant_parameters['branches']
     model.underlying_branch_elements = timeinvariant_parameters['underlying_branch_elements']
@@ -210,10 +234,10 @@ def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
     #         not objective == 'maximize_energy_level':
     model.curtailment_load = pm.Var(model.bus_set, model.time_set,
                                     bounds=lambda m, b, t:
-                                    (0, m.nodal_active_load.loc[b, model.timeindex[t]]))
+                                    (0, m.nodal_active_load[b, t]))
     model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
                                       bounds=lambda m, b, t:
-                                      (0, m.nodal_active_feedin.loc[b, model.timeindex[t]]))
+                                      (0, m.nodal_active_feedin[b, t]))
     # model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
     #                                          bounds=lambda m, b, t:
     #                                          (0, m.nodal_reactive_load.loc[b, model.timeindex[t]]))
@@ -303,32 +327,43 @@ def setup_model(timeinvariant_parameters, timesteps=None, optimize_storage=True,
                 pm.Constraint(model.flexible_charging_points_set, model.time_zero,
                               rule=fixed_energy_level)
         # set final energy level and if necessary charging power
-        model.energy_level_end = kwargs.get('energy_level_end', None)
-        if model.energy_level_end is not None:
-            if type(model.energy_level_end) == bool:
-                model.FinalEVEnergyLevel = \
-                    pm.Constraint(model.flexible_charging_points_set, model.time_end,
-                                  rule=fixed_energy_level)
-            else:
-                model.energy_level_beginning = kwargs.get('energy_level_beginning',
-                                                          None)
-                if model.energy_level_beginning is None:
-                    model.energy_level_beginning = pd.Series(index=model.flexible_charging_points_set,
-                                                             data=[0]*len(model.flexible_charging_points_set))
-                model.FinalEVEnergyLevel = \
-                    pm.Constraint(model.flexible_charging_points_set, model.time_end,
-                                  rule=final_energy_level)
-                model.FinalEVChargingPower = \
-                    pm.Constraint(model.flexible_charging_points_set, model.time_end,
-                                  rule=final_charging_power)
+        energy_level_end = kwargs.get('energy_level_end', None)
+        model.energy_level_end = pm.Param(model.flexible_charging_points_set,
+                                          initialize=energy_level_end, mutable=True)
+        model.FinalEVEnergyLevelFix = \
+            pm.Constraint(model.flexible_charging_points_set, model.time_end,
+                          rule=fixed_energy_level)
+        if (energy_level_end is None) or (type(energy_level_end) != bool):
+            model.FinalEVEnergyLevelFix.deactivate()
+
+        energy_level_beginning = kwargs.get('energy_level_beginning',
+                                            None)
+        if energy_level_beginning is None:
+            model.energy_level_beginning = pm.Param(model.flexible_charging_points_set,
+                                                    initialize=0, mutable=True)
+        else:
+            model.energy_level_beginning = pm.Param(model.flexible_charging_points_set,
+                                                    initialize=energy_level_beginning, mutable=True)
+        model.FinalEVEnergyLevelEnd = \
+            pm.Constraint(model.flexible_charging_points_set, model.time_end,
+                          rule=final_energy_level)
+        model.FinalEVChargingPower = \
+            pm.Constraint(model.flexible_charging_points_set, model.time_end,
+                          rule=final_charging_power)
+        if (energy_level_end is None) or (type(energy_level_end) == bool):
+            model.FinalEVEnergyLevelEnd.deactivate()
+            model.FinalEVChargingPower.deactivate()
         # set initial charging power
-        model.charging_initial = kwargs.get('charging_start', None)
-        if model.charging_initial is not None:
-            model.slack_initial_charging_pos = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
-            model.slack_initial_charging_neg = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
-            model.InitialEVChargingPower = \
-                pm.Constraint(model.flexible_charging_points_set, model.time_zero,
-                              rule=initial_charging_power)
+        charging_initial = kwargs.get('charging_start', None)
+        model.charging_initial = pm.Param(model.flexible_charging_points_set,
+                                          initialize=charging_initial, mutable=True)
+        model.slack_initial_charging_pos = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
+        model.slack_initial_charging_neg = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
+        model.InitialEVChargingPower = \
+            pm.Constraint(model.flexible_charging_points_set, model.time_zero,
+                          rule=initial_charging_power)
+        if charging_initial is None:
+            model.InitialEVChargingPower.deactivate()
 
     if objective == 'minimize_energy_level' or \
             objective == 'maximize_energy_level':
@@ -425,7 +460,7 @@ def setup_grid_object(edisgo):
     return edisgo_object, grid_object, slack
 
 
-def update_model(model, timeindex, energy_band_charging_points, **kwargs):
+def update_model(model, timesteps, parameters, **kwargs):
     """
     Method to update model parameter where necessary if rolling horizon
     optimization is chosen.
@@ -433,11 +468,17 @@ def update_model(model, timeindex, energy_band_charging_points, **kwargs):
     :param timeindex:
     :return:
     """
-    model.del_component(model.timeindex)
-    model.timeindex = timeindex
-    model.energy_band_charging_points = energy_band_charging_points
-    if kwargs.get('print_model', False):
-        model.pprint()
+    for i in model.time_set:
+        model.timeindex[i].set_value(timesteps[i])
+        model.residual_load[i] = parameters['res_load_inflexible_units'][timesteps[i]]
+        for bus in model.bus_set:
+            model.nodal_active_power[bus, i].set_value(parameters['nodal_active_power'].loc[bus, timesteps[i]])
+            model.nodal_reactive_power[bus, i].set_value(parameters['nodal_reactive_power'].loc[bus, timesteps[i]])
+            model.nodal_active_load[bus, i].set_value(parameters['nodal_active_load'].loc[bus, timesteps[i]])
+            model.nodal_reactive_load[bus, i].set_value(parameters['nodal_reactive_load'].loc[bus, timesteps[i]])
+            model.nodal_active_feedin[bus, i].set_value(parameters['nodal_active_feedin'].loc[bus, timesteps[i]])
+            model.nodal_reactive_feedin[bus, i].set_value(parameters['nodal_reactive_feedin'].loc[bus, timesteps[i]])
+    # Todo: Update flex bands?
     return model
 
 
@@ -562,10 +603,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
             if mode == 'energy_band':
                 p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
         # Todo: check if this works
-        tan_phi_load = (model.nodal_reactive_load.divide(model.nodal_active_load)).fillna(0)
-        curtailment_reactive_load = curtailment_load.multiply(tan_phi_load.T)
-        tan_phi_feedin = (model.nodal_reactive_feedin.divide(model.nodal_active_feedin)).fillna(0)
-        curtailment_reactive_feedin = curtailment_feedin.multiply(tan_phi_feedin.T)
+        curtailment_reactive_load = curtailment_load.multiply(model.tan_phi_load.loc[curtailment_load.index, curtailment_load.columns])
+        curtailment_reactive_feedin = curtailment_feedin.multiply(model.tan_phi_feedin.loc[curtailment_feedin.index, curtailment_feedin.columns])
         if save_dir:
             x_charge.to_csv(save_dir+'/x_charge_storage.csv')
             soc.to_csv(save_dir+'/soc_storage.csv')
@@ -723,7 +762,7 @@ def minimize_residual_load_depr(model):
         relevant_storage_units = []
     if hasattr(model, 'charging_points_set'):
         relevant_charging_points = model.flexible_charging_points_set
-        return sum([1e-5 * np.square([model.residual_load.loc[model.timeindex[time]] + \
+        return sum([1e-5 * np.square([model.residual_load[time] + \
                                       sum(model.charging[storage, time] for storage in relevant_storage_units) - \
                                       sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
                                       # + sum(model.curtailment_load[bus, time] -
@@ -733,7 +772,7 @@ def minimize_residual_load_depr(model):
                    0.5 * model.curtailment_ev[bus, time]
                    for bus in model.bus_set for time in model.time_set)
     else:
-        return sum([1e-5 * np.square([model.residual_load.loc[model.timeindex[time]] + \
+        return sum([1e-5 * np.square([model.residual_load[time] + \
                                       sum(model.charging[storage, time] for storage in relevant_storage_units)
                                       # + sum(model.curtailment_load[bus, time] -
                                       #     model.curtailment_feedin[bus, time] for bus in model.bus_set)
@@ -785,7 +824,7 @@ def grid_residual_load(model, time):
     else:
         relevant_charging_points = []
     return model.grid_residual_load[time] == \
-    model.residual_load.loc[model.timeindex[time]] + \
+    model.residual_load[time] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units) - \
     sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  #+ \
     # sum(model.curtailment_load[bus, time] -
@@ -873,12 +912,11 @@ def active_power(model, branch, time):
     :param time:
     :return:
     '''
-    timeindex = model.timeindex[time]
     relevant_buses = model.underlying_branch_elements.loc[branch, 'buses']
     relevant_storage_units = model.underlying_branch_elements.loc[branch, 'flexible_storage']
     relevant_charging_points = model.underlying_branch_elements.loc[branch, 'flexible_ev']
     load_flow_on_line = \
-        model.nodal_active_power.loc[relevant_buses, timeindex].sum()
+        sum([model.nodal_active_power[bus, time] for bus in relevant_buses])
     if hasattr(model, 'flexible_charging_points_set'):
         return model.p_cum[branch, time] == load_flow_on_line + \
                sum(model.charging[storage, time]
@@ -953,7 +991,6 @@ def upper_bound_curtailment_load(model, bus, time):
     :param time:
     :return:
     '''
-    timeindex = model.timeindex[time]
     relevant_buses = [bus]
     if hasattr(model, 'storage_set'):
         relevant_storage_units = \
@@ -971,7 +1008,7 @@ def upper_bound_curtailment_load(model, bus, time):
                 model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
     else:
         relevant_charging_points = []
-    return model.curtailment_load[bus, time] <= model.nodal_active_load.loc[bus, timeindex] \
+    return model.curtailment_load[bus, time] <= model.nodal_active_load[bus, time] \
            -sum(model.charging[storage, time]
             for storage in relevant_storage_units) + \
            sum(model.charging_ev[cp, time] for cp in relevant_charging_points)
@@ -1008,10 +1045,9 @@ def ratio_active_reactive_power_load(model, bus, time):
                 model.grid.charging_points_df.bus.isin(relevant_buses)].index.values
     else:
         relevant_charging_points = []
-    timeindex = model.timeindex[time]
-    return model.curtailment_reactive_load[bus, time] == model.nodal_reactive_power.loc[bus, timeindex]*\
+    return model.curtailment_reactive_load[bus, time] == model.nodal_reactive_power[bus, time]*\
         model.curtailment_load[bus, time] / \
-           (-model.nodal_active_power.loc[bus, timeindex] -
+           (-model.nodal_active_power[bus, time] -
             sum(model.charging[storage, time] for storage in relevant_storage_units) + \
             sum(model.charging_ev[cp, time] for cp in relevant_charging_points))
 
@@ -1102,7 +1138,7 @@ def fixed_energy_level(model, charging_point, time):
 
 def final_energy_level(model, charging_point, time):
     '''
-    Constraint for initial value of energy
+    Constraint for final value of energy in last iteration
     :param model:
     :param charging_point:
     :param time:
@@ -1165,7 +1201,7 @@ def load_factor_min(model, time):
     else:
         relevant_charging_points = []
     timeindex = model.timeindex[time]
-    return model.min_load_factor <= model.residual_load.loc[timeindex] + \
+    return model.min_load_factor <= model.residual_load[time] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units) - \
         sum(model.charging_ev[cp, time] for cp in relevant_charging_points)  + \
         sum(model.curtailment_load[bus, time] -
@@ -1187,8 +1223,7 @@ def load_factor_max(model, time):
         relevant_charging_points = model.flexible_charging_points_set
     else:
         relevant_charging_points = []
-    timeindex = model.timeindex[time]
-    return model.max_load_factor >= model.residual_load.loc[timeindex] + \
+    return model.max_load_factor >= model.residual_load[time] + \
         sum(model.charging[storage, time] for storage in relevant_storage_units)- \
         sum(model.charging_ev[cp, time] for cp in relevant_charging_points) + \
         sum(model.curtailment_load[bus, time] -
@@ -1280,20 +1315,16 @@ def get_q_line(model, branch, time, get_results=False):
     timeindex = model.timeindex[time]
     relevant_buses = model.underlying_branch_elements.loc[branch, 'buses']
     load_flow_on_line = \
-        model.nodal_reactive_power.loc[relevant_buses, timeindex].sum()
-    tan_phi_load = (model.nodal_reactive_load.loc[relevant_buses, timeindex]/\
-                   model.nodal_active_load.loc[relevant_buses, timeindex]).fillna(0)
-    tan_phi_feedin = (model.nodal_reactive_feedin.loc[relevant_buses, timeindex]/\
-                     model.nodal_active_feedin.loc[relevant_buses, timeindex]).fillna(0)
+        sum([model.nodal_reactive_power[bus, time] for bus in relevant_buses])
     if get_results:
         return (load_flow_on_line + sum(
-            model.curtailment_load[bus, time].value * tan_phi_load[bus] - #Todo: Find out if this should be positive or negative
-            model.curtailment_feedin[bus, time].value * tan_phi_feedin[bus] for bus in
+            model.curtailment_load[bus, time].value * model.tan_phi_load.loc[timeindex, bus] - #Todo: Find out if this should be positive or negative
+            model.curtailment_feedin[bus, time].value * model.tan_phi_feedin.loc[timeindex, bus] for bus in
             relevant_buses))
     else:
         return (load_flow_on_line + sum(
-                 model.curtailment_load[bus, time] * tan_phi_load[bus] - #Todo: Find out if this should be positive or negative, analogously to q_cum
-                 model.curtailment_feedin[bus, time] * tan_phi_feedin[bus] for bus in
+                 model.curtailment_load[bus, time] * model.tan_phi_load.loc[timeindex, bus] - #Todo: Find out if this should be positive or negative, analogously to q_cum
+                 model.curtailment_feedin[bus, time] * model.tan_phi_feedin.loc[timeindex, bus] for bus in
                  relevant_buses))
 
 
