@@ -4,21 +4,30 @@ import pandas as pd
 from edisgo.edisgo import import_edisgo_from_files
 import multiprocessing as mp
 
+res_dir = r'U:\Software\buildings\eDisGo_mirror\results\residual_load_test2'
 
-def extract_edisgo_object(grid_id):
-    res_dir = r'U:\Software\eDisGo_mirror\results\residual_load_test2'
-    feeders = []
+
+def extract_edisgo_object(grid_id, res_dir, full_object=True, **kwargs):
+
     edisgo_dir = r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\{}\feeder'.format(grid_id)
-    for feeder in os.listdir(edisgo_dir):
-        feeders.append(feeder)
+    if full_object:
+        feeders=[]
+        for feeder in os.listdir(edisgo_dir):
+            feeders.append(feeder)
+        edisgo_dir = r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\{}\reduced'.format(grid_id)
+        edisgo_dir_new = r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\{}\optimised'.format(grid_id)
+    else:
+        feeder = kwargs.get('feeder')
+        feeders = [feeder]
+        edisgo_dir = r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\{}\feeder\{}'.format(grid_id, feeder)
+        edisgo_dir_new = edisgo_dir
 
     x_charge_ev_grid = combine_results_for_grid(feeders, grid_id, res_dir, 'x_charge_ev')
 
     # import original edisgo object and create new directory
-    edisgo_dir=r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\{}\reduced'.format(grid_id)
+
     edisgo = import_edisgo_from_files(edisgo_dir, import_timeseries=True)
 
-    edisgo_dir_new = r'U:\Software\eDisGo_object_files\simbev_nep_2035_results\{}\optimised'.format(grid_id)
     os.makedirs(edisgo_dir_new, exist_ok=True)
 
     # update timeseries of original object
@@ -50,15 +59,17 @@ def combine_results_for_grid(feeders, grid_id, res_dir, res_name):
     return res_grid
 
 
+# if __name__ == '__main__':
+#     pool = mp.Pool(2)
+#     mp.cpu_count()
+#     grid_ids = [176, 1690]#1811,, 2534, 1056, 177
+#     results = pool.map_async(extract_edisgo_object, grid_ids).get()
+#     pool.close()
+#     pool.join()
+#
+#     print('SUCCESS')
 if __name__ == '__main__':
-    pool = mp.Pool(2)
-    mp.cpu_count()
-    grid_ids = [176, 1690]#1811,, 2534, 1056, 177
-    results = pool.map_async(extract_edisgo_object, grid_ids).get()
-    pool.close()
-    pool.join()
-
+    # extract_edisgo_object(176, res_dir, full_object=False, feeder=6)
+    # extract_edisgo_object(177, res_dir, full_object=False, feeder=7)
+    extract_edisgo_object(2534, res_dir)
     print('SUCCESS')
-
-# extract_edisgo_object(1811)
-# print('SUCCESS')
