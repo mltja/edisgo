@@ -5,11 +5,12 @@ from pyomo.opt import SolverStatus, TerminationCondition
 from edisgo.tools.tools import get_nodal_residual_load, calculate_impedance_for_parallel_components
 from copy import deepcopy
 import itertools
+from time import perf_counter
 
 
 def prepare_time_invariant_parameters(edisgo, downstream_nodes_matrix, pu=True,
                                       optimize_storage=True, optimize_ev_charging=True, **kwargs):
-
+    t1 = perf_counter()
     parameters = {}
     # set grid and edisgo objects as well as slack
     parameters['edisgo_object'], parameters['grid_object'], parameters['slack'] = setup_grid_object(edisgo)
@@ -75,6 +76,7 @@ def prepare_time_invariant_parameters(edisgo, downstream_nodes_matrix, pu=True,
             parameters['v_nom']) / parameters['grid_object'].transformers_df.s_nom
     parameters['branches'] = concat_parallel_branch_elements(parameters['grid_object'])
     parameters['underlying_branch_elements'], parameters['power_factors'] = get_underlying_elements(parameters)  # Todo: time invariant
+    print('It took {} seconds to extract timeinvariant parameters.'.format(perf_counter()-t1))
     return parameters
 
 
@@ -96,17 +98,26 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
     """
     def init_active_nodal_power(model, bus, time):
         return timeinvariant_parameters['nodal_active_power'].T.loc[model.timeindex[time]].loc[bus]
+
     def init_reactive_nodal_power(model, bus, time):
         return timeinvariant_parameters['nodal_reactive_power'].T.loc[model.timeindex[time]].loc[bus]
+
     def init_active_nodal_load(model, bus, time):
         return timeinvariant_parameters['nodal_active_load'].T.loc[model.timeindex[time]].loc[bus]
+
     def init_reactive_nodal_load(model, bus, time):
         return timeinvariant_parameters['nodal_reactive_load'].T.loc[model.timeindex[time]].loc[bus]
+
     def init_active_nodal_feedin(model, bus, time):
         return timeinvariant_parameters['nodal_active_feedin'].T.loc[model.timeindex[time]].loc[bus]
+
     def init_reactive_nodal_feedin(model, bus, time):
         return timeinvariant_parameters['nodal_reactive_feedin'].T.loc[model.timeindex[time]].loc[bus]
 
+    def init_power_factors(model, branch, time):
+        return timeinvariant_parameters['power_factors'].loc[branch, model.timeindex[time]]
+
+    t1 = perf_counter()
     model = pm.ConcreteModel()
     # check if correct value of objective is inserted
     if objective not in ['curtailment', 'peak_load', 'minimize_energy_level',
@@ -129,11 +140,16 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
     model.slack_bus = pm.Set(initialize=slack)
     model.time_set = pm.RangeSet(0, len(timesteps)-1)
     model.time_zero = [model.time_set.at(1)]
-    model.time_end = [model.time_set.at(-1)]
+    overlap_interations = kwargs.get('overlap_interations', None)
+    if overlap_interations is not None:
+        model.time_end= [model.time_set.at(-overlap_interations)]
+    else:
+        model.time_final = [model.time_set.at(-1)]
     model.time_non_zero = model.time_set - [model.time_set.at(1)]
     model.times_fixed_soc = pm.Set(initialize=[model.time_set.at(1),
                                                model.time_set.at(-1)])
-    model.timeindex = pm.Param(model.time_set, initialize={i:timesteps[i] for i in model.time_set}, within=pm.Any, mutable=True)
+    model.timeindex = pm.Param(model.time_set, initialize={i:timesteps[i] for i in model.time_set},
+                               within=pm.Any, mutable=True)
     model.time_increment = pd.infer_freq(timesteps)
     if not any(char.isdigit() for char in model.time_increment):
         model.time_increment = '1' + model.time_increment
@@ -147,19 +163,24 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
                                   model.optimized_storage_set
         model.fix_relative_soc = kwargs.get('fix_relative_soc', 0.5)
     if optimize_ev_charging:
-        model.energy_band_charging_points = \
-            kwargs.get('energy_band_charging_points')
-        model.mapping_cp = timeinvariant_parameters['cp_mapping']
         model.charging_points_set = \
             pm.Set(initialize=grid_object.charging_points_df.index)
         model.flexible_charging_points_set = \
             pm.Set(initialize=timeinvariant_parameters['optimized_charging_points'])
         model.inflexible_charging_points_set = \
             model.charging_points_set - model.flexible_charging_points_set
+        model.energy_band_charging_points = \
+            kwargs.get('energy_band_charging_points')
+        model.mapping_cp = timeinvariant_parameters['cp_mapping']
         model.charging_efficiency = kwargs.get("charging_efficiency", 0.9)
+        model.lower_bound_ev = pm.Param(model.flexible_charging_points_set, model.time_set,
+                                        initialize=set_lower_band_ev, mutable=True)
+        model.upper_bound_ev = pm.Param(model.flexible_charging_points_set, model.time_set,
+                                        initialize=set_upper_band_ev, mutable=True)
+        model.power_bound_ev = pm.Param(model.flexible_charging_points_set, model.time_set,
+                                        initialize=set_power_band_ev, mutable=True)
     model.v_min = kwargs.get("v_min", 0.9)
     model.v_max = kwargs.get("v_max", 1.1)
-    model.power_factor = kwargs.get("pf", 0.9)
     model.v_nom = timeinvariant_parameters['v_nom']
     model.pars = timeinvariant_parameters['pars']
     res_load = {i: timeinvariant_parameters['res_load_inflexible_units'][model.timeindex[i]]
@@ -185,10 +206,11 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
     model.tan_phi_feedin = timeinvariant_parameters['tan_phi_feedin']
     model.v_slack = kwargs.get('v_slack', model.v_nom)
     model.branches = timeinvariant_parameters['branches']
-    model.underlying_branch_elements = timeinvariant_parameters['underlying_branch_elements']
-    model.power_factors = timeinvariant_parameters['power_factors']
-
     model.branch_set = pm.Set(initialize=model.branches.index)
+    model.underlying_branch_elements = timeinvariant_parameters['underlying_branch_elements']
+    model.power_factors = pm.Param(model.branch_set, model.time_set, initialize=init_power_factors,
+                                   mutable=True)
+
 
     if objective == 'peak_load':
         model.delta_min = kwargs.get('delta_min', 0.9)
@@ -238,12 +260,6 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
     model.curtailment_feedin = pm.Var(model.bus_set, model.time_set,
                                       bounds=lambda m, b, t:
                                       (0, m.nodal_active_feedin[b, t]))
-    # model.curtailment_reactive_load = pm.Var(model.bus_set, model.time_set,
-    #                                          bounds=lambda m, b, t:
-    #                                          (0, m.nodal_reactive_load.loc[b, model.timeindex[t]]))
-    # model.curtailment_reactive_feedin = pm.Var(model.bus_set, model.time_set,
-    #                                            bounds=lambda m, b, t:
-    #                                            (0, abs(m.nodal_reactive_feedin.loc[b, model.timeindex[t]])))
     if optimize_storage:
         model.soc = \
             pm.Var(model.optimized_storage_set, model.time_set,
@@ -259,11 +275,7 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
         model.charging_ev = \
             pm.Var(model.flexible_charging_points_set, model.time_set,
                    bounds=lambda m, b, t:
-                   (0, m.energy_band_charging_points.loc[
-                       m.timeindex[t], '_'.join(
-                           ['power', str(m.mapping_cp.loc[b, 'ags']),
-                            str(m.mapping_cp.loc[b, 'cp_idx']),
-                            m.mapping_cp.loc[b, 'use_case']])]))
+                   (0, m.power_bound_ev[b,t]))
 
         model.curtailment_ev = pm.Var(model.bus_set, model.time_set,
                                       bounds=(0, None))
@@ -272,16 +284,8 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
             model.energy_level_ev = \
                 pm.Var(model.flexible_charging_points_set, model.time_set,
                        bounds=lambda m, b, t:
-                       (m.energy_band_charging_points.loc[
-                            m.timeindex[t], '_'.join(
-                                ['lower', str(m.mapping_cp.loc[b, 'ags']),
-                                 str(m.mapping_cp.loc[b, 'cp_idx']),
-                                 m.mapping_cp.loc[b, 'use_case']])],
-                        m.energy_band_charging_points.loc[
-                            m.timeindex[t], '_'.join(
-                                ['upper', str(m.mapping_cp.loc[b, 'ags']),
-                                 str(m.mapping_cp.loc[b, 'cp_idx']),
-                                 m.mapping_cp.loc[b, 'use_case']])]))
+                       (m.lower_bound_ev[b, t],
+                        m.upper_bound_ev[b, t]))
 
     # DEFINE CONSTRAINTS
     print('Setup model: Setting constraints.')
@@ -315,17 +319,21 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
         model.UpperCurtEV = pm.Constraint(model.bus_set, model.time_set,
                                           rule=upper_bound_curtailment_ev)
         # set initial energy level
-        model.energy_level_start = kwargs.get('energy_level_start', None)
-        if model.energy_level_start is not None:
-            model.slack_initial_energy_pos = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
-            model.slack_initial_energy_neg = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
-            model.InitialEVEnergyLevel = \
-                pm.Constraint(model.flexible_charging_points_set, model.time_zero,
-                                  rule=initial_energy_level)
-        else:
-            model.InitialEVEnergyLevel = \
+        energy_level_start = kwargs.get('energy_level_start', None)
+        model.energy_level_start = pm.Param(model.flexible_charging_points_set,
+                                            initialize=energy_level_start, mutable=True)
+        model.slack_initial_energy_pos = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
+        model.slack_initial_energy_neg = pm.Var(model.flexible_charging_points_set, bounds=(0, None))
+        model.InitialEVEnergyLevel = \
+            pm.Constraint(model.flexible_charging_points_set, model.time_zero,
+                              rule=initial_energy_level)
+        model.InitialEVEnergyLevelStart = \
                 pm.Constraint(model.flexible_charging_points_set, model.time_zero,
                               rule=fixed_energy_level)
+        if energy_level_start is None:
+            model.InitialEVEnergyLevel.deactivate()
+        else:
+            model.InitialEVEnergyLevelStart.deactivate()
         # set final energy level and if necessary charging power
         energy_level_end = kwargs.get('energy_level_end', None)
         model.energy_level_end = pm.Param(model.flexible_charging_points_set,
@@ -333,8 +341,6 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
         model.FinalEVEnergyLevelFix = \
             pm.Constraint(model.flexible_charging_points_set, model.time_end,
                           rule=fixed_energy_level)
-        if (energy_level_end is None) or (type(energy_level_end) != bool):
-            model.FinalEVEnergyLevelFix.deactivate()
 
         energy_level_beginning = kwargs.get('energy_level_beginning',
                                             None)
@@ -350,9 +356,15 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
         model.FinalEVChargingPower = \
             pm.Constraint(model.flexible_charging_points_set, model.time_end,
                           rule=final_charging_power)
-        if (energy_level_end is None) or (type(energy_level_end) == bool):
+        if energy_level_end is None:
+            model.FinalEVEnergyLevelFix.deactivate()
             model.FinalEVEnergyLevelEnd.deactivate()
             model.FinalEVChargingPower.deactivate()
+        else:
+            if type(energy_level_end) != bool:
+                model.FinalEVEnergyLevelFix.deactivate()
+            elif type(energy_level_end) == bool:
+                model.FinalEVEnergyLevelEnd.deactivate()
         # set initial charging power
         charging_initial = kwargs.get('charging_start', None)
         model.charging_initial = pm.Param(model.flexible_charging_points_set,
@@ -402,6 +414,7 @@ def setup_model(timeinvariant_parameters, timesteps, optimize_storage=True,
     if kwargs.get('print_model', False):
         model.pprint()
     print('Successfully set up optimisation model.')
+    print('It took {} seconds to set up model.'.format(perf_counter() - t1))
     return model
 
 
@@ -460,25 +473,106 @@ def setup_grid_object(edisgo):
     return edisgo_object, grid_object, slack
 
 
-def update_model(model, timesteps, parameters, **kwargs):
+def update_model(model, timesteps, parameters, optimize_storage=True, optimize_ev=True, **kwargs):
     """
     Method to update model parameter where necessary if rolling horizon
     optimization is chosen.
-    :param model:
-    :param timeindex:
-    :return:
+
+    Parameters
+    ----------
+    model
+    timesteps
+    parameters
+    optimize_storage
+    optimize_ev
+    kwargs
+
+    Returns
+    -------
+
     """
+    print('Updating model')
+    t1 = perf_counter()
     for i in model.time_set:
-        model.timeindex[i].set_value(timesteps[i])
-        model.residual_load[i] = parameters['res_load_inflexible_units'][timesteps[i]]
+        overlap = i - len(timesteps) + 1
+        if overlap > 0:
+            timeindex = timesteps[-1] + pd.to_timedelta(model.time_increment)*overlap
+            indexer = timesteps[-1]
+        else:
+            timeindex = timesteps[i]
+            indexer = timesteps[i]
+        model.timeindex[i].set_value(timeindex)
+        model.residual_load[i].set_value(parameters['res_load_inflexible_units'][indexer])
         for bus in model.bus_set:
-            model.nodal_active_power[bus, i].set_value(parameters['nodal_active_power'].loc[bus, timesteps[i]])
-            model.nodal_reactive_power[bus, i].set_value(parameters['nodal_reactive_power'].loc[bus, timesteps[i]])
-            model.nodal_active_load[bus, i].set_value(parameters['nodal_active_load'].loc[bus, timesteps[i]])
-            model.nodal_reactive_load[bus, i].set_value(parameters['nodal_reactive_load'].loc[bus, timesteps[i]])
-            model.nodal_active_feedin[bus, i].set_value(parameters['nodal_active_feedin'].loc[bus, timesteps[i]])
-            model.nodal_reactive_feedin[bus, i].set_value(parameters['nodal_reactive_feedin'].loc[bus, timesteps[i]])
-    # Todo: Update flex bands?
+            model.nodal_active_power[bus, i].set_value(parameters['nodal_active_power'].loc[bus, indexer])
+            model.nodal_reactive_power[bus, i].set_value(parameters['nodal_reactive_power'].loc[bus, indexer])
+            model.nodal_active_load[bus, i].set_value(parameters['nodal_active_load'].loc[bus, indexer])
+            model.nodal_reactive_load[bus, i].set_value(parameters['nodal_reactive_load'].loc[bus, indexer])
+            model.nodal_active_feedin[bus, i].set_value(parameters['nodal_active_feedin'].loc[bus, indexer])
+            model.nodal_reactive_feedin[bus, i].set_value(parameters['nodal_reactive_feedin'].loc[bus, indexer])
+
+        for branch in model.branch_set:
+            model.power_factors[branch, i].set_value(parameters['power_factors'].loc[branch, indexer])
+
+    if optimize_ev:
+        # get flexibility bands
+        model.energy_band_charging_points = \
+            kwargs.get('energy_band_charging_points')
+        for t in model.time_set:
+            overlap = t - len(timesteps) + 1
+            if overlap > 0:
+                indexer = len(timesteps)-1
+            else:
+                indexer = t
+            for cp in model.flexible_charging_points_set:
+                model.power_bound_ev[cp, t].set_value(set_power_band_ev(model, cp, indexer))
+                model.lower_bound_ev[cp, t].set_value(set_lower_band_ev(model, cp, indexer))
+                model.upper_bound_ev[cp, t].set_value(set_upper_band_ev(model, cp, indexer))
+        # set initial energy level
+        energy_level_start = kwargs.get('energy_level_start', None)
+        charging_initial = kwargs.get('charging_start', None)
+        # if run is new start of era deactivate initial energy level, otherwise activate initial energy and charging
+        if energy_level_start is None:
+            model.InitialEVEnergyLevel.deactivate()
+            model.InitialEVEnergyLevelStart.activate()
+        else:
+            for cp in model.flexible_charging_points_set:
+                model.energy_level_start[cp].set_value(energy_level_start[cp])
+            model.InitialEVEnergyLevel.activate()
+            model.InitialEVEnergyLevelStart.deactivate()
+        # set initial charging
+        if charging_initial is not None:
+            for cp in model.flexible_charging_points_set:
+                model.charging_initial[cp].set_value(charging_initial[cp])
+            model.InitialEVChargingPower.activate()
+        # set energy level beginning if necessary
+
+        energy_level_beginning = kwargs.get('energy_level_beginning',
+                                            None)
+        if energy_level_beginning is not None:
+            for cp in model.flexible_charging_points_set:
+                model.energy_level_beginning[cp].set_value(energy_level_beginning[cp])
+
+        # set final energy level and if necessary charging power
+        energy_level_end = kwargs.get('energy_level_end', None)
+        if energy_level_end is None:
+            model.FinalEVEnergyLevelFix.deactivate()
+            model.FinalEVEnergyLevelEnd.deactivate()
+            model.FinalEVChargingPower.deactivate()
+        elif type(energy_level_end) == bool:
+            model.FinalEVEnergyLevelFix.activate()
+            model.FinalEVEnergyLevelEnd.deactivate()
+            model.FinalEVChargingPower.activate()
+        else:
+            for cp in model.flexible_charging_points_set:
+                model.energy_level_end[cp].set_value(energy_level_end[cp])
+            model.FinalEVEnergyLevelEnd.activate()
+            model.FinalEVChargingPower.activate()
+            model.FinalEVEnergyLevelFix.deactivate()
+
+    if optimize_storage:
+        raise NotImplementedError
+    print('It took {} seconds to update the model.'.format(perf_counter() - t1))
     return model
 
 
@@ -520,7 +614,7 @@ def setup_model_bands(aggregated_bands, power_bands, mode, **kwargs):
     return model
 
 
-def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
+def optimize(model, solver, load_solutions=True, mode=None):
     """
     Method to run the optimization and extract the results.
 
@@ -532,6 +626,8 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
                     no saving of the results
     :return:
     """
+    print('Starting optimisation')
+    t1 = perf_counter()
     opt = pm.SolverFactory(solver)
     #opt.options['preprocessing presolve'] = 0
 
@@ -539,93 +635,51 @@ def optimize(model, solver, save_dir=None, load_solutions=True, mode=None):
     results = opt.solve(model, tee=True, #options={"threads":4},
                         load_solutions=load_solutions)
 
-    # Extract results
-    x_charge = pd.DataFrame()
-    soc = pd.DataFrame()
-    x_charge_ev = pd.DataFrame()
-    energy_level_cp = pd.DataFrame()
-    curtailment_load = pd.DataFrame()
-    curtailment_feedin = pd.DataFrame()
-    curtailment_ev = pd.DataFrame()
-    p_line = pd.DataFrame()
-    q_line = pd.DataFrame()
-    v_bus = pd.DataFrame()
-    slack_charging = pd.DataFrame(columns=['slack'])
-    slack_energy = pd.DataFrame(columns=['slack'])
-    slack_v_pos = pd.DataFrame()
-    slack_v_neg = pd.DataFrame()
-    slack_p_cum_pos = pd.DataFrame()
-    slack_p_cum_neg = pd.DataFrame()
-    if mode == 'energy_band':
-        p_aggr = pd.DataFrame()
-
     if (results.solver.status == SolverStatus.ok) and \
             (
                     results.solver.termination_condition == TerminationCondition.optimal):
         print('Model Solved to Optimality')
-        for time in model.time_set:
-            timeindex = model.timeindex[time]
-            if hasattr(model, 'storage_set'):
-                for bus in model.storage_set:
-                    x_charge.loc[timeindex, bus] = model.charging[bus, time].value
-                    soc.loc[timeindex, bus] = model.soc[bus, time].value
-            if hasattr(model, 'flexible_charging_points_set'):
-                for cp in model.flexible_charging_points_set:
-                    x_charge_ev.loc[timeindex, cp] = model.charging_ev[cp, time].value
-                    if hasattr(model, 'energy_level_ev'):
-                        energy_level_cp.loc[timeindex, cp] = \
-                            model.energy_level_ev[cp, time].value
-                    if hasattr(model, 'slack_initial_charging_pos'):
-                        slack_charging.loc[cp, 'slack'] = model.slack_initial_charging_pos[cp].value + \
-                                                          model.slack_initial_charging_neg[cp].value
-                    if hasattr(model, 'slack_initial_energy_pos'):
-                        slack_energy.loc[cp, 'slack'] = model.slack_initial_energy_pos[cp].value + \
-                                                        model.slack_initial_energy_neg[cp].value
-            for bus in model.bus_set:
-                curtailment_feedin.loc[timeindex, bus] = \
-                    model.curtailment_feedin[bus, time].value
-                curtailment_load.loc[timeindex, bus] = \
-                    model.curtailment_load[bus, time].value
-                if hasattr(model, 'curtailment_ev'):
-                    curtailment_ev.loc[timeindex, bus] = \
-                        model.curtailment_ev[bus, time].value
-                slack_v_pos.loc[timeindex, bus]  = model.slack_v_pos[bus, time].value
-                slack_v_neg.loc[timeindex, bus] = model.slack_v_neg[bus, time].value
-                try:
-                    v_bus.loc[timeindex, bus] = np.sqrt(model.v[bus, time].value)
-                except:
-                    print('Error for bus {} at time {}'.format(bus, time))
-            for line in model.branch_set:
-                p_line.loc[timeindex, line] = model.p_cum[line, time].value
-                q_line.loc[timeindex, line] = model.q_cum[line, time].value
-                slack_p_cum_pos.loc[timeindex, line] = model.slack_p_cum_pos[line, time].value
-                slack_p_cum_neg.loc[timeindex, line] = model.slack_p_cum_neg[line, time].value
-            if mode == 'energy_band':
-                p_aggr.loc[timeindex, repr(model.grid)] = model.grid_power_flexible[time].value
+        # Extract results
+        time_dict = {t: model.timeindex[t].value for t in model.time_set}
+        result_dict = {}
+        if hasattr(model, 'storage_set'):
+            result_dict['x_charge'] = pd.Series(model.charging.extract_values()).unstack().rename(columns=time_dict).T
+            result_dict['soc'] = pd.Series(model.soc.extract_values()).unstack().rename(columns=time_dict).T
+        if hasattr(model, 'flexible_charging_points_set'):
+            result_dict['x_charge_ev'] = pd.Series(model.charging_ev.extract_values()).unstack().rename(
+                columns=time_dict).T
+            result_dict['energy_level_cp'] = pd.Series(model.energy_level_ev.extract_values()).unstack().rename(
+                columns=time_dict).T
+            result_dict['slack_charging'] = pd.Series(model.slack_initial_charging_pos.extract_values()) + \
+                                            pd.Series(model.slack_initial_charging_neg.extract_values())
+            result_dict['slack_energy'] = pd.Series(model.slack_initial_energy_pos.extract_values()) + \
+                                          pd.Series(model.slack_initial_energy_neg.extract_values())
+        result_dict['curtailment_load'] = pd.Series(model.curtailment_load.extract_values()).unstack().rename(
+            columns=time_dict).T
+        result_dict['curtailment_feedin'] = pd.Series(model.curtailment_feedin.extract_values()).unstack().rename(
+            columns=time_dict).T
+        result_dict['curtailment_ev'] = pd.Series(model.curtailment_ev.extract_values()).unstack().rename(
+            columns=time_dict).T
+        result_dict['p_line'] = pd.Series(model.p_cum.extract_values()).unstack().rename(columns=time_dict).T
+        result_dict['q_line'] = pd.Series(model.q_cum.extract_values()).unstack().rename(columns=time_dict).T
+        result_dict['v_bus'] = pd.Series(model.v.extract_values()).unstack().rename(columns=time_dict).T.apply(np.sqrt)
+        result_dict['slack_v_pos'] = pd.Series(model.slack_v_pos.extract_values()).unstack().rename(columns=time_dict).T
+        result_dict['slack_v_neg'] = pd.Series(model.slack_v_neg.extract_values()).unstack().rename(columns=time_dict).T
+        result_dict['slack_p_cum_pos'] = pd.Series(model.slack_p_cum_pos.extract_values()).unstack().rename(
+            columns=time_dict).T
+        result_dict['slack_p_cum_neg'] = pd.Series(model.slack_p_cum_pos.extract_values()).unstack().rename(
+            columns=time_dict).T
+        if mode == 'energy_band':
+            result_dict['p_aggr'] = pd.Series(model.grid_power_flexible.extract_values()).rename(time_dict)
         # Todo: check if this works
-        curtailment_reactive_load = curtailment_load.multiply(model.tan_phi_load.loc[curtailment_load.index, curtailment_load.columns])
-        curtailment_reactive_feedin = curtailment_feedin.multiply(model.tan_phi_feedin.loc[curtailment_feedin.index, curtailment_feedin.columns])
-        if save_dir:
-            x_charge.to_csv(save_dir+'/x_charge_storage.csv')
-            soc.to_csv(save_dir+'/soc_storage.csv')
-            x_charge_ev.to_csv(save_dir+'/x_charge_ev.csv')
-            energy_level_cp.to_csv(save_dir+'/energy_level_ev.csv')
-            curtailment_feedin.to_csv(save_dir + '/curtailment_feedin.csv')
-            curtailment_load.to_csv(save_dir + '/curtailment_load.csv')
-            curtailment_ev.to_csv(save_dir + '/curtailment_ev.csv')
-            v_bus.to_csv(save_dir + '/voltage_buses.csv')
-            p_line.to_csv(save_dir + '/active_power_lines.csv')
-            q_line.to_csv(save_dir + '/reactive_power_lines.csv')
-        if not mode=='energy_band':
-            # Todo: extract reactive power curtailment
-            return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-                   curtailment_load,  curtailment_ev, curtailment_reactive_feedin, curtailment_reactive_load,\
-                   v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos, slack_v_neg, \
-                   slack_p_cum_pos, slack_p_cum_neg
-        else:
-            return x_charge, soc, x_charge_ev, energy_level_cp, curtailment_feedin, \
-                   curtailment_load,  curtailment_ev, \
-                   v_bus, p_line, q_line, p_aggr
+        index = result_dict['curtailment_load'].index[result_dict['curtailment_load'].index.isin(model.tan_phi_load.index)]
+        result_dict['curtailment_reactive_load'] = result_dict['curtailment_load'].multiply(
+            model.tan_phi_load.loc[index, result_dict['curtailment_load'].columns]).dropna(how='all')
+        result_dict['curtailment_reactive_feedin'] = result_dict['curtailment_feedin'].multiply(
+            model.tan_phi_feedin.loc[index, result_dict['curtailment_feedin'].columns]).dropna(how='all')
+
+        print('It took {} seconds to optimize model.'.format(perf_counter() - t1))
+        return result_dict
     elif results.solver.termination_condition == TerminationCondition.infeasible:
         print('Model is infeasible')
         return
@@ -933,12 +987,12 @@ def active_power(model, branch, time):
 
 
 def upper_active_power(model, branch, time):
-    return model.p_cum[branch, time] <= model.power_factors.loc[branch, model.timeindex[time]] * \
+    return model.p_cum[branch, time] <= model.power_factors[branch, time] * \
            model.branches.loc[branch, model.pars['s_nom']] + model.slack_p_cum_pos[branch, time]
 
 
 def lower_active_power(model, branch, time):
-    return model.p_cum[branch, time] >= - model.power_factors.loc[branch, model.timeindex[time]] * \
+    return model.p_cum[branch, time] >= - model.power_factors[branch, time] * \
            model.branches.loc[branch, model.pars['s_nom']] - model.slack_p_cum_neg[branch, time]
 
 
@@ -1121,17 +1175,10 @@ def fixed_energy_level(model, charging_point, time):
     :param time:
     :return:
     '''
-    timeindex = model.timeindex[time]
-    if isinstance(charging_point, str) and 'ChargingPoint' not in charging_point:
-        cp = charging_point
-    else:
-        cp = '_'.join([str(model.mapping_cp.loc[charging_point, 'ags']),
-                       str(model.mapping_cp.loc[charging_point, 'cp_idx']),
-                       model.mapping_cp.loc[charging_point, 'use_case']])
     initial_lower_band = \
-        model.energy_band_charging_points.loc[timeindex, 'lower_'+cp]
+        model.lower_bound_ev[charging_point, time]
     initial_upper_band = \
-        model.energy_band_charging_points.loc[timeindex, 'upper_'+cp]
+        model.upper_bound_ev[charging_point, time]
     return model.energy_level_ev[charging_point, time] == \
            (initial_lower_band+initial_upper_band)/2
 
@@ -1449,5 +1496,25 @@ def get_underlying_elements(parameters):
         downstream_elements, power_factors = _get_underlying_elements(downstream_elements, power_factors, parameters, branch)
     if power_factors.isna().any().any():
         print('WARNING: Branch {} is overloaded with reactive power. Still needs handling.'.format(branch))
-        power_factors = power_factors.fillna(0.9) # Todo: ask Gaby and Birgit about this
+        power_factors = power_factors.fillna(0) # Todo: ask Gaby and Birgit about this
     return downstream_elements, power_factors
+
+
+def set_lower_band_ev(model, cp, time):
+    return set_band_ev(model, cp, time, 'lower')
+
+
+def set_upper_band_ev(model, cp, time):
+    return set_band_ev(model, cp, time, 'upper')
+
+
+def set_power_band_ev(model, cp, time):
+    return set_band_ev(model, cp, time, 'power')
+
+
+def set_band_ev(model, cp, time, band):
+    return model.energy_band_charging_points.loc[
+                        model.timeindex[time], '_'.join(
+                            [band, str(model.mapping_cp.loc[cp, 'ags']),
+                             str(model.mapping_cp.loc[cp, 'cp_idx']),
+                             model.mapping_cp.loc[cp, 'use_case']])]
