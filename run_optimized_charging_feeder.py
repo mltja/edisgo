@@ -1,16 +1,18 @@
 # Test to implement functionality of optimisation
 from edisgo.edisgo import import_edisgo_from_files
-from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping, prepare_time_invariant_parameters
+from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping, \
+    prepare_time_invariant_parameters, update_model
 from edisgo.tools.tools import convert_impedances_to_mv
 from edisgo.tools.networkx_helper import get_downstream_nodes_matrix_iterative
 import edisgo.flex_opt.charging_ev as cEV
-from edisgo.io.ding0_import import convert_pypsa_to_edisgo_tmp
 import pandas as pd
-import geopandas as gpd
 import numpy as np
 import os
-from copy import deepcopy
 import datetime
+
+optimize_storage = False
+optimize_ev = True
+solver = 'gurobi'
 
 from pathlib import Path
 
@@ -18,8 +20,8 @@ from pathlib import Path
 # edisgo = import_edisgo_from_files(grid_dir)
 # get_downstream_nodes_matrix_iterative(edisgo)
 
-grid_id = 176
-feeder_id = 6 # 1,6
+grid_id = 177
+feeder_id = 7 # 1,6
 root_dir = r'U:\Software'
 mapping_dir = root_dir + r'\simbev_nep_2035_results\eDisGo_charging_time_series\{}'.format(grid_id)
 edisgo_dir = root_dir + r'\eDisGo_object_files\simbev_nep_2035_results\{}\feeder\{}'.format(grid_id, feeder_id)
@@ -49,12 +51,14 @@ downstream_nodes_matrix = downstream_nodes_matrix.loc[
         edisgo_obj.topology.buses_df.index]
 print('Downstream node matrix imported.')
 
+data_dir = r'U:\Software\eDisGo_mirror'
 flexibility_bands = pd.DataFrame()
 for use_case in ['home', 'work']:
     try:
         flexibility_bands_tmp = \
-            pd.read_csv('grid_data/ev_flexibility_bands_{}_{}.csv'.format(grid_id, use_case),
-                        index_col=0, dtype=np.float32)
+            pd.read_csv(os.path.join(
+                data_dir, 'grid_data/ev_flexibility_bands_{}_{}.csv'.format(grid_id, use_case)),
+                index_col=0, dtype=np.float32)
     except:
         flexibility_bands_tmp = cEV.get_energy_bands_for_optimization(data_dir, edisgo_dir, grid_id, use_case)
     rename_dict = {col: col + '_{}'.format(use_case) for col in
@@ -69,10 +73,10 @@ flexibility_bands.loc[:,
         flexibility_bands.columns.str.contains('power')]]+1e-6).values
 print('Flexibility bands imported.')
 mapping_home = \
-        gpd.read_file(mapping_dir + '/cp_data_home_within_grid_{}.geojson'.
+        pd.read_csv(mapping_dir + '/cp_data_home_within_grid_{}.csv'.
                       format(grid_id)).set_index('edisgo_id')
 mapping_work = \
-    gpd.read_file(mapping_dir + '/cp_data_work_within_grid_{}.geojson'.
+    pd.read_csv(mapping_dir + '/cp_data_work_within_grid_{}.csv'.
                   format(grid_id)).set_index('edisgo_id')
 mapping_home['use_case'] = 'home'
 mapping_work['use_case'] = 'work'
@@ -112,7 +116,7 @@ energy_level_start = None
 overlap_interations = 24
 energy_level = {}
 charging_ev = {}
-for iteration in range(7,
+for iteration in range(0,
         int(len(edisgo_obj.timeseries.timeindex) / timesteps_per_iteration)):  # edisgo_obj.timeseries.timeindex.week.unique()
 
     print('Starting optimisation for week {}.'.format(iteration))
@@ -155,17 +159,23 @@ for iteration in range(7,
                 print('Very small charging power: {}, set to 0.'.format(cp_tmp))
                 charging_start[cp_tmp] = 0
     # if week == 0:
-    model = setup_model(parameters, timesteps, objective=objective,
-                        optimize_storage=False, optimize_ev_charging=True,
-                        energy_band_charging_points=flexibility_bands_week,
-                        charging_start=charging_start,
-                        energy_level_start=energy_level_start)
+    try:
+        model = update_model(model, timesteps, parameters, optimize_storage=optimize_storage,
+                             optimize_ev=optimize_ev, energy_band_charging_points=flexibility_bands_week,
+                             charging_start=charging_start, energy_level_start=energy_level_start,
+                             energy_level_end=energy_level_end)
+    except NameError:
+        model = setup_model(parameters, timesteps, objective=objective,
+                            optimize_storage=False, optimize_ev_charging=True,
+                            energy_band_charging_points=flexibility_bands_week,
+                            charging_start=charging_start,
+                            energy_level_start=energy_level_start, energy_level_end=energy_level_end,
+                            overlap_interations=overlap_interations)
     print('Set up model for week {}.'.format(iteration))
 
-    x_charge, soc, charging_ev[iteration], energy_level[iteration], curtailment_feedin, \
-    curtailment_load, curtailment_ev, v_bus, p_line, q_line, slack_charging, \
-    slack_energy, slack_v_pos, slack_v_neg, slack_p_cum_pos, slack_p_cum_neg = \
-        optimize(model, 'gurobi')
+    result_dict = optimize(model, solver)
+    charging_ev[iteration] = result_dict['x_charge_ev']
+    energy_level[iteration] = result_dict['energy_level_cp']
     if iteration % iterations_per_era != iterations_per_era - 1:
         charging_start = charging_ev[iteration].iloc[-overlap_interations]
         charging_start.to_csv('results/tests/charging_start.csv')

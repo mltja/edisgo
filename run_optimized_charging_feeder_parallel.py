@@ -1,16 +1,20 @@
 import multiprocessing as mp
 import os
 import datetime
+from time import perf_counter
 
 
 from edisgo.edisgo import import_edisgo_from_files
-from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping, prepare_time_invariant_parameters
+from edisgo.flex_opt.optimization import setup_model, optimize, check_mapping, prepare_time_invariant_parameters, update_model
 from edisgo.tools.tools import convert_impedances_to_mv
 import pandas as pd
 import numpy as np
 
+optimize_storage = False
+optimize_ev = True
 
-def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load_results=True, iteration=5):
+
+def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test_mutable', load_results=False, iteration=0):
     objective = 'residual_load'
     timesteps_per_iteration = 24 * 4
     iterations_per_era = 7
@@ -175,41 +179,55 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load
             energy_level_end = True
         # Check if problem will be feasible
         if charging_start is not None:
+            low_power_cp = []
+            violation_lower_bound_cp = []
+            violation_upper_bound_cp = []
             for cp_tmp in energy_level_start.index:
                 flex_id_tmp = '_'.join([str(mapping.loc[cp_tmp, 'ags']),
                            str(mapping.loc[cp_tmp, 'cp_idx']),
                            mapping.loc[cp_tmp, 'use_case']])
                 if energy_level_start[cp_tmp] > flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp]:
-                    print('charging point {} violates upper bound.'.format(cp_tmp))
                     if energy_level_start[cp_tmp]-flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp] > 1e-4:
                         raise ValueError('Optimisation should not return values higher than upper bound. '
                                          'Problem for {}. Initial energy level is {}, but upper bound {}.'.format(
                             cp_tmp, energy_level_start[cp_tmp], flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp]))
                     else:
                         energy_level_start[cp_tmp] = flexibility_bands_week.iloc[0]['upper_' + flex_id_tmp] - 1e-6
+                        violation_upper_bound_cp.append(cp_tmp)
                 if energy_level_start[cp_tmp] < flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp]:
-                    print('charging point {} violates lower bound.'.format(cp_tmp))
+
                     if -energy_level_start[cp_tmp] + flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp] > 1e-4:
                         raise ValueError('Optimisation should not return values lower than lower bound. '
                                          'Problem for {}. Initial energy level is {}, but lower bound {}.'.format(
                             cp_tmp, energy_level_start[cp_tmp], flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp]))
                     else:
                         energy_level_start[cp_tmp] = flexibility_bands_week.iloc[0]['lower_' + flex_id_tmp] + 1e-6
+                        violation_lower_bound_cp.append(cp_tmp)
                 if charging_start[cp_tmp] < 1e-5:
-                    print('Very small charging power: {}, set to 0.'.format(cp_tmp))
+                    low_power_cp.append(cp_tmp)
                     charging_start[cp_tmp] = 0
-        # if week == 0:
-        model = setup_model(parameters, timesteps, objective=objective,
-                            optimize_storage=False, optimize_ev_charging=True,
-                            energy_band_charging_points=flexibility_bands_week,
-                            charging_start=charging_start,
-                            energy_level_start=energy_level_start, energy_level_end=energy_level_end)
+            print('Very small charging power: {}, set to 0.'.format(low_power_cp))
+            print('Charging points {} violates lower bound.'.format(violation_lower_bound_cp))
+            print('Charging points {} violates upper bound.'.format(violation_upper_bound_cp))
+        try:
+            model = update_model(model, timesteps, parameters, optimize_storage=optimize_storage,
+                                 optimize_ev=optimize_ev, energy_band_charging_points=flexibility_bands_week,
+                                 charging_start=charging_start, energy_level_start=energy_level_start,
+                                 energy_level_end=energy_level_end)
+        except NameError:
+            model = setup_model(parameters, timesteps, objective=objective,
+                                optimize_storage=False, optimize_ev_charging=True,
+                                energy_band_charging_points=flexibility_bands_week,
+                                charging_start=charging_start,
+                                energy_level_start=energy_level_start, energy_level_end=energy_level_end,
+                                overlap_interations=overlap_interations)
+
         print('Set up model for week {}.'.format(iteration))
 
-        x_charge, soc, charging_ev[iteration], energy_level[iteration], curtailment_feedin, \
-        curtailment_load, curtailment_ev,  curtailment_reactive_feedin, curtailment_reactive_load,\
-        v_bus, p_line, q_line, slack_charging, slack_energy, slack_v_pos,\
-        slack_v_neg, slack_p_cum_pos, slack_p_cum_neg = optimize(model, solver)
+        result_dict = optimize(model, solver)
+        charging_ev[iteration] = result_dict['x_charge_ev']
+        energy_level[iteration] = result_dict['energy_level_cp']
+
         if iteration % iterations_per_era != iterations_per_era - 1:
             charging_start = charging_ev[iteration].iloc[-overlap_interations]
             energy_level_start = energy_level[iteration].iloc[-overlap_interations]
@@ -218,41 +236,9 @@ def run_optimized_charging_feeder_parallel(grid_feeder_tuple, run='_test2', load
             energy_level_start = None
 
         print('Finished optimisation for week {}.'.format(iteration))
-        x_charge.astype(np.float16).to_csv(
-            result_dir + '/x_charge_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        soc.astype(np.float16).to_csv(result_dir + '/soc_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        charging_ev[iteration].astype(np.float16).to_csv(
-            result_dir + '/x_charge_ev_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        energy_level[iteration].astype(np.float16).to_csv(
-            result_dir + '/energy_band_cp_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        curtailment_feedin[curtailment_feedin > 0].dropna(how='all').dropna(how='all', axis=1).astype(np.float16).to_csv(
-            result_dir + '/curtailment_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        curtailment_load[curtailment_load > 0].dropna(how='all').dropna(how='all', axis=1).astype(np.float16).to_csv(
-            result_dir + '/curtailment_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        curtailment_ev[curtailment_ev > 0].dropna(how='all').dropna(how='all', axis=1).astype(np.float16).to_csv(
-            result_dir + '/curtailment_ev_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        curtailment_reactive_feedin[curtailment_reactive_feedin > 0].dropna(how='all').dropna(how='all', axis=1).to_csv(
-            result_dir + '/curtailment_reactive_feedin_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        curtailment_reactive_load[curtailment_reactive_load > 0].dropna(how='all').dropna(how='all', axis=1).to_csv(
-            result_dir + '/curtailment_reactive_load_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        v_bus.astype(np.float16).to_csv(
-            result_dir + '/bus_voltage_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        p_line.astype(np.float16).to_csv(
-            result_dir + '/line_active_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        q_line.astype(np.float16).to_csv(
-            result_dir + '/line_reactive_power_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        slack_charging.astype(np.float16).to_csv(
-            result_dir + '/slack_charging_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        slack_energy.astype(np.float16).to_csv(
-            result_dir + '/slack_energy_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        slack_v_pos[slack_v_pos > 0].dropna(how='all').dropna(how='all', axis=1).astype(np.float16).to_csv(
-            result_dir + '/slack_v_pos_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        slack_v_neg[slack_v_neg > 0].dropna(how='all').dropna(how='all', axis=1).astype(np.float16).to_csv(
-            result_dir + '/slack_v_neg_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        slack_p_cum_pos[slack_p_cum_pos > 0].dropna(how='all').dropna(how='all', axis=1).astype(np.float16).to_csv(
-            result_dir + '/slack_p_cum_pos_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
-        slack_p_cum_neg[slack_p_cum_neg > 0].dropna(how='all').dropna(how='all', axis=1).astype(np.float16).to_csv(
-            result_dir + '/slack_p_cum_neg_{}_{}_{}.csv'.format(grid_id, feeder_id, iteration))
+        for res_name, res in result_dict.items():
+            res.astype(np.float16).to_csv(result_dir + '/{}_{}_{}_{}.csv'.format(
+                res_name, grid_id, feeder_id, iteration))
         print('Saved results for week {}.'.format(iteration))
 
     # 'except Exception as e:
