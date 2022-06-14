@@ -6,29 +6,28 @@ import edisgo.network as nw
 def translate_df_to_graph(buses_df, lines_df, transformers_df=None):
     graph = nx.OrderedGraph()
 
-    buses = buses_df.index
     # add nodes
+    buses = [(bus_name, {'pos': (x, y)}) for bus_name, x, y in zip(buses_df.index,
+                                                                   buses_df.x,
+                                                                   buses_df.y)]
     graph.add_nodes_from(buses)
+
     # add branches
     branches = []
-    for line_name, line in lines_df.iterrows():
-        branches.append(
-            (
-                line.bus0,
-                line.bus1,
-                {"branch_name": line_name, "length": line.length},
-            )
-        )
+    for line_name, bus0, bus1, length in zip(lines_df.index,
+                                             lines_df.bus0,
+                                             lines_df.bus1,
+                                             lines_df.length):
+        branches.append((bus0, bus1, {"branch_name": line_name, "length": length}))
+
     if transformers_df is not None:
-        for trafo_name, trafo in transformers_df.iterrows():
-            branches.append(
-                (
-                    trafo.bus0,
-                    trafo.bus1,
-                    {"branch_name": trafo_name, "length": 0},
-                )
-            )
+        for trafo_name, bus0, bus1 in zip(transformers_df.index,
+                                          transformers_df.bus0,
+                                          transformers_df.bus1):
+            branches.append((bus0, bus1, {"branch_name": trafo_name, "length": 0}))
+
     graph.add_edges_from(branches)
+
     return graph
 
 

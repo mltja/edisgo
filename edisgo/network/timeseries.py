@@ -612,6 +612,7 @@ def get_component_timeseries(edisgo_obj, **kwargs):
             )
             _worst_case_generation(edisgo_obj=edisgo_obj, modes=modes)
             _worst_case_load(edisgo_obj=edisgo_obj, modes=modes)
+            _worst_case_charging_point(edisgo_obj=edisgo_obj, modes=modes)
             _worst_case_storage(edisgo_obj=edisgo_obj, modes=modes)
 
         elif mode == "manual":
@@ -1095,7 +1096,7 @@ def _worst_case_load(edisgo_obj, modes, load_names=None):
     if load_names is None:
         load_names = edisgo_obj.topology.loads_df.index
     loads_df = edisgo_obj.topology.loads_df.loc[
-        load_names, ["bus", "sector", "peak_load"]
+        load_names, ["bus", "peak_load"]
     ]
 
     # check that all loads have bus, sector, annual consumption
@@ -1162,6 +1163,100 @@ def _worst_case_load(edisgo_obj, modes, load_names=None):
         component_type="loads"
     )
 
+def _worst_case_charging_point(edisgo_obj, modes):
+    """
+    Define worst case charging_point time series.
+
+    Parameters
+    ----------
+    edisgo_obj: :class:`~.self.edisgo.EDisGo`
+        The eDisGo model overall container
+    modes : list
+        List with worst-cases to generate time series for. Can be
+        'feedin_case', 'load_case' or both.
+    load_names: str or list of str
+        Names of loads to add timeseries for. Default None, timeseries
+        for all loads of edisgo_obj are set then.
+
+    """
+
+    voltage_levels = ["mv", "lv"]
+
+
+    load_names = edisgo_obj.topology.charging_points_df.index
+
+    charging_points_df = edisgo_obj.topology.charging_points_df.loc[
+        load_names, ["bus", "p_nom"]
+    ]
+
+    # check that all loads have bus, sector, annual consumption
+    check_loads = charging_points_df.isnull().any(axis=1)
+    if check_loads.any():
+        raise AttributeError(
+            "The following loads have either missing bus, sector or "
+            "annual consumption: {}.".format(
+                check_loads[check_loads].index.values
+            )
+        )
+
+    # assign voltage level to loads
+    if charging_points_df.empty:
+        return
+    charging_points_df["voltage_level"] = charging_points_df.apply(
+        lambda _: "lv"
+        if edisgo_obj.topology.buses_df.at[_.bus, "v_nom"] < 1
+        else "mv",
+        axis=1,
+    )
+    # active power
+    # get worst case configurations
+    worst_case_scale_factors = edisgo_obj.config["worst_case_scale_factor"]
+
+    # feedin_scaling_factor = 0
+    # load_scaling_factor = 0.1
+    # worst_case_scale_factors = {
+    #     "mv_feedin_case_charging_point":feedin_scaling_factor,
+    #     "mv_load_case_charging_point":load_scaling_factor,
+    #     "lv_feedin_case_charging_point":feedin_scaling_factor,
+    #     "lv_load_case_charging_point":load_scaling_factor
+    # }
+
+    # get power scaling factors for different voltage levels and feed-in/load case
+    power_scaling = {}
+    for voltage_level in voltage_levels:
+        power_scaling[voltage_level] = [
+            worst_case_scale_factors["{}_{}_charging_point".format(voltage_level, mode)]
+            for mode in modes
+        ]
+
+    # assign power scaling factor to each load
+    power_scaling_df = pd.DataFrame(
+        data=np.transpose(
+            [
+                power_scaling[charging_points_df.at[col, "voltage_level"]]
+                for col in charging_points_df.index
+            ]
+        ),
+        index=edisgo_obj.timeseries.timeindex,
+        columns=charging_points_df.index,
+    )
+    # drop existing timeseries
+    _drop_existing_component_timeseries(
+        edisgo_obj=edisgo_obj, comp_type="charging_points", comp_names=load_names
+    )
+
+    # calculate active power of charging_points
+    edisgo_obj.timeseries.charging_points_active_power = pd.concat(
+        [edisgo_obj.timeseries.charging_points_active_power,
+         (power_scaling_df * charging_points_df.loc[:, "p_nom"])
+         ],
+        axis=1
+    )
+
+    # set reactive power of charging_points to 0
+    edisgo_obj.timeseries.charging_points_reactive_power = (
+            0 * edisgo_obj.timeseries.charging_points_active_power
+    )
 
 def _worst_case_storage(edisgo_obj, modes, storage_names=None):
     """

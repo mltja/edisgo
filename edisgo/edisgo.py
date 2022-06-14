@@ -503,6 +503,16 @@ class EDisGo:
 
         if all(pf_results["converged"]["0"].tolist()):
             pypsa_io.process_pfa_results(self, pypsa_network, timesteps)
+        elif any(pf_results["converged"]["0"].tolist()):
+            logger.info(
+                "Power flow analysis did not converge for the "
+                "following time steps: {}.".format(
+                    timesteps[~pf_results["converged"]["0"]].tolist()
+                )
+            )
+            pypsa_io.process_pfa_results(self,
+                                         pypsa_network,
+                                         timesteps[pf_results["converged"]["0"]])
         else:
             raise ValueError("Power flow analysis did not converge for the "
                              "following time steps: {}.".format(
@@ -598,7 +608,7 @@ class EDisGo:
 
         """
         # aggregate generators at the same bus
-        if mode is "by_component_type" or "by_load_and_generation":
+        if mode in ["by_component_type", "by_load_and_generation"]:
             if not self.topology.generators_df.empty:
                 gens_groupby = self.topology.generators_df.groupby(
                     aggregate_generators_by_cols)
@@ -646,7 +656,7 @@ class EDisGo:
 
         # aggregate conventional loads at the same bus and charging points
         # at the same bus separately
-        if mode is "by_component_type":
+        if mode == "by_component_type":
 
             # conventional loads
             if not self.topology.loads_df.empty:
@@ -733,7 +743,7 @@ class EDisGo:
 
         # aggregate all loads (conventional loads and charging points) at the
         # same bus
-        elif mode is "by_load_and_generation":
+        elif mode == "by_load_and_generation":
             aggregate_loads_by_cols = ["bus"]
             loads_groupby = pd.concat(
                 [self.topology.loads_df.loc[:, ["bus", "peak_load"]],

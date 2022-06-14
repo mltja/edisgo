@@ -629,15 +629,16 @@ def optimize(model, solver, load_solutions=True, mode=None):
     print('Starting optimisation')
     t1 = perf_counter()
     opt = pm.SolverFactory(solver)
+    #opt.options["OptimalityTol"] = 0.01
     #opt.options['preprocessing presolve'] = 0
 
     # Optimize
     results = opt.solve(model, tee=True, #options={"threads":4},
                         load_solutions=load_solutions)
 
-    if (results.solver.status == SolverStatus.ok) and \
-            (
-                    results.solver.termination_condition == TerminationCondition.optimal):
+    if True:
+        print('SolverSatus', results.solver.status)
+        print('SolverTerminationCondition', results.solver.termination_condition)
         print('Model Solved to Optimality')
         # Extract results
         time_dict = {t: model.timeindex[t].value for t in model.time_set}
